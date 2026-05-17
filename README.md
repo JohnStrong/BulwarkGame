@@ -55,41 +55,45 @@ BasicTowerDefense/
 ### Prerequisites
 
 - Node.js (v16+)
-- A local HTTP server (Python, npx serve, or similar)
 
-### Setup
-
-```bash
-# Clone/download the project
-cd BasicTowerDefense
-
-# Install dependencies (only needed for sprite generation)
-npm install
-```
-
-### Running the Game
-
-The game loads assets via `fetch()` so it needs an HTTP server:
+### Quick Start
 
 ```bash
-# Using Python
-python3 -m http.server 8000
+# Clone the repository
+git clone https://github.com/JohnStrong/BasicGenAITowerDefense.git
+cd BasicGenAITowerDefense
 
-# Using Node.js
-npx serve .
-
-# Using PHP
-php -S localhost:8000
+# Install dependencies, generate all sprites + level, then start the server
+npm run init
+npm start
 ```
 
-Then open `http://localhost:8000` in your browser.
+Open `http://localhost:8000` in your browser.
+
+`npm run init` only needs to be run once (or whenever you want to regenerate sprites from scratch). After that, just use `npm start` to launch the game.
+
+### NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run init` | Full setup: install deps, generate sprites + level |
+| `npm start` | Start local server on port 8000 |
+| `npm run generate` | Regenerate all sprites and level map |
+| `npm run generate:sprites` | Regenerate only sprite PNGs |
+| `npm run generate:level` | Regenerate only level1.txt |
+| `npm run serve` | Start server (alias for start) |
 
 ### Regenerating Sprites
 
-All sprites are procedurally generated via Node.js scripts. To regenerate:
+All sprites are procedurally generated. To regenerate everything:
 
 ```bash
-# Generate all sprite types
+npm run generate
+```
+
+Or run individual generators:
+
+```bash
 node js/level-generators/generate-grass-sprites.js
 node js/level-generators/generate-border-sprites.js
 node js/level-generators/generate-water-sprites.js
@@ -98,8 +102,6 @@ node js/level-generators/generate-castle-sprites.js
 node js/level-generators/generate-large-sprites.js
 node js/level-generators/generate-road-sprite.js
 node js/level-generators/generate-structure-sprites.js
-
-# Regenerate level 1 map
 node js/level-generators/generate-level1.js
 ```
 
