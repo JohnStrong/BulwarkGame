@@ -1,6 +1,10 @@
 # Medieval Tower Defense
 
-A turn-based medieval tower defense game built with vanilla JavaScript and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
+> ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the map rendering and level generation systems are functional.
+
+![Level 1 Preview](docs/level1-preview.png)
+
+A turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
 
 ## The Game
 
@@ -107,7 +111,14 @@ node js/level-generators/generate-level1.js
 
 ### Level File Format
 
-Levels are plain text files where each character represents a tile. The map uses a 2x2 logical grid (each game element occupies 2x2 characters). See `js/game-logic/level-loader.js` for the full tile legend.
+Levels are plain text files where each character represents a tile. See `levels/level1.txt` for a fully commented example with the complete tile legend.
+
+### Architecture Documentation
+
+Detailed documentation for developers:
+
+- **[docs/game-logic.md](docs/game-logic.md)** — How the browser-side game code works (sprites, level loader, renderer)
+- **[docs/generators.md](docs/generators.md)** — How the Node.js sprite and level generators work (algorithms, seeded random, noise)
 
 Key tile characters:
 | Char | Element | Size |

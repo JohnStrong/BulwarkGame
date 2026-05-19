@@ -7,6 +7,7 @@
     "generate:sprites": "node js/level-generators/generate-smooth-sprites.js",
     "generate:level": "node js/level-generators/generate-tutorial-level.js",
     "generate:random": "node js/level-generators/generate-random-level.js",
+    "generate:preview": "node js/level-generators/render-level-preview.js",
     "generate": "npm run generate:sprites && npm run generate:level",
     "serve": "npx serve . -l 8000",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",
