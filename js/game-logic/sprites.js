@@ -12,24 +12,17 @@ const SpriteManager = {
         'grass-flowers-1',
         'grass-flowers-2',
 
-        // Road (smooth orange path)
+        // Road
         'road-full',
         'road-edge-left',
         'road-edge-right',
         'road-edge-top',
         'road-edge-bottom',
-        'road-corner-tl',
-        'road-corner-tr',
-        'road-corner-bl',
-        'road-corner-br',
 
         // Water
         'water-1',
         'water-2',
         'water-3',
-        'water-h-1',
-        'water-h-2',
-        'water-h-3',
         'water-land-right',
         'water-land-left',
 

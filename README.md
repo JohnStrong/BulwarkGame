@@ -8,15 +8,13 @@ A turn-based medieval tower defense game with procedurally generated pixel art s
 
 ## The Game
 
-You are the lord of a medieval castle. Enemies approach from the river to the east, marching along the road toward your stronghold. Your castle features:
+Enemies enter from the top of the map and march along dirt roads toward your stronghold. The terrain features:
 
-- A **Keep** (the main fortified tower)
-- **Curtain walls** with corner towers
-- A **Gatehouse** with portcullis
-- A **Moat** surrounding the castle
-- A **Bailey** (courtyard) for troop staging
-- **Village huts** housing your peasants
-- **Oak forests** providing resources and cover
+- **Dirt roads** — enemy paths (where to place defenses)
+- **River** — natural barrier flowing through the center of the map
+- **Stone bridge** — chokepoint where the road crosses the river
+- **Forest** — provides cover, blocks line of sight, can be set ablaze
+- **Open grassland** — good for tower/defense placement
 
 The game is turn-based with two phases per turn:
 1. **Setup phase** — move a pawn/resource, place defenses
@@ -29,29 +27,28 @@ Win/fail conditions: TBC
 ```
 BasicTowerDefense/
 ├── index.html                  # Game entry point
-├── package.json                # Node.js config (for sprite generation)
+├── package.json                # Node.js config
+├── docs/
+│   ├── game-logic.md           # Game code documentation
+│   ├── generators.md           # Generator code documentation
+│   └── level1-preview.png      # Rendered map preview
 ├── levels/
 │   ├── manifest.txt            # Level load order
-│   └── level1.txt              # Level 1 map (text-based tile grid)
+│   ├── level1.txt              # Tutorial level (fully commented)
+│   └── candidates/             # Random generator output (for review)
 ├── assets/
-│   └── sprites/                # 32x32 and 64x64 PNG sprite images
-├── js/
-│   ├── game-logic/             # Browser-side game code
-│   │   ├── utils.js            # Constants and utility functions
-│   │   ├── sprites.js          # Sprite loading and rendering
-│   │   ├── level-loader.js     # Text file level parser
-│   │   └── game.js             # Main game loop and renderer
-│   └── level-generators/       # Node.js sprite/level generation scripts
-│       ├── generate-level1.js          # Level 1 map generator
-│       ├── generate-grass-sprites.js   # Grass tile sprites
-│       ├── generate-border-sprites.js  # Map border sprites
-│       ├── generate-water-sprites.js   # Water and coastline sprites
-│       ├── generate-oak-sprites.js     # Oak tree sprites (2x2)
-│       ├── generate-castle-sprites.js  # Wall, tower, gatehouse sprites
-│       ├── generate-large-sprites.js   # Keep (4x4) sprite
-│       ├── generate-road-sprite.js     # Dirt road sprite
-│       └── generate-structure-sprites.js # Hut and bailey sprites
-└── README.md
+│   └── sprites/                # 32x32 PNG sprite images (34 files)
+└── js/
+    ├── game-logic/             # Browser-side game code
+    │   ├── utils.js            # Constants (TILE_SIZE) and loaders
+    │   ├── sprites.js          # Sprite loading and rendering
+    │   ├── level-loader.js     # Text file level parser
+    │   └── game.js             # Main game loop and renderer
+    └── level-generators/       # Node.js generation scripts
+        ├── generate-smooth-sprites.js  # All 34 sprite PNGs
+        ├── generate-tutorial-level.js  # Tutorial level (level1.txt)
+        ├── generate-random-level.js    # Seeded random level generator
+        └── render-level-preview.js     # Renders level to PNG for docs
 ```
 
 ## Developer Guide
@@ -84,55 +81,53 @@ Open `http://localhost:8000` in your browser.
 | `npm start` | Start local server on port 8000 |
 | `npm run generate` | Regenerate all sprites and level map |
 | `npm run generate:sprites` | Regenerate only sprite PNGs |
-| `npm run generate:level` | Regenerate only level1.txt |
+| `npm run generate:level` | Regenerate tutorial level (level1.txt) |
+| `npm run generate:random` | Generate a random level to candidates/ |
+| `npm run generate:preview` | Render level1 to docs/level1-preview.png |
 | `npm run serve` | Start server (alias for start) |
 
-### Regenerating Sprites
-
-All sprites are procedurally generated. To regenerate everything:
+### Generating Random Levels
 
 ```bash
-npm run generate
+# Random seed (uses timestamp)
+npm run generate:random
+
+# Specific seed for reproducible maps
+node js/level-generators/generate-random-level.js 42
+node js/level-generators/generate-random-level.js 999
 ```
 
-Or run individual generators:
-
+Output goes to `levels/candidates/`. Review the files, then promote to the game:
 ```bash
-node js/level-generators/generate-grass-sprites.js
-node js/level-generators/generate-border-sprites.js
-node js/level-generators/generate-water-sprites.js
-node js/level-generators/generate-oak-sprites.js
-node js/level-generators/generate-castle-sprites.js
-node js/level-generators/generate-large-sprites.js
-node js/level-generators/generate-road-sprite.js
-node js/level-generators/generate-structure-sprites.js
-node js/level-generators/generate-level1.js
+cp levels/candidates/2026-05-19_seed-42.txt levels/level2.txt
+# Add 'level2.txt' to levels/manifest.txt
 ```
 
 ### Level File Format
 
-Levels are plain text files where each character represents a tile. See `levels/level1.txt` for a fully commented example with the complete tile legend.
+Levels are plain text files where each character represents a tile. See `levels/level1.txt` for a fully commented example.
+
+| Char | Element |
+|------|---------|
+| `.` | Grass (green meadow) |
+| `,` | Grass with flowers |
+| `O` | Tree (dark green canopy) |
+| `R` | Rock decoration |
+| `D` | Road full (dirt) |
+| `L` | Road left-edge (grass\|road) |
+| `r` | Road right-edge (road\|grass) |
+| `U` | Road top-edge (grass above) |
+| `u` | Road bottom-edge (grass below) |
+| `1/2/3/4` | Road corners (TL/TR/BL/BR) |
+| `~` | Water vertical flow |
+| `w` | Water horizontal flow |
+| `)` | Right bank (water\|grass) |
+| `(` | Left bank (grass\|water) |
+| `{^}` | Bridge top row (wall + road) |
+| `[=]` | Bridge middle row (cobblestone) |
+| `<_>` | Bridge bottom row (road + wall) |
 
 ### Architecture Documentation
 
-Detailed documentation for developers:
-
 - **[docs/game-logic.md](docs/game-logic.md)** — How the browser-side game code works (sprites, level loader, renderer)
 - **[docs/generators.md](docs/generators.md)** — How the Node.js sprite and level generators work (algorithms, seeded random, noise)
-
-Key tile characters:
-| Char | Element | Size |
-|------|---------|------|
-| `.`  | Grass | 1x1 |
-| `,`  | Flowers | 1x1 |
-| `#`  | Border | 1x1 |
-| `~`  | Water | 1x1 |
-| `P/p` | Oak tree | 2x2 |
-| `D/d` | Road | 2x2 |
-| `H/h` | Hut | 2x2 |
-| `G/g` | Gatehouse | 2x2 |
-| `K/k` | Keep | 4x4 |
-| `W`  | Wall (horizontal) | 1x1 |
-| `\|` | Wall (vertical) | 1x1 |
-| `T`  | Tower | 1x1 |
-| `C`  | Bailey | 1x1 |
