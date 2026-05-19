@@ -1,45 +1,34 @@
-; Level 1 - Medieval Castle (2x2 grid)
-; All major sprites are 2x2 tiles (64x64px)
-; K=keep(4x4) G=gate(2x2) P=oak(2x2) D=road(2x2) H=hut(2x2)
-; T=tower W=wall-h |=wall-v L/R=wall-gate C=bailey ~=water
-name=Castle Stronghold
-########################################
-########################################
-##PpPp......................PpPp....))~~
-##pppp......................pppp....))~~
-##PpPp~~~~~~~~~~~~~~~~~~~~~~..Pp....))~~
-##pppp~~~~~~~~~~~~~~~~~~~~~~..pp....))~~
-##....~~TTWWWWWWWWWWWWWWTT~~........))~~
-##....~~TTWWWWWWWWWWWWWWTT~~........))~~
-##....~~||CCCCCCCCCCCCCC||~~........))~~
-##....~~||CCCCCCCCCCCCCC||~~........))~~
-##Pp..~~||CCKkkkCCCCCCCC||~~........))~~
-##pp..~~||CCkkkkCCCCCCCC||~~........))~~
-##Pp..~~||CCkkkkCCCCCCCC||~~..,,....))~~
-##pp..~~||CCkkkkCCCCCCCC||~~..,,....))~~
-##....~~||CCCCCCCCCCCCCC||~~Pp......))~~
-##....~~||CCCCCCCCCCCCCC||~~pp......))~~
-##Pp..~~||CCCCCCCCCCCCCC||~~........))~~
-##pp..~~||CCCCCCCCCCCCCC||~~........))~~
-##Pp..~~TTWWWWLLGgRRWWWWTT~~........))~~
-##pp..~~TTWWWWLLggRRWWWWTT~~........))~~
-##....~~~~~~~~~~Dd~~~~~~~~~~........))~~
-##....~~~~~~~~~~dd~~~~~~~~~~........))~~
-##....,,....HhHhDd..................))~~
-##....,,....hhhhdd..................))~~
-##....,,....Hh..DdDd........Pp......))~~
-##....,,....hh..dddd........pp......))~~
-##............HhHhDdDd..............))~~
-##............hhhhdddd..............))~~
-##Pp................DdDd......,,....))~~
-##pp................dddd......,,....))~~
-##Pp......,,,,........DdDd..........))~~
-##pp......,,,,........dddd..........))~~
-##Pp....................DdDd..Pp....))~~
-##pp....................dddd..pp....))~~
-##Pp............,,,,......DdDd..Pp..))~~
-##pp............,,,,......dddd..pp..))~~
-##..........................DdDd....))~~
-##..........................dddd....))~~
-####################################>>##
-####################################>>##
+; Tutorial Level - The Crossing
+; Bridge: { ^ } (top)  [ = ] (mid/road)  < _ > (bottom)
+; ( = left bank  ) = right bank
+name=Tutorial - The Crossing
+~~).......UUUU......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~).......LDDr.O....(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~~).OO...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~~).OOO..LDDr..R...(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~~).OO...LDDr...O..(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~)...OO..LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~)..OO...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~)..O....LDDr.O....(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~)...OO...LDDr....R.(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~)....O...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~).....O..LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~).......LDDr...O..(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~).....R.DDDD......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
+~~)..DDDDDDDDDDDDDDD{^}DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~)..DDDDDDDDDDDDDDD[=]DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~~).DDDDDDDDDDDDDDD<_>DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~~).uuuuuDDDDuuuuuu(~~~)uuuuuuuuuuuuuuuuuuuuuuuu.
+~~~)......DDDD......(~~~).........................
+~~).......LDDr......(~~~)..OO...........O.........
+~~)....O..LDDr..R...(~~~)..OOO....................
+~~)...O...LDDr......(~~~)...OO...,,...............
+~)........LDDr......(~~~)..OO....,,...............
+~).....O..LDDr......(~~~)...O.........O...........
+~)........DDDD......(~~~).........................
+~~)..DDDDDDDDDDDDDDD{^}DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~)..DDDDDDDDDDDDDDD[=]DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~)..DDDDDDDDDDDDDDD<_>DDDDDDDDDDDDDDDDDDDDDDDDD..
+~~~).uuuuuuuuuuuuuuuu(~~~)uuuuuuuuuuuuuuuuuuuuuuu.
+~~~).OOO.......O..R..(~~~)...............O........
+~~~).OOOO........O...(~~~)...............O........

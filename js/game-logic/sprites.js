@@ -6,47 +6,48 @@ const SpriteManager = {
     images: {},
 
     spriteList: [
-        // Border (map edge)
-        'border-top',
-        'border-bottom',
-        'border-left',
-        'border-right',
-        'border-corner-tl',
-        'border-corner-tr',
-        'border-corner-bl',
-        'border-corner-br',
-        'hill-border',
-
         // Grass
         'grass-short-1',
         'grass-short-2',
         'grass-flowers-1',
         'grass-flowers-2',
 
+        // Road (smooth orange path)
+        'road-full',
+        'road-edge-left',
+        'road-edge-right',
+        'road-edge-top',
+        'road-edge-bottom',
+        'road-corner-tl',
+        'road-corner-tr',
+        'road-corner-bl',
+        'road-corner-br',
+
         // Water
         'water-1',
         'water-2',
         'water-3',
         'water-land-right',
-        'water-land-br',
+        'water-land-left',
 
-        // Oak trees (2x2)
-        'oak-large-1',
-        'oak-large-2',
-        'oak-large-3',
+        // Trees
+        'tree-1',
+        'tree-2',
+        'tree-3',
 
-        // Structures
-        'wall-h',
-        'wall-v',
-        'tower',
-        'wall-gate-left',
-        'wall-gate-right',
-        'portcullis-large',
-        'hut-1',
-        'hut-2',
-        'bailey',
-        'keep',
-        'road'
+        // Decorations
+        'rock',
+
+        // Bridge (3x3 grid: top/mid/bottom × left/mid/right)
+        'bridge-tl',
+        'bridge-tm',
+        'bridge-tr',
+        'bridge-ml',
+        'bridge-mm',
+        'bridge-mr',
+        'bridge-bl',
+        'bridge-bm',
+        'bridge-br'
     ],
 
     async loadAll() {

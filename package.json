@@ -5,7 +5,8 @@
   "main": "index.html",
   "scripts": {
     "generate:sprites": "node js/level-generators/generate-grass-sprites.js && node js/level-generators/generate-border-sprites.js && node js/level-generators/generate-water-sprites.js && node js/level-generators/generate-oak-sprites.js && node js/level-generators/generate-castle-sprites.js && node js/level-generators/generate-large-sprites.js && node js/level-generators/generate-road-sprite.js && node js/level-generators/generate-structure-sprites.js",
-    "generate:level": "node js/level-generators/generate-level1.js",
+    "generate:level": "node js/level-generators/generate-tutorial-level.js",
+    "generate:random": "node js/level-generators/generate-random-level.js",
     "generate": "npm run generate:sprites && npm run generate:level",
     "serve": "npx serve . -l 8000",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",

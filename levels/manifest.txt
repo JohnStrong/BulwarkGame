@@ -1,2 +1,4 @@
-; Level manifest - list level files in order
+; Level manifest - levels load in order listed here
+; Players progress through levels sequentially
+; Add new levels below after reviewing candidates
 level1.txt

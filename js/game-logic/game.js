@@ -1,6 +1,5 @@
 /**
  * Main game loop and rendering
- * Medieval Tower Defense - terrain display
  */
 
 const Game = {
@@ -22,8 +21,6 @@ const Game = {
 
     startLevel() {
         const level = LevelLoader.getCurrentLevel();
-
-        // Resize canvas to fit level
         this.canvas.width = level.width * TILE_SIZE;
         this.canvas.height = level.height * TILE_SIZE;
     },
@@ -47,24 +44,20 @@ const Game = {
 
         const level = LevelLoader.getCurrentLevel();
 
-        // Draw all terrain tiles
         for (const tile of level.tiles) {
-            if (tile.covered) continue; // Skip tiles covered by multi-tile sprites
+            if (tile.covered) continue;
             const w = tile.width || TILE_SIZE;
             const h = tile.height || TILE_SIZE;
             SpriteManager.draw(ctx, tile.sprite, tile.x, tile.y, w, h);
         }
 
-        // Draw HUD
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(0, 0, this.canvas.width, 24);
+        // HUD
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, this.canvas.width, 20);
         ctx.fillStyle = '#fff';
-        ctx.font = '12px monospace';
+        ctx.font = '11px monospace';
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${level.width}x${level.height} tiles`, 10, 12);
-        ctx.textAlign = 'right';
-        ctx.fillText(level.name, this.canvas.width - 10, 12);
+        ctx.fillText(level.name, 8, 14);
     }
 };
 
