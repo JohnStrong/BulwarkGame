@@ -1,27 +1,49 @@
 /**
  * Level loader - parses text file level descriptors
  *
- * TILE LEGEND:
- *   . = grass (2 variants)
- *   , = grass with flowers (2 variants)
- *   O = tree (3 variants, on grass)
- *   R = rock decoration (on grass)
+ * ═══════════════════════════════════════════════════
+ * TILE LEGEND
+ * ═══════════════════════════════════════════════════
  *
- *   D = road (full, no edges)
- *   L = road edge-left (grass left, road right)
- *   r = road edge-right (road left, grass right)
- *   U = road edge-top (grass top, road bottom)
- *   u = road edge-bottom (road top, grass bottom)
- *   1 = road corner top-left (grass in TL corner)
- *   2 = road corner top-right (grass in TR corner)
- *   3 = road corner bottom-left (grass in BL corner)
- *   4 = road corner bottom-right (grass in BR corner)
+ * TERRAIN:
+ *   .   grass (green meadow, 2 variants)
+ *   ,   grass with flowers (2 variants)
+ *   O   tree (dark green canopy on grass, 3 variants)
+ *   R   rock (grey stone decoration on grass)
  *
- *   ~ = water (3 variants)
- *   ) = water-to-land (water right, grass left)
+ * ROAD (straw/sandy orange dirt, jagged grass edges):
+ *   D   road full (pure dirt, no edges)
+ *   L   road left-edge (grass left | road right)
+ *   r   road right-edge (road left | grass right)
+ *   U   road top-edge (grass above | road below)
+ *   u   road bottom-edge (road above | grass below)
+ *   1   road corner top-left (grass in TL quadrant)
+ *   2   road corner top-right (grass in TR quadrant)
+ *   3   road corner bottom-left (grass in BL quadrant)
+ *   4   road corner bottom-right (grass in BR quadrant)
  *
- *   Lines starting with ; are comments.
- *   name=Level Name sets the display name.
+ * WATER:
+ *   ~   water vertical flow (tidal marks top-to-bottom, 3 variants)
+ *   w   water horizontal flow (tidal marks left-to-right, 3 variants)
+ *   )   right bank (water left | grass right)
+ *   (   left bank (grass left | water right)
+ *
+ * BRIDGE (stone, 3 rows tall x N cols wide):
+ *   {   top-left (dirt | wall+road)
+ *   ^   top-mid (narrow wall top, cobblestone road below)
+ *   }   top-right (wall+road | dirt)
+ *   [   mid-left (dirt | full cobblestone)
+ *   =   mid-mid (full cobblestone road surface)
+ *   ]   mid-right (full cobblestone | dirt)
+ *   <   bot-left (dirt | road+wall)
+ *   _   bot-mid (cobblestone road top, narrow wall bottom)
+ *   >   bot-right (road+wall | dirt)
+ *
+ * METADATA:
+ *   Lines starting with ; are comments (ignored)
+ *   name=Level Name sets the in-game display name
+ *
+ * ═══════════════════════════════════════════════════
  */
 
 const LevelLoader = {
@@ -79,6 +101,7 @@ const LevelLoader = {
                     case '4': level.tiles.push({ x, y, sprite: 'road-corner-br' }); break;
 
                     case '~': level.tiles.push({ x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
+                    case 'w': level.tiles.push({ x, y, sprite: `water-h-${Math.floor(hash * 3) + 1}` }); break;
                     case ')': level.tiles.push({ x, y, sprite: 'water-land-right' }); break;
                     case '(': level.tiles.push({ x, y, sprite: 'water-land-left' }); break;
 

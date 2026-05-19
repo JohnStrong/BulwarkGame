@@ -27,6 +27,9 @@ const SpriteManager = {
         'water-1',
         'water-2',
         'water-3',
+        'water-h-1',
+        'water-h-2',
+        'water-h-3',
         'water-land-right',
         'water-land-left',
 

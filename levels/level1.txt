@@ -1,34 +1,67 @@
-; Tutorial Level - The Crossing
-; Bridge: { ^ } (top)  [ = ] (mid/road)  < _ > (bottom)
-; ( = left bank  ) = right bank
+; ═══════════════════════════════════════════════════
+; TUTORIAL LEVEL - The Crossing
+; ═══════════════════════════════════════════════════
+;
+; TILE LEGEND:
+;
+;   TERRAIN:
+;     .   grass (green meadow)
+;     ,   grass with flowers
+;     O   tree (dark green canopy)
+;     R   rock (grey stone decoration)
+;
+;   ROAD (straw/sandy orange dirt):
+;     D   road full (no edges)
+;     L   road left-edge (grass|road)
+;     r   road right-edge (road|grass)
+;     U   road top-edge (grass above, road below)
+;     u   road bottom-edge (road above, grass below)
+;
+;   WATER (vertical flow, top to bottom):
+;     ~   water (teal, vertical tidal marks)
+;     )   right bank (water|grass transition)
+;     (   left bank (grass|water transition)
+;
+;   BRIDGE (stone, 3 rows tall):
+;     {   top-left (dirt left | wall+road right)
+;     ^   top-mid (narrow wall top, road below)
+;     }   top-right (wall+road left | dirt right)
+;     [   mid-left (dirt left | cobblestone right)
+;     =   mid-mid (full cobblestone road surface)
+;     ]   mid-right (cobblestone left | dirt right)
+;     <   bot-left (dirt left | road+wall right)
+;     _   bot-mid (road above, narrow wall bottom)
+;     >   bot-right (road+wall left | dirt right)
+;
+; ═══════════════════════════════════════════════════
 name=Tutorial - The Crossing
-~~).......UUUU......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~).......LDDr.O....(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~~).OO...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~~).OOO..LDDr..R...(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~~).OO...LDDr...O..(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~)...OO..LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~)..OO...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~)..O....LDDr.O....(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~)...OO...LDDr....R.(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~)....O...LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~).....O..LDDr......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~).......LDDr...O..(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~).....R.DDDD......(~~~)..OOOOOOOOOOOOOOOOOOOOOOO
-~~)..DDDDDDDDDDDDDDD{^}DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~)..DDDDDDDDDDDDDDD[=]DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~~).DDDDDDDDDDDDDDD<_>DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~~).uuuuuDDDDuuuuuu(~~~)uuuuuuuuuuuuuuuuuuuuuuuu.
-~~~)......DDDD......(~~~).........................
-~~).......LDDr......(~~~)..OO...........O.........
-~~)....O..LDDr..R...(~~~)..OOO....................
-~~)...O...LDDr......(~~~)...OO...,,...............
-~)........LDDr......(~~~)..OO....,,...............
-~).....O..LDDr......(~~~)...O.........O...........
-~)........DDDD......(~~~).........................
-~~)..DDDDDDDDDDDDDDD{^}DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~)..DDDDDDDDDDDDDDD[=]DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~)..DDDDDDDDDDDDDDD<_>DDDDDDDDDDDDDDDDDDDDDDDDD..
-~~~).uuuuuuuuuuuuuuuu(~~~)uuuuuuuuuuuuuuuuuuuuuuu.
-~~~).OOO.......O..R..(~~~)...............O........
-~~~).OOOO........O...(~~~)...............O........
+~~)........UU.......(~~~)...OO..O.OO..O............
+~~)........Lr..O....(~~~)....OO..OO.OO...........OO
+~~~).OO....Lr.......(~~~)..O..OO..O..OO.........OO.
+~~~).OOO...Lr..R....(~~~)...OO.OO..OO.O.....OO.....
+~~~).OO....Lr...O...(~~~)..O.OO..OO..OO............
+~~)...OO...Lr.......(~~~)....O.OO.O.OO.......OO..O.
+~~)..OO....Lr.......(~~~)..OO..O..OO..O............
+~~)..O.....Lr..O....(~~~)...OO.OO..OO.O....OO......
+~)...OO....Lr....R..(~~~)..O..OO..O..OO............
+~)....O....Lr.......(~~~)....OO..OO.OO..OO...OO....
+~).....O...Lr.......(~~~)..O.OO..OO..O....OO.......
+~~)........Lr...O...(~~~)...O..OO..OO.O............
+~~).....R..Lr.......(~~~)..OO..O..OO...............
+~~)..UUUUUUDDUUUUUUU{^^^}UUUUUUDUUUUUUDUUUUUUDUUUUU
+~~)..DDDDDDDDDDDDDDD[===]DDDDDDDDDDDDDDDDDDDDDDDDDD
+~~~).uuuuuuuDDuuuuuu<___>uuuuuuuuuuuuuuuuuuuuuuuuuu
+~~~)........Lr......(~~~)..........................
+~~).........Lr......(~~~)..OO......................
+~~)....O....Lr..R...(~~~)..OOO.....................
+~~)...O.....Lr......(~~~)...OO...,,................
+~)..........Lr......(~~~)..OO....,,................
+~).....O....Lr......(~~~)...O......................
+~)..........Lr......(~~~)..........................
+~~)..UUUUUUUDDUUUUUU{^^^}UUUUUUUUUUUUUUUUUUUUUUUUUU
+~~)..DDDDDDDDDDDDDDD[===]DDDDDDDDDDDDDDDDDDDDDDDDDD
+~~)..uuuuuuuuuuuuuuu<___>uuuuuuuuuuuuuuuuuuuuuuuuuu
+~~~).OOO.......O..R.(~~~)...............O..........
+~~~).OOOO........O..(~~~)...............O..........
+~~~)..OO............(~~~)..........................
+~~)..O..............(~~~)..........................
