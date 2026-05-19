@@ -2,7 +2,7 @@
 
 > ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the map rendering and level generation systems are functional.
 
-![Level 1 Preview](docs/level1-preview.png)
+![Level 1 Preview](documentation/generated-sprite-maps-evolution/map-level-1-v0-06.png)
 
 A turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
 
