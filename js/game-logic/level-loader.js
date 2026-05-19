@@ -1,43 +1,29 @@
 /**
- * Level loader - parses text file level descriptors
+ * Level loader - parses text file level descriptors (hexagonal grid)
  *
  * ═══════════════════════════════════════════════════
  * TILE LEGEND
  * ═══════════════════════════════════════════════════
  *
  * TERRAIN:
- *   .   grass (green meadow, 2 variants)
- *   ,   grass with flowers (2 variants)
- *   O   tree (dark green canopy on grass, 3 variants)
- *   R   rock (grey stone decoration on grass)
+ *   .   grass (2 variants)
+ *   ,   flowers (2 variants)
+ *   O   oak tree (3 variants)
+ *   P   pine tree (2 variants)
+ *   S   shrub (2 variants)
+ *   R   rock
  *
- * ROAD (straw/sandy orange dirt, jagged grass edges):
- *   D   road full (pure dirt, no edges)
- *   L   road left-edge (grass left | road right)
- *   r   road right-edge (road left | grass right)
- *   U   road top-edge (grass above | road below)
- *   u   road bottom-edge (road above | grass below)
- *   1   road corner top-left (grass in TL quadrant)
- *   2   road corner top-right (grass in TR quadrant)
- *   3   road corner bottom-left (grass in BL quadrant)
- *   4   road corner bottom-right (grass in BR quadrant)
+ * ROAD:
+ *   D   dirt road (also L, r, U, u — all render the same)
  *
  * WATER:
- *   ~   water vertical flow (tidal marks top-to-bottom, 3 variants)
- *   w   water horizontal flow (tidal marks left-to-right, 3 variants)
- *   )   right bank (water left | grass right)
- *   (   left bank (grass left | water right)
+ *   ~   water (also w, ), ( — all render the same)
  *
- * BRIDGE (stone, 3 rows tall x N cols wide):
- *   {   top-left (dirt | wall+road)
- *   ^   top-mid (narrow wall top, cobblestone road below)
- *   }   top-right (wall+road | dirt)
- *   [   mid-left (dirt | full cobblestone)
- *   =   mid-mid (full cobblestone road surface)
- *   ]   mid-right (full cobblestone | dirt)
- *   <   bot-left (dirt | road+wall)
- *   _   bot-mid (cobblestone road top, narrow wall bottom)
- *   >   bot-right (road+wall | dirt)
+ * BRIDGE:
+ *   =   cobblestone (also {, ^, }, [, ], <, _, >)
+ *
+ * GRID: Hexagonal (pointy-top, odd rows offset right)
+ * Positioning uses hexToPixel(row, col) from utils.js
  *
  * METADATA:
  *   Lines starting with ; are comments (ignored)
@@ -77,45 +63,26 @@ const LevelLoader = {
 
         level.height = mapLines.length;
         level.width = Math.max(...mapLines.map(l => l.length));
+        // Pixel dimensions for hex grid (extra space for odd-row offset)
+        level.pixelWidth = (level.width + 1) * HEX_WIDTH;
+        level.pixelHeight = level.height * HEX_ROW_HEIGHT + HEX_HEIGHT;
 
         for (let row = 0; row < mapLines.length; row++) {
             for (let col = 0; col < mapLines[row].length; col++) {
                 const ch = mapLines[row][col];
-                const x = col * TILE_SIZE, y = row * TILE_SIZE;
+                const { x, y } = hexToPixel(row, col);
                 const hash = this.tileHash(row, col);
 
                 switch (ch) {
                     case '.': level.tiles.push({ x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` }); break;
                     case ',': level.tiles.push({ x, y, sprite: `grass-flowers-${hash > 0.5 ? 2 : 1}` }); break;
                     case 'O': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 3) + 1}` }); break;
+                    case 'P': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 2) + 4}` }); break;
+                    case 'S': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 2) + 6}` }); break;
                     case 'R': level.tiles.push({ x, y, sprite: 'rock' }); break;
-
                     case 'D': level.tiles.push({ x, y, sprite: 'road-full' }); break;
-                    case 'L': level.tiles.push({ x, y, sprite: 'road-edge-left' }); break;
-                    case 'r': level.tiles.push({ x, y, sprite: 'road-edge-right' }); break;
-                    case 'U': level.tiles.push({ x, y, sprite: 'road-edge-top' }); break;
-                    case 'u': level.tiles.push({ x, y, sprite: 'road-edge-bottom' }); break;
-                    case '1': level.tiles.push({ x, y, sprite: 'road-corner-tl' }); break;
-                    case '2': level.tiles.push({ x, y, sprite: 'road-corner-tr' }); break;
-                    case '3': level.tiles.push({ x, y, sprite: 'road-corner-bl' }); break;
-                    case '4': level.tiles.push({ x, y, sprite: 'road-corner-br' }); break;
-
                     case '~': level.tiles.push({ x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
-                    case 'w': level.tiles.push({ x, y, sprite: `water-h-${Math.floor(hash * 3) + 1}` }); break;
-                    case ')': level.tiles.push({ x, y, sprite: 'water-land-right' }); break;
-                    case '(': level.tiles.push({ x, y, sprite: 'water-land-left' }); break;
-
-                    // Bridge (3x3 grid over river)
-                    case '{': level.tiles.push({ x, y, sprite: 'bridge-tl' }); break;
-                    case '^': level.tiles.push({ x, y, sprite: 'bridge-tm' }); break;
-                    case '}': level.tiles.push({ x, y, sprite: 'bridge-tr' }); break;
-                    case '[': level.tiles.push({ x, y, sprite: 'bridge-ml' }); break;
                     case '=': level.tiles.push({ x, y, sprite: 'bridge-mm' }); break;
-                    case ']': level.tiles.push({ x, y, sprite: 'bridge-mr' }); break;
-                    case '<': level.tiles.push({ x, y, sprite: 'bridge-bl' }); break;
-                    case '_': level.tiles.push({ x, y, sprite: 'bridge-bm' }); break;
-                    case '>': level.tiles.push({ x, y, sprite: 'bridge-br' }); break;
-
                     default: level.tiles.push({ x, y, sprite: 'grass-short-1' }); break;
                 }
             }

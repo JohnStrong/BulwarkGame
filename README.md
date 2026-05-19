@@ -34,21 +34,21 @@ BasicTowerDefense/
 │   └── level1-preview.png      # Rendered map preview
 ├── levels/
 │   ├── manifest.txt            # Level load order
-│   ├── level1.txt              # Tutorial level (fully commented)
-│   └── candidates/             # Random generator output (for review)
+│   ├── level1.txt              # Tutorial level
+│   └── candidates/             # Random generator output
 ├── assets/
-│   └── sprites/                # 32x32 PNG sprite images (34 files)
+│   └── sprites/                # 32x32 hex-shaped PNG sprites (17 files)
 └── js/
     ├── game-logic/             # Browser-side game code
-    │   ├── utils.js            # Constants (TILE_SIZE) and loaders
+    │   ├── utils.js            # Hex geometry, constants, loaders
     │   ├── sprites.js          # Sprite loading and rendering
-    │   ├── level-loader.js     # Text file level parser
+    │   ├── level-loader.js     # Text file → hex grid parser
     │   └── game.js             # Main game loop and renderer
     └── level-generators/       # Node.js generation scripts
-        ├── generate-smooth-sprites.js  # All 34 sprite PNGs
-        ├── generate-tutorial-level.js  # Tutorial level (level1.txt)
-        ├── generate-random-level.js    # Seeded random level generator
-        └── render-level-preview.js     # Renders level to PNG for docs
+        ├── generate-smooth-sprites.js  # All 17 hex sprites
+        ├── generate-tutorial-level.js  # Tutorial level
+        ├── generate-random-level.js    # Seeded random levels
+        └── render-level-preview.js     # Level → PNG renderer
 ```
 
 ## Developer Guide
@@ -105,27 +105,19 @@ cp levels/candidates/2026-05-19_seed-42.txt levels/level2.txt
 
 ### Level File Format
 
-Levels are plain text files where each character represents a tile. See `levels/level1.txt` for a fully commented example.
+Levels are plain text files where each character represents a hex cell. The hex grid uses pointy-top orientation with odd rows offset right (beehive pattern). See `levels/level1.txt` for a commented example.
 
 | Char | Element |
 |------|---------|
-| `.` | Grass (green meadow) |
-| `,` | Grass with flowers |
-| `O` | Tree (dark green canopy) |
-| `R` | Rock decoration |
-| `D` | Road full (dirt) |
-| `L` | Road left-edge (grass\|road) |
-| `r` | Road right-edge (road\|grass) |
-| `U` | Road top-edge (grass above) |
-| `u` | Road bottom-edge (grass below) |
-| `1/2/3/4` | Road corners (TL/TR/BL/BR) |
-| `~` | Water vertical flow |
-| `w` | Water horizontal flow |
-| `)` | Right bank (water\|grass) |
-| `(` | Left bank (grass\|water) |
-| `{^}` | Bridge top row (wall + road) |
-| `[=]` | Bridge middle row (cobblestone) |
-| `<_>` | Bridge bottom row (road + wall) |
+| `.` | Grass |
+| `,` | Flowers |
+| `O` | Oak tree |
+| `P` | Pine tree |
+| `S` | Shrub |
+| `R` | Rock |
+| `D` | Road (dirt) |
+| `~` | Water |
+| `=` | Bridge (cobblestone) |
 
 ### Architecture Documentation
 

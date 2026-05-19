@@ -14,36 +14,26 @@ const SpriteManager = {
 
         // Road
         'road-full',
-        'road-edge-left',
-        'road-edge-right',
-        'road-edge-top',
-        'road-edge-bottom',
 
         // Water
         'water-1',
         'water-2',
         'water-3',
-        'water-land-right',
-        'water-land-left',
+
+        // Bridge (cobblestone)
+        'bridge-mm',
 
         // Trees
         'tree-1',
         'tree-2',
         'tree-3',
+        'tree-4',
+        'tree-5',
+        'tree-6',
+        'tree-7',
 
         // Decorations
-        'rock',
-
-        // Bridge (3x3 grid: top/mid/bottom × left/mid/right)
-        'bridge-tl',
-        'bridge-tm',
-        'bridge-tr',
-        'bridge-ml',
-        'bridge-mm',
-        'bridge-mr',
-        'bridge-bl',
-        'bridge-bm',
-        'bridge-br'
+        'rock'
     ],
 
     async loadAll() {

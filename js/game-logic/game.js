@@ -21,8 +21,8 @@ const Game = {
 
     startLevel() {
         const level = LevelLoader.getCurrentLevel();
-        this.canvas.width = level.width * TILE_SIZE;
-        this.canvas.height = level.height * TILE_SIZE;
+        this.canvas.width = level.pixelWidth;
+        this.canvas.height = level.pixelHeight;
     },
 
     loop() {
@@ -32,6 +32,8 @@ const Game = {
 
     render() {
         const ctx = this.ctx;
+
+        // Clear canvas (transparent background - hex sprites handle their own shape)
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         if (this.state === 'loading') {
@@ -46,8 +48,8 @@ const Game = {
 
         for (const tile of level.tiles) {
             if (tile.covered) continue;
-            const w = tile.width || TILE_SIZE;
-            const h = tile.height || TILE_SIZE;
+            const w = tile.width || HEX_WIDTH;
+            const h = tile.height || HEX_HEIGHT;
             SpriteManager.draw(ctx, tile.sprite, tile.x, tile.y, w, h);
         }
 

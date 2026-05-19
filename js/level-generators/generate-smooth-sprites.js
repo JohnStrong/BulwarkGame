@@ -15,28 +15,29 @@ const path = require('path');
 const SIZE = 32;
 const OUTPUT_DIR = path.join(__dirname, '..', '..', 'assets', 'sprites');
 
-// Palette
-const GRASS = [88, 168, 60];
-const GRASS_DARK = [72, 145, 48];
-const GRASS_EDGE = [65, 135, 42]; // grass pixels at road edge
+// Palette - high contrast pixel art (Kingdom Rush style, top-left panel)
+const GRASS = [95, 180, 72];          // bright green (more colorful)
+const GRASS_DARK = [75, 155, 55];     // darker grass patches
+const GRASS_LIGHT = [115, 200, 88];   // highlight
+const GRASS_EDGE = [82, 162, 60];     // edge pixels at road border
 
-const DIRT = [200, 160, 100];       // warm straw/sandy orange
-const DIRT_LIGHT = [220, 180, 120]; // lighter patches
-const DIRT_DARK = [160, 120, 70];   // cracks/roots
+const DIRT = [210, 165, 110];         // warm sandy orange road (colorful)
+const DIRT_LIGHT = [230, 185, 130];   // lighter patches
+const DIRT_DARK = [170, 130, 80];     // cracks/roots
 
-const STONE = [128, 128, 125];     // main cobblestone grey
-const STONE_LIGHT = [150, 150, 145]; // stone highlight
-const STONE_DARK = [90, 90, 85];   // mortar/gaps between stones
+const STONE = [140, 138, 130];        // bridge stone
+const STONE_LIGHT = [165, 162, 152];  // stone highlight
+const STONE_DARK = [90, 88, 80];      // mortar dark
 
-const WATER = [100, 190, 195];
-const WATER_LIGHT = [130, 210, 215];
-const WATER_DARK = [80, 165, 170];
-const WATER_EDGE = [75, 155, 150];
+const WATER = [45, 120, 210];         // vivid blue river
+const WATER_LIGHT = [80, 155, 235];   // light ripple highlight
+const WATER_DARK = [25, 85, 175];     // deeper water
+const WATER_EDGE = [35, 100, 190];    // shoreline
 
-const TREE_DARK = [35, 95, 38];
-const TREE_MID = [50, 125, 50];
-const TREE_LIGHT = [68, 150, 60];
-const TREE_SHADOW = [60, 130, 48];
+const TREE_DARK = [28, 85, 25];       // darkest canopy shadow
+const TREE_MID = [48, 130, 42];       // main canopy
+const TREE_LIGHT = [75, 170, 60];     // sun-hit highlight
+const TREE_SHADOW = [38, 108, 32];    // ground shadow
 
 let seed = 1;
 function seededRandom() {
@@ -46,6 +47,40 @@ function seededRandom() {
 function resetSeed(s) { seed = s; }
 
 function createBuf() { return Buffer.alloc(SIZE * SIZE * 4); }
+
+/**
+ * Clip sprite to hexagonal shape. Pixels outside hex become transparent.
+ */
+function drawHexBorder(buf) {
+    const cx = SIZE / 2;
+    const cy = SIZE / 2;
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        points.push({ x: cx + (SIZE/2 - 0.5) * Math.cos(angle), y: cy + (SIZE/2 - 0.5) * Math.sin(angle) });
+    }
+
+    for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+            if (!pointInHex(x, y, points)) {
+                const idx = (y * SIZE + x) * 4;
+                buf[idx] = 0; buf[idx+1] = 0; buf[idx+2] = 0; buf[idx+3] = 0;
+            }
+        }
+    }
+}
+
+function pointInHex(px, py, pts) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x, yi = pts[i].y;
+        const xj = pts[j].x, yj = pts[j].y;
+        if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
 
 function px(buf, x, y, r, g, b) {
     if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
@@ -233,10 +268,10 @@ function genRoadCorner(corner) {
 // Middle row = open stone road surface (lighter cobblestone)
 // Left/right edges = dirt road transitioning to stone
 
-const BRIDGE_WALL = [145, 140, 130];    // parapet wall stone (darker)
-const BRIDGE_WALL_DARK = [105, 100, 90]; // mortar in wall
-const BRIDGE_ROAD = [180, 175, 160];    // bridge road surface (lighter stone)
-const BRIDGE_ROAD_DARK = [140, 135, 120]; // mortar in road
+const BRIDGE_WALL = [100, 98, 88];      // parapet wall stone (darker)
+const BRIDGE_WALL_DARK = [62, 60, 52];  // mortar in wall
+const BRIDGE_ROAD = [140, 138, 128];    // bridge road surface (lighter stone)
+const BRIDGE_ROAD_DARK = [95, 92, 82];  // mortar in road
 
 function drawBridgeWall(buf, x1, y1, x2, y2, sv) {
     // Heavier stone blocks for the parapet wall
@@ -436,8 +471,22 @@ function genWaterEdgeLeft() {
     return buf;
 }
 
-// Trees
+// Trees - multiple types for variety
+// tree-1/2/3: round oak (existing)
+// tree-4/5: tall pine/conifer (triangular)
+// tree-6/7: bushy shrub (small, wide)
+
+const PINE_DARK = [18, 62, 28];
+const PINE_MID = [30, 90, 38];
+const PINE_LIGHT = [48, 120, 50];
+const PINE_TRUNK = [65, 42, 25];
+
+const SHRUB_DARK = [35, 105, 30];
+const SHRUB_MID = [52, 138, 42];
+const SHRUB_LIGHT = [72, 165, 55];
+
 function genTree(v) {
+    // Round oak tree
     const buf = createBuf();
     fill(buf, GRASS, 3, 6000 + v*100);
     const cx = 16, cy = 14, r = 9 + (v%2);
@@ -453,6 +502,69 @@ function genTree(v) {
             if (d <= r) {
                 const n = (seededRandom()-0.5)*5;
                 const c = (d < r*0.4 && dy < 0) ? TREE_LIGHT : (d > r*0.75 ? TREE_DARK : TREE_MID);
+                px(buf, cx+dx, cy+dy, c[0]+n, c[1]+n, c[2]+n);
+            }
+        }
+    return buf;
+}
+
+function genPine(v) {
+    // Triangular conifer/pine tree
+    const buf = createBuf();
+    fill(buf, GRASS, 3, 6500 + v*100);
+    const cx = 16, baseY = 26;
+    resetSeed(6550+v*100);
+
+    // Trunk
+    for (let y = baseY-2; y <= baseY+2; y++)
+        for (let dx = -1; dx <= 1; dx++)
+            px(buf, cx+dx, y, ...PINE_TRUNK);
+
+    // Triangular canopy (3 layers, getting narrower toward top)
+    const layers = [
+        { y: baseY-4, halfW: 8, color: PINE_DARK },
+        { y: baseY-9, halfW: 6, color: PINE_MID },
+        { y: baseY-13, halfW: 4, color: PINE_LIGHT },
+    ];
+    for (const layer of layers) {
+        for (let dy = 0; dy < 6; dy++) {
+            const w = Math.round(layer.halfW * (1 - dy/8));
+            for (let dx = -w; dx <= w; dx++) {
+                const n = (seededRandom()-0.5)*5;
+                const d = Math.abs(dx)/w;
+                const c = d > 0.7 ? PINE_DARK : (dy < 2 ? PINE_LIGHT : layer.color);
+                px(buf, cx+dx, layer.y-dy, c[0]+n, c[1]+n, c[2]+n);
+            }
+        }
+    }
+    // Shadow
+    for (let dx = -5; dx <= 5; dx++)
+        for (let dy = 0; dy <= 2; dy++)
+            if (Math.abs(dx)+dy < 6) px(buf, cx+dx+2, baseY+2+dy, ...TREE_SHADOW);
+
+    return buf;
+}
+
+function genShrub(v) {
+    // Small bushy shrub (wider than tall)
+    const buf = createBuf();
+    fill(buf, GRASS, 3, 6800 + v*100);
+    const cx = 16, cy = 18;
+    const rx = 8 + (v%2)*2, ry = 5 + (v%2);
+    resetSeed(6850+v*100);
+
+    // Shadow
+    for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -rx; dx <= rx; dx++)
+            if ((dx*dx)/(rx*rx)+(dy*dy)/4 < 1) px(buf, cx+dx+1, cy+ry+dy-1, ...TREE_SHADOW);
+
+    // Bush body (elliptical)
+    for (let dy = -ry; dy <= ry; dy++)
+        for (let dx = -rx; dx <= rx; dx++) {
+            const d = (dx*dx)/(rx*rx) + (dy*dy)/(ry*ry);
+            if (d <= 1) {
+                const n = (seededRandom()-0.5)*6;
+                const c = (d < 0.3) ? SHRUB_LIGHT : (d > 0.7 ? SHRUB_DARK : SHRUB_MID);
                 px(buf, cx+dx, cy+dy, c[0]+n, c[1]+n, c[2]+n);
             }
         }
@@ -487,9 +599,12 @@ async function generateAll() {
         {name:'water-h-1', buf:genWaterH(0)}, {name:'water-h-2', buf:genWaterH(1)}, {name:'water-h-3', buf:genWaterH(2)},
         {name:'water-land-right', buf:genWaterEdgeRight()}, {name:'water-land-left', buf:genWaterEdgeLeft()},
         {name:'tree-1', buf:genTree(0)}, {name:'tree-2', buf:genTree(1)}, {name:'tree-3', buf:genTree(2)},
+        {name:'tree-4', buf:genPine(0)}, {name:'tree-5', buf:genPine(1)},
+        {name:'tree-6', buf:genShrub(0)}, {name:'tree-7', buf:genShrub(1)},
         {name:'rock', buf:genRock()},
     ];
     for (const s of sprites) {
+        drawHexBorder(s.buf);
         await sharp(s.buf, {raw:{width:SIZE,height:SIZE,channels:4}}).png().toFile(path.join(OUTPUT_DIR,`${s.name}.png`));
         console.log(`  ✓ ${s.name}.png`);
     }
