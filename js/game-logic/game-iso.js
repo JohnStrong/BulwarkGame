@@ -39,6 +39,13 @@ const Game = {
     selectedLift: 0,      // current lift amount (animates 0 → 3)
     selectedLiftTarget: 0,
 
+    // HUD panel state
+    hudOpen: false,
+    hudWidth: 0,          // current animated width
+    hudTargetWidth: 0,    // target width (0 = closed, 256 = open)
+    HUD_MAX_WIDTH: 256,   // 1/4 of 1024 canvas
+    HUD_HEIGHT: 180,
+
     // Input state
     keys: { up: false, down: false, left: false, right: false, zoomIn: false, zoomOut: false },
 
@@ -120,15 +127,30 @@ const Game = {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
+
+            // Check if clicking the HUD close button
+            if (this.hudOpen && mouseX < this.hudWidth && mouseY > this.canvas.height - this.HUD_HEIGHT) {
+                // Check X button area (top-right of HUD panel)
+                if (mouseX > this.hudWidth - 20 && mouseY < this.canvas.height - this.HUD_HEIGHT + 20) {
+                    this.hudOpen = false;
+                    this.hudTargetWidth = 0;
+                    return;
+                }
+                return; // click inside HUD, don't select tile
+            }
+
             const clicked = this.screenToGrid(mouseX, mouseY);
             if (clicked && this.selectedTile &&
                 clicked.row === this.selectedTile.row && clicked.col === this.selectedTile.col) {
-                // Deselect if clicking same tile
                 this.selectedTile = null;
                 this.selectedLiftTarget = 0;
-            } else {
+                this.hudOpen = false;
+                this.hudTargetWidth = 0;
+            } else if (clicked) {
                 this.selectedTile = clicked;
                 this.selectedLiftTarget = 3;
+                this.hudOpen = true;
+                this.hudTargetWidth = this.HUD_MAX_WIDTH;
             }
         });
 
@@ -264,6 +286,14 @@ const Game = {
         } else if (this.selectedLift > this.selectedLiftTarget) {
             this.selectedLift = Math.max(this.selectedLiftTarget, this.selectedLift - liftSpeed);
         }
+
+        // Smooth HUD panel animation
+        const hudSpeed = 12;
+        if (this.hudWidth < this.hudTargetWidth) {
+            this.hudWidth = Math.min(this.hudTargetWidth, this.hudWidth + hudSpeed);
+        } else if (this.hudWidth > this.hudTargetWidth) {
+            this.hudWidth = Math.max(this.hudTargetWidth, this.hudWidth - hudSpeed);
+        }
     },
 
     render() {
@@ -338,6 +368,60 @@ const Game = {
         }
 
         ctx.restore(); // end zoom transform
+
+        // === BOTTOM-LEFT HUD PANEL ===
+        if (this.hudWidth > 0) {
+            const hudX = 0;
+            const hudY = this.canvas.height - this.HUD_HEIGHT;
+            const w = this.hudWidth;
+            const h = this.HUD_HEIGHT;
+
+            // Panel background (dark with slight transparency)
+            ctx.fillStyle = 'rgba(15, 12, 10, 0.92)';
+            ctx.fillRect(hudX, hudY, w, h);
+
+            // Top border — metallic/sword sheen gradient
+            const grad = ctx.createLinearGradient(hudX, hudY, hudX + w, hudY);
+            grad.addColorStop(0, '#3a3028');
+            grad.addColorStop(0.3, '#8a7a60');
+            grad.addColorStop(0.5, '#c8b890');  // bright sheen
+            grad.addColorStop(0.7, '#8a7a60');
+            grad.addColorStop(1, '#3a3028');
+            ctx.fillStyle = grad;
+            ctx.fillRect(hudX, hudY, w, 3);
+
+            // Right edge border
+            const gradR = ctx.createLinearGradient(hudX + w - 3, hudY, hudX + w - 3, hudY + h);
+            gradR.addColorStop(0, '#8a7a60');
+            gradR.addColorStop(0.5, '#c8b890');
+            gradR.addColorStop(1, '#3a3028');
+            ctx.fillStyle = gradR;
+            ctx.fillRect(hudX + w - 3, hudY, 3, h);
+
+            // Close button (X) — top-right corner of panel
+            ctx.fillStyle = '#666';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('✕', hudX + w - 12, hudY + 12);
+
+            // Panel content (tile info placeholder)
+            if (this.selectedTile && w > 100) {
+                ctx.fillStyle = '#aaa';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(`Tile [${this.selectedTile.row}, ${this.selectedTile.col}]`, hudX + 10, hudY + 16);
+
+                // Find the tile sprite name
+                const level = LevelLoader.getCurrentLevel();
+                const t = level.tiles.find(t => t.row === this.selectedTile.row && t.col === this.selectedTile.col);
+                if (t) {
+                    ctx.fillStyle = '#ccc';
+                    ctx.fillText(t.sprite, hudX + 10, hudY + 32);
+                }
+            }
+        }
 
         // HUD
         ctx.fillStyle = 'rgba(0,0,0,0.5)';

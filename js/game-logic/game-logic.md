@@ -7,67 +7,179 @@ Browser-side game code in `js/game-logic/`.
 | File | Purpose |
 |------|---------|
 | `utils.js` | Constants, hex/iso geometry, loaders |
-| `sprites.js` | Loads 64x32 diamond PNGs, draws to canvas |
+| `sprites.js` | Loads 64x32 isometric diamond PNGs |
 | `level-loader.js` | Parses `.txt` levels + `.elevation.txt` into tile arrays |
-| `game.js` | Top-down hex renderer (alternative view) |
-| `game-iso.js` | **Isometric 2.5D renderer (default)** |
+| `game.js` | Top-down hex renderer (alternative view via `index-topdown.html`) |
+| `game-iso.js` | **Isometric 2.5D renderer (default, `index.html`)** |
+
+---
 
 ## utils.js
 
+### Constants
 ```js
-TILE_SIZE = 32          // Base tile reference
-HEX_WIDTH = 32          // Hex mode dimensions
-HEX_HEIGHT = 28
-HEX_ROW_HEIGHT = 21
-HEX_COL_OFFSET = 16
-hexToPixel(row, col)    // Hex grid → pixel position
+TILE_SIZE = 32          // Base reference (used by top-down view)
+HEX_WIDTH = 32          // Hex mode tile width
+HEX_HEIGHT = 28         // Hex mode tile height
+HEX_ROW_HEIGHT = 21     // Vertical step between hex rows
+HEX_COL_OFFSET = 16     // Odd-row horizontal offset
 ```
 
-## sprites.js
+### Functions
+- `hexToPixel(row, col)` — converts grid position to pixel coords (hex view)
+- `loadImage(src)` — returns Promise<Image>
+- `loadTextFile(src)` — returns Promise<string>
 
-Loads all sprites from `assets/sprites/`. Sprites are 64×32 flat isometric diamonds with transparent outside and thin dark border. The `draw()` method renders at any size.
+---
 
-## level-loader.js
+## sprites.js — SpriteManager
 
-### Parsing Flow
-1. Load `levels/manifest.txt` → list of level filenames
-2. For each level: parse `.txt` + try loading `.elevation.txt`
-3. Each tile stores: `{ row, col, x, y, sprite }`
+Loads all game sprites from `assets/sprites/`. Each sprite is a 64×32px flat isometric diamond PNG with transparent outside and thin dark border.
 
-### Elevation
-Parsed from `levelN.elevation.txt`:
+### Key Methods
+- `loadAll()` — loads all sprites in `spriteList`, creates fallback rectangles for missing ones
+- `draw(ctx, name, x, y, width, height)` — draws a named sprite at position
+
+---
+
+## level-loader.js — LevelLoader
+
+### Loading Flow
+1. Reads `levels/manifest.txt` → list of level filenames
+2. For each level file: parses the `.txt` map + tries loading matching `.elevation.txt`
+3. Each tile stored as: `{ row, col, x, y, sprite }`
+
+### Tile Character Mapping
+Single `switch` on each character → sprite name. Multi-variant tiles (grass, water, trees) use `tileHash(row, col)` for deterministic variant selection.
+
+### Elevation Parsing
+From `levelN.elevation.txt`:
 ```
-range:offset    (e.g., "10-19:2" = columns 10-19 step down 2px)
+0-9:0        ← columns 0-9 are flat
+10-19:2      ← columns 10-19 step down 2px
+50-59:-2     ← columns 50-59 step UP 2px (higher ground)
 ```
 Stored as `level.elevation = { colNumber: pixelOffset }`
 
-### Tile Mapping
-Single `switch` statement: character → sprite name. Variants selected via deterministic `tileHash(row, col)`.
+---
 
-## game-iso.js — Isometric Renderer (Default)
+## game-iso.js — Isometric 2.5D Renderer (Default)
 
-### Projection Math
+This is the main game renderer loaded by `index.html`.
+
+### Isometric Projection
+
+Converts grid (row, col) to screen (x, y):
 ```js
-screenX = (col - row) × (tileW/2) + mapOffsetX - camX
-screenY = (col + row) × (tileH/2) + mapOffsetY - camY + elevation[col]
+// BR→TL viewpoint (default):
+x = (col - row) × (tileW/2) + mapOffsetX - camX
+y = (col + row) × (tileH/2) + mapOffsetY - camY + elevation[col]
+
+// BL→TR viewpoint (inverted):
+x = (row - col) × (tileW/2) + mapOffsetX - camX
+y = (col + row) × (tileH/2) + mapOffsetY - camY + elevation[col]
 ```
 
-### Camera
-- `camX`, `camY`: scroll position (WASD/arrows)
-- `zoom`: 0.3 (full map) to 4.0 (close-up), via +/-/mousewheel
-- Starts centered on the keep flag (`F` tile)
+### Camera System
+
+| Property | Description |
+|----------|-------------|
+| `camX`, `camY` | Scroll position in world pixels |
+| `zoom` | Scale factor (0.3 = zoomed out, 4.0 = zoomed in) |
+| `scrollSpeed` | Base scroll rate (adjusted by zoom) |
+
+Camera starts centered on the keep flag tile (`F`). Zoom defaults to 70%.
+
+### Viewpoint Rotation
+
+Two orientations toggled by **spacebar**:
+- `br-tl` (default): player views from bottom-right toward top-left
+- `bl-tr` (inverted): player views from bottom-left toward top-right (map mirrors horizontally)
+
+On rotation, camera re-centers on the keep flag using the new projection math.
+
+### Tile Interaction
+
+#### Hover
+- `mousemove` → `screenToGrid(mouseX, mouseY)` converts screen coords to grid position
+- Uses inverse isometric math (undoes zoom transform, then solves for row/col)
+- Hovered tile gets a warm gold diamond border (`rgba(255, 220, 80, 0.6)`)
+
+#### Selection
+- **Left click** on a tile → selects it
+- Selected tile:
+  - Smoothly lifts 3px upward (animated at 0.3px/frame)
+  - Gets bright yellow border + glow effect
+- **Click same tile** again → deselects (tile lowers back smoothly)
+- **Click different tile** → switches selection
+
+#### Inverse Projection (`screenToGrid`)
+```js
+// Undo zoom: transform screen coords back to world space
+worldX = (screenX - canvasCenter) / zoom + canvasCenter + camX - mapOffsetX
+worldY = (screenY - canvasCenter) / zoom + canvasCenter + camY - mapOffsetY
+
+// Solve for grid coords (inverse of iso projection):
+col = round((worldX/halfW + worldY/halfH) / 2)
+row = round((worldY/halfH - worldX/halfW) / 2)
+```
+
+### HUD Panel (Bottom-Left)
+
+A slide-in info panel that shows details about the selected tile.
+
+| Property | Description |
+|----------|-------------|
+| `hudOpen` | Whether panel is visible |
+| `hudWidth` | Current animated width (0 → 256) |
+| `HUD_MAX_WIDTH` | 256px (1/4 of canvas) |
+| `HUD_HEIGHT` | 180px |
+
+**Behavior:**
+- Opens automatically when a tile is selected (slides in at 12px/frame)
+- Closes when clicking the ✕ button or deselecting a tile
+- Re-opens when selecting a new tile
+- Clicks inside the HUD don't pass through to the map
+
+**Visual:**
+- Dark semi-transparent background (`rgba(15, 12, 10, 0.92)`)
+- Metallic gold/bronze gradient border on top and right edges (sword sheen)
+- Shows tile coordinates and sprite name (placeholder for future content)
 
 ### Elevation Staircase
-Per-column Y offset from `.elevation.txt`. Positive = lower, negative = higher.
+
+Per-column Y offset from the `.elevation.txt` file. Applied in `gridToIso()`:
+- Positive values = tile renders lower (valley/depression)
+- Negative values = tile renders higher (hill/elevation)
+
+Creates subtle terraced steps across the landscape.
 
 ### Render Loop
+
 ```
-update() → scroll + zoom input
-render() → clear → apply zoom transform → draw tiles back-to-front → HUD
+loop() → update() + render() at ~60fps
+
+update():
+  - Process WASD/arrow scroll input
+  - Process +/- zoom input
+  - Animate selectedLift (smooth tile raise/lower)
+  - Animate hudWidth (smooth panel slide)
+
+render():
+  - Clear canvas (dark green background)
+  - Apply zoom transform (scale from canvas center)
+  - Draw all tiles back-to-front with hover/select effects
+  - Restore zoom transform
+  - Draw HUD panel (fixed to viewport, not affected by zoom)
+  - Draw top info bar
 ```
 
-Sprites drawn directly (no clipping needed — they're already diamond-shaped with transparency).
+### Tile Drawing Order
 
-## game.js — Top-Down Hex Renderer
+Tiles are stored in row-major order from the level loader. Since isometric projection naturally places earlier rows behind later rows, this gives correct depth (painter's algorithm) without sorting.
 
-Alternative view at `index-topdown.html`. Uses `hexToPixel()` for positioning. Sprites are hex-clipped. No camera/zoom — full map visible.
+---
+
+## game.js — Top-Down Hex Renderer (Alternative)
+
+Available at `index-topdown.html`. Uses `hexToPixel()` for flat hex grid positioning. No camera/zoom — renders full map. Sprites are hex-clipped. Kept for potential future viewpoint switching during gameplay.
