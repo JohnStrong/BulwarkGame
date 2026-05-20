@@ -250,3 +250,66 @@ Placed units render AFTER terrain (on top), offset 4px up so figures stand on th
 | `getPlacedUnits()` | All placed units (for render loop) |
 | `removeUnit(unit)` | Remove from map |
 | `reset()` | Clear placements, restore all quantities |
+
+
+---
+
+## HUD System
+
+The game has multiple HUD elements rendered on top of the map (not affected by zoom/scroll).
+
+### Top Info Bar
+- Fixed at top of canvas (20px tall)
+- Shows: level name, controls hint, current viewpoint, zoom %
+
+### Unit Bar (Bottom Center)
+- Shows all unit types from `default.resources.txt`
+- Each unit in a 56×76px box with:
+  - Metallic gradient border (gold when selected)
+  - Unit sprite (scaled)
+  - Name (truncated, 8 chars)
+  - Quantity remaining (green) / total (red if 0)
+- Click a box to select that unit type
+- Click again to deselect
+
+### Unit Detail Panel (Above Unit Bar)
+- Appears when a unit type is selected from the bar
+- 280×100px centered panel with:
+  - Larger sprite on left
+  - Full name, HP, ATK, Armour % on right
+  - Available count
+  - Action buttons: Q (Attack), V (Defend)
+- Metallic gradient border
+
+### Tile Info Panel (Bottom-Left)
+- Appears when a map tile is clicked
+- 256×180px slide-in panel with:
+  - Tile coordinates [row, col]
+  - Sprite/terrain type name
+  - Closeable with ✕ button
+- Metallic gradient border (top + right edges)
+- Auto-opens on tile select, closes on deselect or ✕
+
+### Visual Style
+- All HUD panels use dark semi-transparent backgrounds (`rgba(15, 12, 10, 0.92)`)
+- Borders use a metallic gold/bronze gradient ("sword sheen"):
+  ```
+  #3a3028 → #8a7a60 → #c8b890 → #8a7a60 → #3a3028
+  ```
+- Text: monospace font, white/grey hierarchy
+
+---
+
+## Controls Summary
+
+| Input | Context | Action |
+|-------|---------|--------|
+| WASD / Arrows | Map | Scroll camera |
+| +/- / Wheel | Map | Zoom in/out |
+| Spacebar | Map | Toggle viewpoint (BR↔BL), re-center on keep |
+| Mouse hover | Map | Highlight tile (gold border) |
+| Left click | Map tile | Select/deselect tile (lift animation + info panel) |
+| Left click | Unit bar | Select/deselect unit type (detail panel) |
+| Q | Unit selected | Attack action (TBC) |
+| V | Unit selected | Defend action (TBC) |
+| ✕ button | Tile panel | Close tile info panel |

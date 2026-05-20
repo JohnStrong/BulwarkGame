@@ -46,6 +46,11 @@ const Game = {
     HUD_MAX_WIDTH: 256,   // 1/4 of 1024 canvas
     HUD_HEIGHT: 180,
 
+    // Unit bar state (bottom center HUD)
+    selectedUnitIdx: -1,  // index into UnitManager.units[] (-1 = none)
+    UNIT_BOX_SIZE: 56,    // each unit box size
+    UNIT_BOX_PAD: 6,      // padding between boxes
+
     // Input state
     keys: { up: false, down: false, left: false, right: false, zoomIn: false, zoomOut: false },
 
@@ -130,6 +135,23 @@ const Game = {
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
+
+            // Check unit bar click (bottom center)
+            const units = UnitManager.getAvailableUnits();
+            if (units.length > 0) {
+                const totalBarW = units.length * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD) - this.UNIT_BOX_PAD;
+                const barStartX = (this.canvas.width - totalBarW) / 2;
+                const barY = this.canvas.height - this.UNIT_BOX_SIZE - 28;
+                if (mouseY >= barY && mouseY <= barY + this.UNIT_BOX_SIZE + 20) {
+                    for (let i = 0; i < units.length; i++) {
+                        const bx = barStartX + i * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD);
+                        if (mouseX >= bx && mouseX <= bx + this.UNIT_BOX_SIZE) {
+                            this.selectedUnitIdx = (this.selectedUnitIdx === i) ? -1 : i;
+                            return;
+                        }
+                    }
+                }
+            }
 
             // Check if clicking the HUD close button
             if (this.hudOpen && mouseX < this.hudWidth && mouseY > this.canvas.height - this.HUD_HEIGHT) {
@@ -444,6 +466,110 @@ const Game = {
         ctx.font = '11px monospace';
         ctx.textAlign = 'left';
         ctx.fillText(level.name + ' | WASD scroll | +/- zoom | SPACE rotate | ' + this.viewpoint + ' ' + Math.round(this.zoom * 100) + '%', 8, 14);
+
+        // === BOTTOM CENTER UNIT BAR ===
+        const availUnits = UnitManager.units;
+        if (availUnits.length > 0) {
+            const totalBarW = availUnits.length * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD) - this.UNIT_BOX_PAD;
+            const barStartX = (this.canvas.width - totalBarW) / 2;
+            const barY = this.canvas.height - this.UNIT_BOX_SIZE - 28;
+
+            for (let i = 0; i < availUnits.length; i++) {
+                const u = availUnits[i];
+                const bx = barStartX + i * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD);
+                const by = barY;
+                const isSelected = (this.selectedUnitIdx === i);
+
+                // Box background
+                ctx.fillStyle = isSelected ? 'rgba(40, 35, 25, 0.95)' : 'rgba(20, 18, 15, 0.85)';
+                ctx.fillRect(bx, by, this.UNIT_BOX_SIZE, this.UNIT_BOX_SIZE + 20);
+
+                // Sword sheen border
+                const grad = ctx.createLinearGradient(bx, by, bx + this.UNIT_BOX_SIZE, by);
+                grad.addColorStop(0, '#3a3028');
+                grad.addColorStop(0.5, isSelected ? '#e8c870' : '#8a7a60');
+                grad.addColorStop(1, '#3a3028');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = isSelected ? 2 : 1;
+                ctx.strokeRect(bx, by, this.UNIT_BOX_SIZE, this.UNIT_BOX_SIZE + 20);
+
+                // Unit sprite (scaled into box)
+                const sprite = u.sprites[0];
+                SpriteManager.draw(ctx, sprite, bx + 4, by + 2, this.UNIT_BOX_SIZE - 8, (this.UNIT_BOX_SIZE - 8) / 2);
+
+                // Unit name (above quantity)
+                ctx.fillStyle = '#bbb';
+                ctx.font = '7px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(u.name.split('/')[0].split('(')[0].trim().substring(0, 8), bx + this.UNIT_BOX_SIZE / 2, by + this.UNIT_BOX_SIZE - 4);
+
+                // Quantity remaining
+                ctx.fillStyle = u.qtyRemaining > 0 ? '#8f8' : '#f66';
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText(u.qtyRemaining + '/' + u.qty, bx + this.UNIT_BOX_SIZE / 2, by + this.UNIT_BOX_SIZE + 10);
+            }
+
+            // === UNIT DETAIL PANEL (below bar, when unit selected) ===
+            if (this.selectedUnitIdx >= 0 && this.selectedUnitIdx < availUnits.length) {
+                const u = availUnits[this.selectedUnitIdx];
+                const panelW = 280, panelH = 100;
+                const panelX = (this.canvas.width - panelW) / 2;
+                const panelY = barY - panelH - 8;
+
+                // Panel bg
+                ctx.fillStyle = 'rgba(15, 12, 10, 0.92)';
+                ctx.fillRect(panelX, panelY, panelW, panelH);
+
+                // Border
+                const pGrad = ctx.createLinearGradient(panelX, panelY, panelX + panelW, panelY);
+                pGrad.addColorStop(0, '#3a3028');
+                pGrad.addColorStop(0.5, '#c8b890');
+                pGrad.addColorStop(1, '#3a3028');
+                ctx.strokeStyle = pGrad;
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+                // Sprite (left side, larger)
+                SpriteManager.draw(ctx, u.sprites[0], panelX + 8, panelY + 10, 64, 32);
+
+                // Stats (right side)
+                ctx.fillStyle = '#ddd';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                const sx = panelX + 80;
+                ctx.fillText(u.name, sx, panelY + 18);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText(`HP: ${u.health}  ATK: ${u.attack}  Armour: ${Math.round((1 - u.defense) * 100)}%`, sx, panelY + 34);
+                ctx.fillText(`Available: ${u.qtyRemaining} / ${u.qty}`, sx, panelY + 50);
+
+                // Action buttons (centered, smaller)
+                const actions = [['Q', 'Attack'], ['V', 'Defend']];
+                const actionsW = actions.length * 28 + (actions.length - 1) * 10;
+                const actStartX = panelX + (panelW - actionsW) / 2;
+                const actY = panelY + 65;
+
+                for (let a = 0; a < actions.length; a++) {
+                    const ax = actStartX + a * 38;
+                    ctx.fillStyle = 'rgba(60, 55, 45, 0.9)';
+                    ctx.fillRect(ax, actY, 24, 16);
+                    ctx.strokeStyle = '#8a7a60';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(ax, actY, 24, 16);
+                    ctx.fillStyle = '#eee';
+                    ctx.font = 'bold 9px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(actions[a][0], ax + 12, actY + 8);
+                }
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.textBaseline = 'top';
+                for (let a = 0; a < actions.length; a++) {
+                    const ax = actStartX + a * 38;
+                    ctx.fillText(actions[a][1], ax + 12, actY + 18);
+                }
+            }
+        }
     }
 };
 

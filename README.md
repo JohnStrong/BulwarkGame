@@ -33,8 +33,18 @@ Win/fail conditions: TBC
 | - | Zoom out |
 | Mouse wheel | Zoom in/out |
 | Spacebar | Rotate viewpoint (BR→TL ↔ BL→TR), re-centers on keep |
-| Mouse hover | Highlights tile with gold border |
-| Left click / tap | Opens stats and info about the tile/character, click again to deselect |
+| Mouse hover (map) | Highlights tile with gold border |
+| Left click (map) | Select tile (lifts slightly), click again to deselect |
+| Left click (unit bar) | Select unit type, shows detail panel with stats |
+| Q | Attack action (when unit selected) |
+| V | Defend action (when unit selected) |
+
+### HUD Layout
+
+- **Top bar**: Level name, controls hint, viewpoint, zoom %
+- **Bottom center**: Unit bar — shows all available unit types with sprite, name, and remaining count. Click to select.
+- **Detail panel** (above unit bar): Appears when a unit type is selected. Shows sprite, name, HP, ATK, Armour %, available count, and action buttons (Q/V).
+- **Bottom-left panel**: Tile info — appears when a map tile is clicked. Shows tile coordinates and type. Closeable with ✕.
 
 ## Your Army
 

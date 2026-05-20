@@ -94,3 +94,40 @@ Maintenance
 If you want, I can produce:
 - a small pseudocode game loop implementing the above,
 - or a sample JSON for unit/structure definitions with the example defaults. Which would you like?
+
+
+---
+
+## Current Implementation Status (as of latest build)
+
+### What's Working
+- **Isometric 2.5D map rendering** with camera scroll (WASD), zoom (+/-/wheel), viewpoint rotation (spacebar)
+- **Level loading** from text files with elevation support
+- **Tile interaction**: hover highlight (gold border), click to select (lift animation + info panel)
+- **Unit system**: resources CSV loaded, unit types mapped to sprites, placement API ready
+- **HUD system**: top info bar, bottom-center unit bar, unit detail panel, tile info panel
+
+### Unit Bar (Bottom Center HUD)
+Displays all unit types from `levels/default.resources.txt`:
+
+| Unit | Qty | HP | ATK | Armour | Sprites |
+|------|-----|-----|-----|--------|---------|
+| Archer/Crossbowman | 40 | 100 | 90 | 20% | unit-archer, unit-crossbowman |
+| Spearman/Heavy infantry | 30 | 100 | 100 | 50% | unit-spearman, unit-heavy-infantry |
+| Men-at-arms | 20 | 100 | 130 | 60% | unit-knight |
+| Engineer/Siege crew | 5 | 100 | 50 | 15% | unit-engineer |
+| Militia/Watchmen | 5 | 100 | 60 | 10% | unit-militia |
+
+### Action Keys
+- **Q** — Attack (placeholder, logic TBC)
+- **V** — Defend (placeholder, logic TBC)
+
+### What's NOT Yet Implemented
+- Unit placement on map via UI (API exists: `UnitManager.placeUnit()`)
+- Turn-based game loop (Setup → Player → Enemy → Resolve → Maintenance)
+- Enemy AI / pathfinding
+- Combat resolution (damage, deaths, health bars)
+- Win/lose conditions
+- Gold/resource economy
+- Building/repair mechanics
+- Multiple waves / level progression
