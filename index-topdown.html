@@ -3,37 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medieval Tower Defense - Isometric</title>
+    <title>Medieval Tower Defense</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
-            background: #0a0f08;
+            background: #1a1a2e;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            height: 100vh;
             font-family: monospace;
-            overflow: auto;
         }
         #gameCanvas {
+            border: 2px solid #e94560;
+            background: #16213e;
             image-rendering: pixelated;
         }
         #ui {
-            position: fixed;
-            bottom: 10px;
+            position: absolute;
+            top: 10px;
             left: 50%;
             transform: translateX(-50%);
-            color: #aaa;
-            font-size: 12px;
+            color: #eee;
+            font-size: 14px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div id="ui">Isometric view (2.5D)</div>
-    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+        <p>A turn based experience</p>
+    </div>
+    <canvas id="gameCanvas" width="640" height="480"></canvas>
     <script src="js/game-logic/utils.js"></script>
     <script src="js/game-logic/sprites.js"></script>
     <script src="js/game-logic/level-loader.js"></script>
-    <script src="js/game-logic/game-iso.js"></script>
+    <script src="js/game-logic/game.js"></script>
 </body>
 </html>

@@ -55,12 +55,43 @@ const LevelLoader = {
             const manifest = await loadTextFile('levels/manifest.txt');
             const files = manifest.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith(';'));
             for (const file of files) {
-                this.levels.push(this.parseLevelText(await loadTextFile(`levels/${file}`)));
+                const levelData = this.parseLevelText(await loadTextFile(`levels/${file}`));
+                // Try to load elevation file
+                const elevFile = file.replace('.txt', '.elevation.txt');
+                try {
+                    const elevText = await loadTextFile(`levels/${elevFile}`);
+                    levelData.elevation = this.parseElevation(elevText);
+                } catch (e) {
+                    levelData.elevation = {};
+                }
+                this.levels.push(levelData);
             }
         } catch (e) {
             console.warn('Could not load levels, using default');
             this.levels.push(this.getDefaultLevel());
         }
+    },
+
+    /**
+     * Parse elevation file.
+     * Format: "startCol-endCol:offset" per line (or "col:offset")
+     * Returns { colNumber: pixelOffset, ... }
+     */
+    parseElevation(text) {
+        const elevation = {};
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith(';'));
+        for (const line of lines) {
+            const [range, offset] = line.split(':');
+            if (!offset) continue;
+            const px = parseInt(offset, 10);
+            if (range.includes('-')) {
+                const [start, end] = range.split('-').map(Number);
+                for (let c = start; c <= end; c++) elevation[c] = px;
+            } else {
+                elevation[parseInt(range, 10)] = px;
+            }
+        }
+        return elevation;
     },
 
     parseLevelText(text) {
@@ -88,30 +119,30 @@ const LevelLoader = {
                 const hash = this.tileHash(row, col);
 
                 switch (ch) {
-                    case '.': level.tiles.push({ x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` }); break;
-                    case ',': level.tiles.push({ x, y, sprite: `grass-flowers-${hash > 0.5 ? 2 : 1}` }); break;
-                    case 'O': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 3) + 1}` }); break;
-                    case 'P': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 2) + 4}` }); break;
-                    case 'S': level.tiles.push({ x, y, sprite: `tree-${Math.floor(hash * 2) + 6}` }); break;
-                    case 'R': level.tiles.push({ x, y, sprite: 'rock' }); break;
-                    case 'D': level.tiles.push({ x, y, sprite: 'road-full' }); break;
-                    case '~': level.tiles.push({ x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
-                    case '=': level.tiles.push({ x, y, sprite: 'bridge-mm' }); break;
+                    case '.': level.tiles.push({ row, col, x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` }); break;
+                    case ',': level.tiles.push({ row, col, x, y, sprite: `grass-flowers-${hash > 0.5 ? 2 : 1}` }); break;
+                    case 'O': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 3) + 1}` }); break;
+                    case 'P': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 4}` }); break;
+                    case 'S': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 6}` }); break;
+                    case 'R': level.tiles.push({ row, col, x, y, sprite: 'rock' }); break;
+                    case 'D': level.tiles.push({ row, col, x, y, sprite: 'road-full' }); break;
+                    case '~': level.tiles.push({ row, col, x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
+                    case '=': level.tiles.push({ row, col, x, y, sprite: 'bridge-mm' }); break;
 
                     // Castle structures
-                    case 'b': level.tiles.push({ x, y, sprite: 'castle-bridge-start' }); break;
-                    case 'm': level.tiles.push({ x, y, sprite: 'castle-bridge-mid' }); break;
-                    case 'g': level.tiles.push({ x, y, sprite: 'castle-bridge-gate' }); break;
-                    case 'T': level.tiles.push({ x, y, sprite: 'castle-tower' }); break;
-                    case 'K': level.tiles.push({ x, y, sprite: 'castle-keep-tl' }); break;
-                    case 'j': level.tiles.push({ x, y, sprite: 'castle-keep-bl' }); break;
-                    case 'J': level.tiles.push({ x, y, sprite: 'castle-keep-br' }); break;
-                    case 'F': level.tiles.push({ x, y, sprite: 'castle-keep-center' }); break;
-                    case 'G': level.tiles.push({ x, y, sprite: 'castle-gatehouse' }); break;
-                    case 'W': level.tiles.push({ x, y, sprite: 'castle-wall' }); break;
-                    case 'C': level.tiles.push({ x, y, sprite: `castle-bailey-${Math.floor(hash * 3) + 1}` }); break;
+                    case 'b': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-start' }); break;
+                    case 'm': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
+                    case 'g': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-gate' }); break;
+                    case 'T': level.tiles.push({ row, col, x, y, sprite: 'castle-tower' }); break;
+                    case 'K': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-tl' }); break;
+                    case 'j': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-bl' }); break;
+                    case 'J': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-br' }); break;
+                    case 'F': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-center' }); break;
+                    case 'G': level.tiles.push({ row, col, x, y, sprite: 'castle-gatehouse' }); break;
+                    case 'W': level.tiles.push({ row, col, x, y, sprite: 'castle-wall' }); break;
+                    case 'C': level.tiles.push({ row, col, x, y, sprite: `castle-bailey-${Math.floor(hash * 3) + 1}` }); break;
 
-                    default: level.tiles.push({ x, y, sprite: 'grass-short-1' }); break;
+                    default: level.tiles.push({ row, col, x, y, sprite: 'grass-short-1' }); break;
                 }
             }
         }

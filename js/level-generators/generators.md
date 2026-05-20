@@ -1,122 +1,99 @@
 # Level & Sprite Generators Documentation
 
-Node.js scripts in `js/level-generators/` that produce sprites and level files.
+Node.js scripts in `js/level-generators/`.
 
-## File Overview
+## Files
 
 | File | Purpose | Output |
 |------|---------|--------|
-| `generate-smooth-sprites.js` | All 17 hex-shaped sprites | `assets/sprites/*.png` |
-| `generate-tutorial-level.js` | Tutorial level (level1) | `levels/level1.txt` |
+| `generate-iso-sprites-br-tl.js` | Terrain sprites (isometric, BR→TL viewpoint) | `assets/sprites/*.png` (64×32) |
+| `generate-castle-sprites.js` | Castle structure sprites (isometric) | `assets/sprites/castle-*.png` (64×32) |
+| `generate-smooth-sprites.js` | Legacy hex sprites (for top-down view) | `assets/sprites/*.png` (32×32) |
+| `generate-tutorial-level.js` | Tutorial level map | `levels/level1.txt` |
 | `generate-random-level.js` | Seeded random levels | `levels/candidates/*.txt` |
-| `render-level-preview.js` | Renders level to PNG | `docs/level1-preview.png` |
+| `render-level-preview.js` | Renders level to PNG | configurable output |
 
----
+## Isometric Sprite Generation (`generate-iso-sprites-br-tl.js`)
 
-## generate-smooth-sprites.js
+### Viewpoint
+Bottom-right → top-left. Player looks from lower-right corner toward upper-left.
 
-Generates all game sprites as 32×32 hex-shaped PNGs.
+### Format
+64×32px flat diamond. Transparent outside, thin dark border on edges.
 
-### Architecture
-
-1. Define color palette
-2. Define drawing helpers (fill, dirt texture, cobblestones, grass edges)
-3. Define tree generators (oak, pine, shrub)
-4. Generate each sprite buffer
-5. Apply `drawHexBorder()` to every sprite (clips to hex, adds border)
-6. Write PNGs via sharp
-
-### Hex Border (`drawHexBorder`)
-
-Applied to every sprite after content is drawn:
-- Computes a pointy-top hexagon polygon (6 vertices)
-- Pixels outside the hex → transparent (alpha=0)
-- Pixels on the outermost 0.2px edge → dark grey at low opacity
-- Pixels inside → untouched (terrain content)
-
-Uses `pointInHex()` (ray-casting point-in-polygon) and `shrinkHex()` (scales polygon inward) to determine border vs interior.
-
-### Color Palette
-
+### Diamond Shape
 ```js
-GRASS       = [95, 180, 72]     // bright green
-DIRT        = [210, 165, 110]   // warm sandy road
-WATER       = [45, 120, 210]    // vivid blue
-TREE_MID    = [48, 130, 42]     // canopy green
-BRIDGE_ROAD = [140, 138, 128]   // cobblestone
+inDiamond(x, y) = (|x-32|/32 + |y-16|/16) <= 1
 ```
 
-### Tree Types
+### Terrain Types
+- **Grass**: green fill + darker specks + dithering
+- **Flowers**: grass base + colored petal clusters (pink/yellow/white/purple)
+- **Road**: sandy orange + dark crack lines
+- **Water**: blue + lighter horizontal ripple streaks
+- **Bridge**: grey cobblestone pattern
+- **Trees**: grass base + shadow + brown bark trunk (visible BR side) + round canopy on top
+- **Rock**: grass base + grey oval
 
-| Function | Shape | Variants |
-|----------|-------|----------|
-| `genTree(v)` | Round oak canopy | 3 (tree-1/2/3) |
-| `genPine(v)` | Triangular conifer | 2 (tree-4/5) |
-| `genShrub(v)` | Wide elliptical bush | 2 (tree-6/7) |
+### Tree Depth (BR→TL viewpoint)
+Trees show bark/trunk on the bottom-right side (facing the viewer):
+1. Ground shadow cast to the right
+2. Brown bark trunk (2-tone for depth) below-right of canopy
+3. Canopy drawn on top, partially overlapping trunk
 
----
+## Castle Sprites (`generate-castle-sprites.js`)
 
-## generate-tutorial-level.js
+Same 64×32 diamond format. Uses warmer sandy stone palette distinct from bridge cobblestone.
 
-Produces `levels/level1.txt` — a hand-crafted tutorial map (50×30 hex grid).
+| Sprite | Description |
+|--------|-------------|
+| `castle-bridge-start` | Road→wood plank transition |
+| `castle-bridge-mid` | Full wood planks |
+| `castle-bridge-gate` | Wood→stone wall |
+| `castle-tower` | Circular stone tower from above |
+| `castle-keep-tl/bl/br` | Keep quadrant tiles (stone blocks) |
+| `castle-keep-center` | Keep center with red+gold flag |
+| `castle-gatehouse` | Stone arch with iron portcullis |
+| `castle-wall` | Full stone curtain wall |
+| `castle-bailey-1/2/3` | Dirt+hay floor (3 density variants) |
 
-### Features
-- Coastline (left edge)
-- River through center with bridge crossings
-- Road from top winding down with branch
-- Mixed forest (oaks left, pines right, shrubs scattered)
-- Open meadow for castle placement
+## Random Level Generator (`generate-random-level.js`)
 
----
-
-## generate-random-level.js
-
-Seeded procedural level generator.
-
-### Usage
 ```bash
 node js/level-generators/generate-random-level.js [seed]
 ```
 
+### Seed-Derived Parameters
+- `forestWeight` (10-70%): tree cluster density
+- `waterWidth` (2-5): coastline width
+- `roadCount` (1-2): main paths
+- `hasBranch` (60%): alternate enemy route
+
 ### Algorithm
-1. Derive biome weights from seed (forest density, water width, road count)
-2. Draw coastline with noise-based jagged edge
-3. Carve roads via biased random walk (down then right)
-4. Place trees using 2D value noise for natural clusters
-5. Scatter flowers and rocks
-6. Write to `levels/candidates/{timestamp}_seed-{seed}.txt`
+1. Coastline (left edge, jagged via noise)
+2. Road carving (random walk down → turn right)
+3. Forest clusters (same tree type per cluster, elliptical, different quadrants)
+4. Shrubs along river banks
+5. Flower/rock scatter
 
----
-
-## render-level-preview.js
-
-Renders any level file to a PNG image using the actual game sprites.
-
-```bash
-node js/level-generators/render-level-preview.js [level-file] [output-file]
-```
-
-Uses the same `charToSprite` mapping and `hexToPixel` positioning as the game, producing a pixel-accurate preview without running a browser.
-
----
+### Elevation
+Each level can have a `.elevation.txt` file defining per-column height steps for the isometric staircase effect.
 
 ## Developer Workflow
 
 ```bash
-# Regenerate all sprites (after palette/shape changes)
-npm run generate:sprites
+# Generate isometric sprites
+node js/level-generators/generate-iso-sprites-br-tl.js
+node js/level-generators/generate-castle-sprites.js
 
-# Regenerate tutorial level
+# Generate level
 npm run generate:level
 
-# Generate random level candidates
+# Generate random candidates
 npm run generate:random
 node js/level-generators/generate-random-level.js 42
 
-# Render preview image
-npm run generate:preview
-
-# Review candidates, promote to game:
-cp levels/candidates/2026-05-19_seed-42.txt levels/level2.txt
-# Add 'level2.txt' to levels/manifest.txt
+# Promote candidate to game
+cp levels/candidates/2026-05-20_seed-42.txt levels/level2.txt
+# Add to levels/manifest.txt
 ```

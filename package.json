@@ -4,7 +4,7 @@
   "description": "A turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas.",
   "main": "index.html",
   "scripts": {
-    "generate:sprites": "node js/level-generators/generate-smooth-sprites.js && node js/level-generators/generate-castle-sprites.js",
+    "generate:sprites": "node js/level-generators/generate-iso-sprites-br-tl.js && node js/level-generators/generate-castle-sprites.js",
     "generate:level": "node js/level-generators/generate-tutorial-level.js",
     "generate:random": "node js/level-generators/generate-random-level.js",
     "generate:preview": "node js/level-generators/render-level-preview.js",
