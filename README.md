@@ -36,6 +36,82 @@ Win/fail conditions: TBC
 | Mouse hover | Highlights tile with gold border |
 | Left click / tap | Opens stats and info about the tile/character, click again to deselect |
 
+## Your Army
+
+You command a medieval garrison defending the keep. Each unit type has distinct strengths — deploy them wisely based on terrain and enemy approach.
+
+---
+
+### ⚔️ Archer / Crossbowman
+![unit-archer](assets/sprites/unit-archer.png) ![unit-crossbowman](assets/sprites/unit-crossbowman.png)
+
+| Stat | Value |
+|------|-------|
+| Available | 40 |
+| Health | 100 |
+| Attack | 90 |
+| Defense | 0.80 (20% damage reduction) |
+
+The backbone of castle defense. Archers rain arrows from walls and elevated positions, exploiting height advantage. Crossbowmen trade fire rate for armor-piercing bolts. Place them on walls, towers, or behind cover for maximum effectiveness. Vulnerable in melee.
+
+---
+
+### 🛡️ Spearman / Heavy Infantry
+![unit-spearman](assets/sprites/unit-spearman.png) ![unit-heavy-infantry](assets/sprites/unit-heavy-infantry.png)
+
+| Stat | Value |
+|------|-------|
+| Available | 30 |
+| Health | 100 |
+| Attack | 100 |
+| Defense | 0.50 (50% damage reduction) |
+
+The shield wall. Spearmen hold chokepoints — gates, bridges, breaches — where their long reach stops enemies cold. Heavy infantry with shields absorb charges and protect archers behind them. Essential at every entry point the enemy might exploit.
+
+---
+
+### 👑 Men-at-Arms (Knight)
+![unit-knight](assets/sprites/unit-knight.png)
+
+| Stat | Value |
+|------|-------|
+| Available | 20 |
+| Health | 100 |
+| Attack | 130 |
+| Defense | 0.40 (60% damage reduction) |
+
+Your elite shock troops. Heavily armored knights deal devastating damage and shrug off most attacks. Use them to plug breaches, lead counter-attacks, or crush enemy siege crews. Expensive and few — deploy them where the battle is fiercest.
+
+---
+
+### 🔧 Engineer / Siege Crew
+![unit-engineer](assets/sprites/unit-engineer.png)
+
+| Stat | Value |
+|------|-------|
+| Available | 5 |
+| Health | 100 |
+| Attack | 50 |
+| Defense | 0.85 (15% damage reduction) |
+
+Builders and operators. Engineers repair damaged walls, operate ballistae and mangonels, pour boiling pitch, and maintain defenses. Weak in combat but invaluable for keeping your castle standing. Protect them at all costs.
+
+---
+
+### 🏚️ Militia / Watchmen
+![unit-militia](assets/sprites/unit-militia.png)
+
+| Stat | Value |
+|------|-------|
+| Available | 5 |
+| Health | 100 |
+| Attack | 60 |
+| Defense | 0.90 (10% damage reduction) |
+
+Local levies armed with whatever's at hand. Militia patrol quiet sections, serve as early warning, and provide manpower reserves. They won't hold against a determined assault, but they buy time for your real soldiers to respond.
+
+---
+
 ## Project Structure
 
 ```

@@ -183,3 +183,70 @@ Tiles are stored in row-major order from the level loader. Since isometric proje
 ## game.js — Top-Down Hex Renderer (Alternative)
 
 Available at `index-topdown.html`. Uses `hexToPixel()` for flat hex grid positioning. No camera/zoom — renders full map. Sprites are hex-clipped. Kept for potential future viewpoint switching during gameplay.
+
+
+---
+
+## unit-manager.js — UnitManager
+
+Manages army unit definitions, stats, and placement on the map.
+
+### Loading
+
+```js
+await UnitManager.loadResources('levels/default.resources.txt');
+```
+
+Parses CSV format:
+```
+Unit,StartQty,Health,Attack,DefenseModifier
+Archer/Crossbowman,40,100,90,0.80
+```
+
+### Unit Definition Object
+
+```js
+{
+    name: "Archer/Crossbowman",
+    sprites: ['unit-archer', 'unit-crossbowman'],
+    qty: 40,
+    qtyRemaining: 40,
+    health: 100,
+    attack: 90,
+    defense: 0.80   // 0.80 = takes 80% damage (20% reduction)
+}
+```
+
+### Name → Sprite Mapping
+
+| CSV Name | Sprites |
+|----------|---------|
+| Archer/Crossbowman | `unit-archer`, `unit-crossbowman` |
+| Spearman/Heavy infantry | `unit-spearman`, `unit-heavy-infantry` |
+| Men-at-arms (heavy trooper) | `unit-knight` |
+| Engineer/Siege crew | `unit-engineer` |
+| Militia/Watchmen | `unit-militia` |
+
+### Placement
+
+```js
+const placed = UnitManager.placeUnit("Archer/Crossbowman", row, col);
+// Returns: { def, sprite, row, col, currentHealth }
+```
+
+Decrements `qtyRemaining`, picks a random sprite variant from the unit's sprite list.
+
+### Rendering
+
+Placed units render AFTER terrain (on top), offset 4px up so figures stand on the tile. Transparent-background sprites overlay terrain cleanly.
+
+### API
+
+| Method | Description |
+|--------|-------------|
+| `loadResources(file)` | Parse CSV into `units[]` |
+| `getAvailableUnits()` | Units with remaining qty > 0 |
+| `placeUnit(name, row, col)` | Place unit, return placed object |
+| `getPlacedUnits()` | All placed units (for render loop) |
+| `removeUnit(unit)` | Remove from map |
+| `reset()` | Clear placements, restore all quantities |

@@ -66,6 +66,9 @@ const Game = {
         const level = LevelLoader.getCurrentLevel();
         console.log('Level loaded:', level ? level.name : 'NONE', 'tiles:', level ? level.tiles.length : 0);
 
+        // Load unit resources
+        await UnitManager.loadResources();
+
         if (!level || level.tiles.length === 0) {
             console.error('No level data!');
             return;
@@ -368,6 +371,17 @@ const Game = {
         }
 
         ctx.restore(); // end zoom transform
+
+        // === Render placed units (on top of terrain, affected by zoom) ===
+        ctx.save();
+        ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        ctx.scale(this.zoom, this.zoom);
+        ctx.translate(-this.canvas.width / 2, -this.canvas.height / 2);
+        for (const unit of UnitManager.getPlacedUnits()) {
+            const { x, y } = this.gridToIso(unit.row, unit.col);
+            SpriteManager.draw(ctx, unit.sprite, x - this.ISO_TILE_W/2, y - this.ISO_TILE_H/2 - 4, this.ISO_TILE_W, this.ISO_TILE_H);
+        }
+        ctx.restore();
 
         // === BOTTOM-LEFT HUD PANEL ===
         if (this.hudWidth > 0) {

@@ -1,0 +1,6 @@
+Unit,StartQty,Health,Attack,DefenseModifier
+Archer/Crossbowman,40,100,90,0.80
+Spearman/Heavy infantry,30,100,100,0.50
+Men-at-arms (heavy trooper),20,100,130,0.40
+Engineer/Siege crew,5,100,50,0.85
+Militia/Watchmen,5,100,60,0.90

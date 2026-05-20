@@ -35,6 +35,17 @@ const SpriteManager = {
         // Decorations
         'rock',
 
+        // Units (transparent background, overlay on terrain)
+        'unit-knight',
+        'unit-heavy-infantry',
+        'unit-spearman',
+        'unit-archer',
+        'unit-crossbowman',
+        'unit-skirmisher',
+        'unit-engineer',
+        'unit-militia',
+        'unit-artillery',
+
         // Castle structures
         'castle-bridge-mid',
         'castle-tower',
