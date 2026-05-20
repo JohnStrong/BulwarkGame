@@ -165,6 +165,32 @@ const Game = {
             }
 
             const clicked = this.screenToGrid(mouseX, mouseY);
+
+            // If a unit type is selected from the bar, place it on the clicked tile
+            if (clicked && this.selectedUnitIdx >= 0) {
+                const unitDef = UnitManager.units[this.selectedUnitIdx];
+                const existing = UnitManager.getUnitAt(clicked.row, clicked.col);
+
+                if (existing) {
+                    // Tile occupied — remove the unit if it's the same type
+                    if (existing.def === unitDef) {
+                        UnitManager.removeUnit(existing);
+                        console.log(`Removed ${existing.sprite} from [${clicked.row}, ${clicked.col}]`);
+                    }
+                    // Otherwise do nothing (can't place on occupied tile)
+                } else if (unitDef && unitDef.qtyRemaining > 0) {
+                    const placed = UnitManager.placeUnit(unitDef.name, clicked.row, clicked.col);
+                    if (placed) {
+                        console.log(`Placed ${placed.sprite} at [${clicked.row}, ${clicked.col}]`);
+                        if (unitDef.qtyRemaining <= 0) {
+                            this.selectedUnitIdx = -1;
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Otherwise, normal tile selection
             if (clicked && this.selectedTile &&
                 clicked.row === this.selectedTile.row && clicked.col === this.selectedTile.col) {
                 this.selectedTile = null;
@@ -181,6 +207,22 @@ const Game = {
 
         this.canvas.addEventListener('mouseleave', () => {
             this.hoveredTile = null;
+        });
+
+        // Right-click: remove unit from tile
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const clicked = this.screenToGrid(mouseX, mouseY);
+            if (clicked) {
+                const unit = UnitManager.getUnitAt(clicked.row, clicked.col);
+                if (unit) {
+                    UnitManager.removeUnit(unit);
+                    console.log(`Right-click removed ${unit.sprite} from [${clicked.row}, ${clicked.col}]`);
+                }
+            }
         });
     },
 
@@ -401,7 +443,10 @@ const Game = {
         ctx.translate(-this.canvas.width / 2, -this.canvas.height / 2);
         for (const unit of UnitManager.getPlacedUnits()) {
             const { x, y } = this.gridToIso(unit.row, unit.col);
-            SpriteManager.draw(ctx, unit.sprite, x - this.ISO_TILE_W/2, y - this.ISO_TILE_H/2 - 4, this.ISO_TILE_W, this.ISO_TILE_H);
+            // Draw unit centered on tile, slightly smaller and raised
+            const uw = this.ISO_TILE_W * 0.75;
+            const uh = this.ISO_TILE_H * 0.75;
+            SpriteManager.draw(ctx, unit.sprite, x - uw/2, y - uh/2 - 4, uw, uh);
         }
         ctx.restore();
 

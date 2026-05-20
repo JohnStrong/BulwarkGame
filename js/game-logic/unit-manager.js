@@ -122,11 +122,21 @@ const UnitManager = {
     },
 
     /**
-     * Remove a placed unit (e.g., when killed).
+     * Check if a tile is occupied by a placed unit.
+     */
+    getUnitAt(row, col) {
+        return this.placed.find(u => u.row === row && u.col === col) || null;
+    },
+
+    /**
+     * Remove a placed unit and restore its quantity.
      */
     removeUnit(unit) {
         const idx = this.placed.indexOf(unit);
-        if (idx >= 0) this.placed.splice(idx, 1);
+        if (idx >= 0) {
+            this.placed.splice(idx, 1);
+            unit.def.qtyRemaining++;
+        }
     },
 
     /**
