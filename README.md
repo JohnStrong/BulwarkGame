@@ -2,7 +2,7 @@
 
 > ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the map rendering and level generation systems are functional.
 
-![Level 1 Preview](documentation/generated-sprite-maps-evolution/map-level-1-v0-06.png)
+![Level 1 Preview](docs/generated-sprite-maps-evolution/map-level-1-v0-LATEST.png)
 
 A turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
 
@@ -118,6 +118,15 @@ Levels are plain text files where each character represents a hex cell. The hex 
 | `D` | Road (dirt) |
 | `~` | Water |
 | `=` | Bridge (cobblestone) |
+| `b` | Castle bridge start (road→wood) |
+| `m` | Castle bridge mid (wood planks) |
+| `g` | Castle bridge gate (wood→stone) |
+| `T` | Tower (round stone) |
+| `K/j/J` | Keep (TL/BL/BR tiles) |
+| `F` | Keep center (flag — protect this!) |
+| `G` | Gatehouse (portcullis) |
+| `W` | Wall (full stone) |
+| `C` | Bailey (dirt+hay floor, 3 variants) |
 
 ### Architecture Documentation
 

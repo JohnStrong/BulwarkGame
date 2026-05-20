@@ -33,7 +33,22 @@ const SpriteManager = {
         'tree-7',
 
         // Decorations
-        'rock'
+        'rock',
+
+        // Castle structures
+        'castle-bridge-start',
+        'castle-bridge-mid',
+        'castle-bridge-gate',
+        'castle-tower',
+        'castle-keep-tl',
+        'castle-keep-bl',
+        'castle-keep-br',
+        'castle-keep-center',
+        'castle-gatehouse',
+        'castle-wall',
+        'castle-bailey-1',
+        'castle-bailey-2',
+        'castle-bailey-3'
     ],
 
     async loadAll() {

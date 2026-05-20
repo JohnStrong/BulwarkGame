@@ -227,22 +227,70 @@ function generateLevel(inputSeed) {
         for (let c = bCol; c <= bHorizEnd; c++) map[bRow][c] = 'u';
     }
 
-    // --- STEP 3: Trees (noise-based clusters) ---
+    // --- STEP 3: Forest clusters (same tree type per cluster) ---
+    // Place 2-4 forest clusters in different quadrants
+    const clusterCount = randomInt(2, 4);
+    const treeTypes = ['O', 'P', 'S'];
+    const usedAreas = [];
+
+    for (let ci = 0; ci < clusterCount; ci++) {
+        // Pick a tree type for this cluster (same type throughout)
+        const treeType = treeTypes[ci % treeTypes.length];
+
+        // Pick a cluster center in a quadrant (avoid road/water)
+        let cx, cy, attempts = 0;
+        do {
+            // Prefer corners/edges: top-right, top-left, bottom-left
+            const quadrant = ci % 3;
+            if (quadrant === 0) { // top-right
+                cx = randomInt(Math.floor(W * 0.6), W - 5);
+                cy = randomInt(2, Math.floor(H * 0.35));
+            } else if (quadrant === 1) { // top-left
+                cx = randomInt(waterWidth + 3, Math.floor(W * 0.3));
+                cy = randomInt(2, Math.floor(H * 0.35));
+            } else { // bottom-left
+                cx = randomInt(waterWidth + 3, Math.floor(W * 0.35));
+                cy = randomInt(Math.floor(H * 0.65), H - 4);
+            }
+            attempts++;
+        } while (attempts < 20 && map[cy] && map[cy][cx] !== '.');
+
+        // Fill cluster area with this tree type (elliptical shape)
+        const clusterRx = randomInt(4, 10);
+        const clusterRy = randomInt(3, 7);
+        const density = 0.5 + random() * 0.3; // 50-80% fill
+
+        for (let dy = -clusterRy; dy <= clusterRy; dy++) {
+            for (let dx = -clusterRx; dx <= clusterRx; dx++) {
+                const dist = (dx*dx)/(clusterRx*clusterRx) + (dy*dy)/(clusterRy*clusterRy);
+                if (dist > 1) continue;
+                const r = cy + dy, c = cx + dx;
+                if (r >= 0 && r < H && c >= 0 && c < W && map[r][c] === '.') {
+                    if (random() < density) {
+                        map[r][c] = treeType;
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Shrubs along river banks ---
     for (let row = 0; row < H; row++) {
+        // Place shrubs 1-2 tiles from water edge
         for (let col = 0; col < W; col++) {
-            if (map[row][col] !== '.') continue; // only on grass
-
-            // Don't place trees in castle area (right 25%)
-            if (col > W * 0.75) continue;
-
-            // Don't place too close to water
-            if (col < waterWidth + 2) continue;
-
-            const noise = smoothNoise(row, col, 5);
-            const threshold = 1.0 - forestWeight * 0.5;
-
-            if (noise > threshold && random() < 0.4) {
-                map[row][col] = 'O';
+            if (map[row][col] !== '.') continue;
+            // Check if adjacent to water
+            let nearWater = false;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = row+dr, nc = col+dc;
+                    if (nr >= 0 && nr < H && nc >= 0 && nc < W && map[nr][nc] === '~') {
+                        nearWater = true;
+                    }
+                }
+            }
+            if (nearWater && random() < 0.15) {
+                map[row][col] = 'S';
             }
         }
     }

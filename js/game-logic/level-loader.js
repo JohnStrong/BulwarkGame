@@ -14,13 +14,27 @@
  *   R   rock
  *
  * ROAD:
- *   D   dirt road (also L, r, U, u — all render the same)
+ *   D   dirt road
  *
  * WATER:
- *   ~   water (also w, ), ( — all render the same)
+ *   ~   water (3 variants)
  *
- * BRIDGE:
- *   =   cobblestone (also {, ^, }, [, ], <, _, >)
+ * BRIDGE (cobblestone):
+ *   =   cobblestone bridge surface
+ *
+ * CASTLE BRIDGE (drawbridge):
+ *   b   bridge-start (road transitioning to wood)
+ *   m   bridge-mid (wooden planks over moat)
+ *   g   bridge-gate (wood meeting gatehouse stone)
+ *
+ * CASTLE STRUCTURES:
+ *   T   tower (round stone, top-down)
+ *   K   keep top-left
+ *   j   keep bottom-left    J   keep bottom-right
+ *   F   keep center (flag — protect this!)
+ *   G   gatehouse (portcullis)
+ *   W   wall (full stone)
+ *   C   bailey (dirt+hay floor, 3 variants)
  *
  * GRID: Hexagonal (pointy-top, odd rows offset right)
  * Positioning uses hexToPixel(row, col) from utils.js
@@ -83,6 +97,20 @@ const LevelLoader = {
                     case 'D': level.tiles.push({ x, y, sprite: 'road-full' }); break;
                     case '~': level.tiles.push({ x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
                     case '=': level.tiles.push({ x, y, sprite: 'bridge-mm' }); break;
+
+                    // Castle structures
+                    case 'b': level.tiles.push({ x, y, sprite: 'castle-bridge-start' }); break;
+                    case 'm': level.tiles.push({ x, y, sprite: 'castle-bridge-mid' }); break;
+                    case 'g': level.tiles.push({ x, y, sprite: 'castle-bridge-gate' }); break;
+                    case 'T': level.tiles.push({ x, y, sprite: 'castle-tower' }); break;
+                    case 'K': level.tiles.push({ x, y, sprite: 'castle-keep-tl' }); break;
+                    case 'j': level.tiles.push({ x, y, sprite: 'castle-keep-bl' }); break;
+                    case 'J': level.tiles.push({ x, y, sprite: 'castle-keep-br' }); break;
+                    case 'F': level.tiles.push({ x, y, sprite: 'castle-keep-center' }); break;
+                    case 'G': level.tiles.push({ x, y, sprite: 'castle-gatehouse' }); break;
+                    case 'W': level.tiles.push({ x, y, sprite: 'castle-wall' }); break;
+                    case 'C': level.tiles.push({ x, y, sprite: `castle-bailey-${Math.floor(hash * 3) + 1}` }); break;
+
                     default: level.tiles.push({ x, y, sprite: 'grass-short-1' }); break;
                 }
             }

@@ -57,7 +57,7 @@ function drawHexBorder(buf) {
     const points = [];
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i - Math.PI / 6;
-        points.push({ x: cx + (SIZE/2 - 0.5) * Math.cos(angle), y: cy + (SIZE/2 - 0.5) * Math.sin(angle) });
+        points.push({ x: cx + (SIZE/2) * Math.cos(angle), y: cy + (SIZE/2) * Math.sin(angle) });
     }
 
     for (let y = 0; y < SIZE; y++) {
@@ -96,7 +96,9 @@ function fill(buf, color, noise, sv) {
     for (let y = 0; y < SIZE; y++)
         for (let x = 0; x < SIZE; x++) {
             const n = (seededRandom() - 0.5) * noise;
-            px(buf, x, y, color[0]+n, color[1]+n, color[2]+n);
+            // Add pixel-art dithering: occasional sharp dark/light pixels
+            const dither = seededRandom() > 0.92 ? 15 : (seededRandom() < 0.08 ? -12 : 0);
+            px(buf, x, y, color[0]+n+dither, color[1]+n+dither, color[2]+n+dither);
         }
 }
 
@@ -106,7 +108,7 @@ function drawCobblestones(buf, x1, y1, x2, y2, sv) {
     // Fill with mortar base
     for (let y = y1; y <= y2; y++)
         for (let x = x1; x <= x2; x++) {
-            const n = (seededRandom() - 0.5) * 4;
+            const n = (seededRandom() - 0.5) * 10;
             px(buf, x, y, STONE_DARK[0]+n, STONE_DARK[1]+n, STONE_DARK[2]+n);
         }
     // Draw individual stones (irregular rounded rectangles)
@@ -124,7 +126,7 @@ function drawCobblestones(buf, x1, y1, x2, y2, sv) {
                     // Round corners
                     if ((dx === 0 && dy === 0) || (dx === sw-1 && dy === 0) ||
                         (dx === 0 && dy === sh-1) || (dx === sw-1 && dy === sh-1)) continue;
-                    const n = (seededRandom() - 0.5) * 6;
+                    const n = (seededRandom() - 0.5) * 12;
                     px(buf, sx+dx, sy+dy, color[0]+n, color[1]+n, color[2]+n);
                 }
             }
@@ -191,7 +193,7 @@ function drawGrassEdgeHorizontal(buf, edgeY, side, sv) {
 
 function genGrass(v) {
     const buf = createBuf();
-    fill(buf, GRASS, 5, 1000 + v*100);
+    fill(buf, GRASS, 14, 1000 + v*100);
     resetSeed(1050 + v*100);
     for (let i = 0; i < 6; i++) {
         px(buf, Math.floor(seededRandom()*SIZE), Math.floor(seededRandom()*SIZE), ...GRASS_DARK);
@@ -201,12 +203,40 @@ function genGrass(v) {
 
 function genFlowers(v) {
     const buf = createBuf();
-    fill(buf, GRASS, 5, 2000 + v*100);
+    fill(buf, GRASS, 14, 2000 + v*100);
     resetSeed(2050 + v*100);
-    const colors = [[230,220,90],[220,220,210],[210,140,170]];
-    for (let i = 0; i < 5; i++) {
-        const c = colors[Math.floor(seededRandom()*3)];
-        px(buf, 4+Math.floor(seededRandom()*24), 4+Math.floor(seededRandom()*24), ...c);
+
+    // Draw 3-4 proper flowers with petals
+    const flowerColors = [
+        { petal: [240, 80, 120], center: [255, 220, 60] },   // pink/red with yellow center
+        { petal: [255, 200, 50], center: [180, 100, 30] },    // yellow with brown center
+        { petal: [220, 220, 240], center: [240, 200, 50] },   // white with yellow center
+        { petal: [180, 100, 220], center: [255, 230, 80] },   // purple with yellow center
+    ];
+
+    const count = 3 + Math.floor(seededRandom() * 2);
+    for (let i = 0; i < count; i++) {
+        const fx = 5 + Math.floor(seededRandom() * 22);
+        const fy = 5 + Math.floor(seededRandom() * 22);
+        const flower = flowerColors[Math.floor(seededRandom() * flowerColors.length)];
+
+        // Petals (cross pattern, 2px each direction)
+        const dirs = [[0,-2],[0,2],[-2,0],[2,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+        for (const [dx, dy] of dirs) {
+            px(buf, fx+dx, fy+dy, ...flower.petal);
+        }
+        // Extra petal pixels for fullness
+        px(buf, fx, fy-1, ...flower.petal);
+        px(buf, fx, fy+1, ...flower.petal);
+        px(buf, fx-1, fy, ...flower.petal);
+        px(buf, fx+1, fy, ...flower.petal);
+
+        // Center (bright dot)
+        px(buf, fx, fy, ...flower.center);
+
+        // Stem (1-2px green below)
+        px(buf, fx, fy+3, 45, 120, 35);
+        px(buf, fx, fy+4, 40, 110, 30);
     }
     return buf;
 }
@@ -219,7 +249,7 @@ function genRoadFull() {
 
 function genRoadEdgeLeft() {
     const buf = createBuf();
-    fill(buf, GRASS, 4, 3100);
+    fill(buf, GRASS, 12, 3100);
     drawDirt(buf, 14, 0, 31, 31, 3110);
     drawGrassEdgeVertical(buf, 14, 'left', 3120);
     return buf;
@@ -227,7 +257,7 @@ function genRoadEdgeLeft() {
 
 function genRoadEdgeRight() {
     const buf = createBuf();
-    fill(buf, GRASS, 4, 3200);
+    fill(buf, GRASS, 12, 3200);
     drawDirt(buf, 0, 0, 17, 31, 3210);
     drawGrassEdgeVertical(buf, 17, 'right', 3220);
     return buf;
@@ -235,7 +265,7 @@ function genRoadEdgeRight() {
 
 function genRoadEdgeTop() {
     const buf = createBuf();
-    fill(buf, GRASS, 4, 3300);
+    fill(buf, GRASS, 12, 3300);
     drawDirt(buf, 0, 14, 31, 31, 3310);
     drawGrassEdgeHorizontal(buf, 14, 'top', 3320);
     return buf;
@@ -243,7 +273,7 @@ function genRoadEdgeTop() {
 
 function genRoadEdgeBottom() {
     const buf = createBuf();
-    fill(buf, GRASS, 4, 3400);
+    fill(buf, GRASS, 12, 3400);
     drawDirt(buf, 0, 0, 31, 17, 3410);
     drawGrassEdgeHorizontal(buf, 17, 'bottom', 3420);
     return buf;
@@ -251,7 +281,7 @@ function genRoadEdgeBottom() {
 
 function genRoadCorner(corner) {
     const buf = createBuf();
-    fill(buf, GRASS, 4, 3500 + corner*100);
+    fill(buf, GRASS, 12, 3500 + corner*100);
     // Fill road in the non-grass quadrant
     const half = 16;
     switch(corner) {
@@ -398,7 +428,7 @@ function genBridgeBR() {
 function genWaterV(v) {
     // Vertical flow (top to bottom) - tidal marks run vertically
     const buf = createBuf();
-    fill(buf, WATER, 4, 5000 + v*100);
+    fill(buf, WATER, 12, 5000 + v*100);
     resetSeed(5050 + v*100);
     // Vertical flow streaks (top to bottom)
     for (let i = 0; i < 6; i++) {
@@ -421,7 +451,7 @@ function genWaterV(v) {
 function genWaterH(v) {
     // Horizontal flow (left to right) - tidal marks run horizontally
     const buf = createBuf();
-    fill(buf, WATER, 4, 5500 + v*100);
+    fill(buf, WATER, 12, 5500 + v*100);
     resetSeed(5550 + v*100);
     // Horizontal flow streaks (left to right)
     for (let i = 0; i < 6; i++) {
@@ -488,7 +518,7 @@ const SHRUB_LIGHT = [72, 165, 55];
 function genTree(v) {
     // Round oak tree
     const buf = createBuf();
-    fill(buf, GRASS, 3, 6000 + v*100);
+    fill(buf, GRASS, 12, 6000 + v*100);
     const cx = 16, cy = 14, r = 9 + (v%2);
     // Shadow
     resetSeed(6050+v*100);
@@ -511,7 +541,7 @@ function genTree(v) {
 function genPine(v) {
     // Triangular conifer/pine tree
     const buf = createBuf();
-    fill(buf, GRASS, 3, 6500 + v*100);
+    fill(buf, GRASS, 12, 6500 + v*100);
     const cx = 16, baseY = 26;
     resetSeed(6550+v*100);
 
@@ -548,7 +578,7 @@ function genPine(v) {
 function genShrub(v) {
     // Small bushy shrub (wider than tall)
     const buf = createBuf();
-    fill(buf, GRASS, 3, 6800 + v*100);
+    fill(buf, GRASS, 12, 6800 + v*100);
     const cx = 16, cy = 18;
     const rx = 8 + (v%2)*2, ry = 5 + (v%2);
     resetSeed(6850+v*100);
@@ -573,7 +603,7 @@ function genShrub(v) {
 
 function genRock() {
     const buf = createBuf();
-    fill(buf, GRASS, 3, 7000);
+    fill(buf, GRASS, 12, 7000);
     resetSeed(7050);
     const cx=16, cy=18, r=4;
     for (let dy=-r; dy<=r; dy++)
