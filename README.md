@@ -32,6 +32,7 @@ Win/fail conditions: TBC
 | + / = | Zoom in |
 | - | Zoom out |
 | Mouse wheel | Zoom in/out |
+| Spacebar | Rotate viewpoint (BR→TL ↔ BL→TR), re-centers on keep |
 
 ## Project Structure
 

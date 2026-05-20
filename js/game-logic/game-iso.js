@@ -25,10 +25,13 @@ const Game = {
     camX: 0,
     camY: 0,
     scrollSpeed: 8,
-    zoom: 1.0,       // 1.0 = default (64x32 tiles), 2.0 = zoomed in, 0.5 = zoomed out
-    zoomMin: 0.3,    // zoomed out enough to see full map
-    zoomMax: 4.0,    // zoomed in to ~64x64 pixel close
+    zoom: 1.0,
+    zoomMin: 0.3,
+    zoomMax: 4.0,
     zoomSpeed: 0.05,
+
+    // Viewpoint orientation: 'br-tl' (default) or 'bl-tr' (inverted)
+    viewpoint: 'br-tl',
 
     // Input state
     keys: { up: false, down: false, left: false, right: false, zoomIn: false, zoomOut: false },
@@ -87,6 +90,39 @@ const Game = {
             const delta = e.deltaY > 0 ? -this.zoomSpeed * 2 : this.zoomSpeed * 2;
             this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom + delta));
         }, { passive: false });
+
+        // Spacebar: toggle viewpoint orientation and re-center on keep flag
+        window.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.code === 'Space') {
+                e.preventDefault();
+                this.viewpoint = (this.viewpoint === 'br-tl') ? 'bl-tr' : 'br-tl';
+                this.centerOnFlag();
+                console.log('Viewpoint:', this.viewpoint);
+            }
+        });
+    },
+
+    /**
+     * Center camera on the keep flag tile (F) using current viewpoint projection
+     */
+    centerOnFlag() {
+        const level = LevelLoader.getCurrentLevel();
+        const flagTile = level.tiles.find(t => t.sprite === 'castle-keep-center');
+        if (!flagTile) return;
+
+        const halfW = this.ISO_TILE_W / 2;
+        const halfH = this.ISO_TILE_H / 2;
+
+        let worldX;
+        if (this.viewpoint === 'bl-tr') {
+            worldX = (flagTile.row - flagTile.col) * halfW + this.mapOffsetX;
+        } else {
+            worldX = (flagTile.col - flagTile.row) * halfW + this.mapOffsetX;
+        }
+        const worldY = (flagTile.col + flagTile.row) * halfH + this.mapOffsetY;
+
+        this.camX = worldX - this.canvas.width / 2;
+        this.camY = worldY - this.canvas.height / 2;
     },
 
     startLevel() {
@@ -115,19 +151,24 @@ const Game = {
             this.camY = mapCenterY - this.canvas.height / 2;
         }
 
-        this.zoom = 1.0;
+        this.zoom = 0.7;
         console.log(`ISO: ${level.width}x${level.height}, elevation entries: ${Object.keys(this.elevation).length}`);
     },
 
     /**
-     * Convert grid (row, col) to screen position (with camera offset)
-     * Uses elevation map for per-column height offsets
+     * Convert grid (row, col) to screen position.
+     * Supports two viewpoints toggled by spacebar:
+     *   br-tl: default — (col-row) for X
+     *   bl-tr: inverted — (row-col) for X (mirrors the map)
      */
     gridToIso(row, col) {
-        const x = (col - row) * (this.ISO_TILE_W / 2) + this.mapOffsetX - this.camX;
+        let x;
+        if (this.viewpoint === 'bl-tr') {
+            x = (row - col) * (this.ISO_TILE_W / 2) + this.mapOffsetX - this.camX;
+        } else {
+            x = (col - row) * (this.ISO_TILE_W / 2) + this.mapOffsetX - this.camX;
+        }
         const y = (col + row) * (this.ISO_TILE_H / 2) + this.mapOffsetY - this.camY;
-
-        // Apply elevation from the elevation map (per-column offset)
         const elevOffset = this.elevation[col] || 0;
         return { x, y: y + elevOffset };
     },
@@ -190,7 +231,7 @@ const Game = {
         ctx.fillStyle = '#fff';
         ctx.font = '11px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(level.name + ' (iso) | WASD scroll | +/- or wheel zoom | ' + Math.round(this.zoom * 100) + '%', 8, 14);
+        ctx.fillText(level.name + ' | WASD scroll | +/- zoom | SPACE rotate | ' + this.viewpoint + ' ' + Math.round(this.zoom * 100) + '%', 8, 14);
     }
 };
 

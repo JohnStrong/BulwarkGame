@@ -130,9 +130,9 @@ const LevelLoader = {
                     case '=': level.tiles.push({ row, col, x, y, sprite: 'bridge-mm' }); break;
 
                     // Castle structures
-                    case 'b': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-start' }); break;
+                    case 'b': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
                     case 'm': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
-                    case 'g': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-gate' }); break;
+                    case 'g': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
                     case 'T': level.tiles.push({ row, col, x, y, sprite: 'castle-tower' }); break;
                     case 'K': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-tl' }); break;
                     case 'j': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-bl' }); break;

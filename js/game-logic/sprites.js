@@ -36,9 +36,7 @@ const SpriteManager = {
         'rock',
 
         // Castle structures
-        'castle-bridge-start',
         'castle-bridge-mid',
-        'castle-bridge-gate',
         'castle-tower',
         'castle-keep-tl',
         'castle-keep-bl',
