@@ -2,7 +2,7 @@
 
 > ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the isometric map rendering, level generation, and camera systems are functional.
 
-![Level 1 Preview](docs/generated-sprite-maps-evolution/iso-viewpoint-map-level-tile-selection-and-HUD-v0-1.png)
+![Level 1 Preview](docs/snapshots/iso-viewpoint-map-level-units-hud-v-01.png)
 
 A turn-based medieval tower defense game rendered in isometric 2.5D with procedurally generated pixel art sprites. Built with vanilla JS and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
 
