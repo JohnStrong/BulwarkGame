@@ -33,6 +33,12 @@ const Game = {
     // Viewpoint orientation: 'br-tl' (default) or 'bl-tr' (inverted)
     viewpoint: 'br-tl',
 
+    // Tile interaction state
+    hoveredTile: null,    // { row, col } of tile under mouse
+    selectedTile: null,   // { row, col } of clicked tile
+    selectedLift: 0,      // current lift amount (animates 0 → 3)
+    selectedLiftTarget: 0,
+
     // Input state
     keys: { up: false, down: false, left: false, right: false, zoomIn: false, zoomOut: false },
 
@@ -100,6 +106,35 @@ const Game = {
                 console.log('Viewpoint:', this.viewpoint);
             }
         });
+
+        // Mouse: hover detection
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            this.hoveredTile = this.screenToGrid(mouseX, mouseY);
+        });
+
+        // Mouse: click to select
+        this.canvas.addEventListener('click', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const clicked = this.screenToGrid(mouseX, mouseY);
+            if (clicked && this.selectedTile &&
+                clicked.row === this.selectedTile.row && clicked.col === this.selectedTile.col) {
+                // Deselect if clicking same tile
+                this.selectedTile = null;
+                this.selectedLiftTarget = 0;
+            } else {
+                this.selectedTile = clicked;
+                this.selectedLiftTarget = 3;
+            }
+        });
+
+        this.canvas.addEventListener('mouseleave', () => {
+            this.hoveredTile = null;
+        });
     },
 
     /**
@@ -123,6 +158,37 @@ const Game = {
 
         this.camX = worldX - this.canvas.width / 2;
         this.camY = worldY - this.canvas.height / 2;
+    },
+
+    /**
+     * Convert screen coordinates to grid (row, col) — inverse isometric projection
+     */
+    screenToGrid(screenX, screenY) {
+        // Undo zoom transform (zoom is from center of canvas)
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
+        const worldX = (screenX - cx) / this.zoom + cx + this.camX - this.mapOffsetX;
+        const worldY = (screenY - cy) / this.zoom + cy + this.camY - this.mapOffsetY;
+
+        const halfW = this.ISO_TILE_W / 2;
+        const halfH = this.ISO_TILE_H / 2;
+
+        let col, row;
+        if (this.viewpoint === 'bl-tr') {
+            // Inverse of: x = (row-col)*halfW, y = (col+row)*halfH
+            row = Math.round((worldX / halfW + worldY / halfH) / 2);
+            col = Math.round((worldY / halfH - worldX / halfW) / 2);
+        } else {
+            // Inverse of: x = (col-row)*halfW, y = (col+row)*halfH
+            col = Math.round((worldX / halfW + worldY / halfH) / 2);
+            row = Math.round((worldY / halfH - worldX / halfW) / 2);
+        }
+
+        const level = LevelLoader.getCurrentLevel();
+        if (row >= 0 && row < level.height && col >= 0 && col < level.width) {
+            return { row, col };
+        }
+        return null;
     },
 
     startLevel() {
@@ -190,6 +256,14 @@ const Game = {
         // Zoom with +/- keys
         if (this.keys.zoomIn) this.zoom = Math.min(this.zoomMax, this.zoom + this.zoomSpeed);
         if (this.keys.zoomOut) this.zoom = Math.max(this.zoomMin, this.zoom - this.zoomSpeed);
+
+        // Smooth lift animation for selected tile
+        const liftSpeed = 0.3;
+        if (this.selectedLift < this.selectedLiftTarget) {
+            this.selectedLift = Math.min(this.selectedLiftTarget, this.selectedLift + liftSpeed);
+        } else if (this.selectedLift > this.selectedLiftTarget) {
+            this.selectedLift = Math.max(this.selectedLiftTarget, this.selectedLift - liftSpeed);
+        }
     },
 
     render() {
@@ -218,9 +292,49 @@ const Game = {
         // Draw tiles back-to-front (painter's algorithm)
         for (const tile of level.tiles) {
             if (tile.covered) continue;
-            const { x, y } = this.gridToIso(tile.row, tile.col);
-            // Sprites are already diamond-shaped with transparency — draw directly
+            let { x, y } = this.gridToIso(tile.row, tile.col);
+
+            // Apply lift if this tile is selected (smooth animated offset)
+            const isSelected = this.selectedTile &&
+                tile.row === this.selectedTile.row && tile.col === this.selectedTile.col;
+            if (isSelected) {
+                y -= this.selectedLift;
+            }
+
+            // Draw sprite
             SpriteManager.draw(ctx, tile.sprite, x - this.ISO_TILE_W/2, y - this.ISO_TILE_H/2, this.ISO_TILE_W, this.ISO_TILE_H);
+
+            // Hover highlight: draw accented diamond border
+            const isHovered = this.hoveredTile &&
+                tile.row === this.hoveredTile.row && tile.col === this.hoveredTile.col;
+            if (isHovered && !isSelected) {
+                ctx.strokeStyle = 'rgba(255, 220, 80, 0.6)'; // warm gold accent
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, y - this.ISO_TILE_H/2);
+                ctx.lineTo(x + this.ISO_TILE_W/2, y);
+                ctx.lineTo(x, y + this.ISO_TILE_H/2);
+                ctx.lineTo(x - this.ISO_TILE_W/2, y);
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // Selected: brighter border + glow
+            if (isSelected) {
+                ctx.strokeStyle = 'rgba(255, 255, 120, 0.9)'; // bright yellow
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y - this.ISO_TILE_H/2);
+                ctx.lineTo(x + this.ISO_TILE_W/2, y);
+                ctx.lineTo(x, y + this.ISO_TILE_H/2);
+                ctx.lineTo(x - this.ISO_TILE_W/2, y);
+                ctx.closePath();
+                ctx.stroke();
+                // Subtle glow
+                ctx.strokeStyle = 'rgba(255, 255, 180, 0.3)';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
         }
 
         ctx.restore(); // end zoom transform

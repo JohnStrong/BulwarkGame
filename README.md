@@ -33,6 +33,8 @@ Win/fail conditions: TBC
 | - | Zoom out |
 | Mouse wheel | Zoom in/out |
 | Spacebar | Rotate viewpoint (BR→TL ↔ BL→TR), re-centers on keep |
+| Mouse hover | Highlights tile with gold border |
+| Left click / tap | Select tile (lifts slightly), click again to deselect |
 
 ## Project Structure
 
