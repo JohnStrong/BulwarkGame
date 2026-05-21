@@ -4,7 +4,11 @@
   "description": "On-demand hook that scans js/game-logic/ directory for JS files and generates spec tests under tests/ with matching subfolder structure (e.g. tests/game-logic/ and tests/game-logic/lib/). Test files are named <file>.spec.js.",
   "version": "1",
   "when": {
-    "type": "userTriggered"
+    "type": "fileEdited",
+    "patterns": [
+      "js/**/*.js",
+      "js/**/*.mjs"
+    ]
   },
   "then": {
     "type": "askAgent",
