@@ -139,6 +139,18 @@ BasicTowerDefense/
 │   └── candidates/             # Random generator output
 ├── assets/
 │   └── sprites/                # 64x32 isometric diamond PNGs
+├── tests/
+│   ├── game-logic/             # Unit tests for browser game logic
+│   └── level-generators/
+│       ├── *.spec.js           # Unit tests for each generator script
+│       └── lib/
+│           ├── palette.spec.js         # Palette definitions & category lookup
+│           ├── fill-patterns.spec.js   # Diamond fill operations
+│           ├── pixel-utils.spec.js     # Core drawing primitives
+│           ├── sprite-constants.spec.js# Shared constants
+│           ├── unit-body.spec.js       # Unit figure drawing
+│           └── weapons.spec.js         # Weapon drawing functions
+├── property-tests/             # Property-based tests (fast-check)
 └── js/
     ├── game-logic/
     │   ├── utils.js            # Hex/iso geometry, constants, loaders
@@ -149,10 +161,18 @@ BasicTowerDefense/
     └── level-generators/
         ├── generate-iso-sprites-br-tl.js  # Terrain sprites (BR→TL viewpoint)
         ├── generate-castle-sprites.js     # Castle structure sprites
+        ├── generate-unit-sprites.js       # Army unit sprites
         ├── generate-smooth-sprites.js     # Legacy hex sprites (kept for top-down)
         ├── generate-tutorial-level.js     # Tutorial level generator
         ├── generate-random-level.js       # Seeded random level generator
-        └── render-level-preview.js        # Level → PNG renderer
+        ├── render-level-preview.js        # Level → PNG renderer
+        └── lib/
+            ├── sprite-constants.js  # Tile dims, output path, color palettes, sprite names
+            ├── pixel-utils.js       # createBuffer, setPixel, isInsideDiamond, seededRandom
+            ├── fill-patterns.js     # fillDiamond, fillDiamondWithSpeckle, drawStoneBlocks
+            ├── palette.js           # Enhanced palette definitions & category lookup
+            ├── unit-body.js         # drawUnit — full humanoid figure assembly
+            └── weapons.js           # drawWeapon dispatcher + weapon functions
 ```
 
 ## Visual Style
@@ -162,6 +182,27 @@ The game uses a classic isometric (2.5D) perspective — flat diamond tiles view
 Two viewpoints are available:
 - **Isometric** (`index.html`) — default, with camera scroll (WASD/arrows) and zoom (+/-/mousewheel)
 - **Top-down hex** (`index-topdown.html`) — flat hexagonal grid view
+
+### Enhanced Sprite Pipeline
+
+The sprite generation system is being upgraded with a layered pixel art pipeline that adds:
+
+- **Palette enforcement** — A strict 16-color primary palette shared across terrain, castle, and unit sprites, with a separate 8-color enemy palette (max 2 shared colors). Castle sprites get up to 4 additional accent colors. All sprites pass through a final quantization step guaranteeing pixel-perfect palette adherence.
+- **Procedural noise** — Simplex noise for terrain variation (grass, water) ensuring no two seeded sprites are identical.
+- **Directional shading** — Upper-left light source applied consistently across all sprite categories.
+- **Ordered dithering** — 4×4 Bayer matrix dithering on terrain transition edges using only palette colors.
+- **Animation frames** — Multi-frame sequences for water (3–8 frames) and castle flags.
+- **Sprite atlas** — All sprites packed into power-of-two atlas PNGs with JSON metadata for efficient runtime loading.
+- **Enemy sprites** — 5 distinct enemy unit types with visual differentiation from player units.
+- **Damaged castle variants** — 10 damaged versions of castle structures showing cracks and rubble.
+
+The palette definitions live in `js/level-generators/lib/palette.js` and export:
+- `PRIMARY_PALETTE` (16 colors) — terrain, castle, and unit sprites
+- `ENEMY_PALETTE` (8 colors) — enemy units, visually distinct from player palette
+- `CASTLE_ACCENT_COLORS` (4 colors) — weathering and highlight effects for castle sprites
+- `BORDER_COLOR` — dark outline for sprite edges
+- `ANIMATION_CONFIG` — frame counts and timing for water and flag animations
+- `getPaletteForCategory(category)` — returns the combined palette for a sprite category
 
 ## Developer Guide
 
@@ -192,6 +233,29 @@ Open `http://localhost:8000` in your browser.
 | `npm run generate:level` | Regenerate tutorial level |
 | `npm run generate:random` | Generate random level to candidates/ |
 | `npm run generate:preview` | Render level to PNG |
+| `npm test` | Run all unit tests (node:test) |
+| `npm run test:properties` | Run property-based tests (fast-check) |
+
+### Testing
+
+Tests use the Node.js built-in test runner (`node:test`). Unit tests mirror the source structure under `tests/`. Property-based tests (using [fast-check](https://github.com/dubzzz/fast-check)) live in `property-tests/` and validate universal correctness properties across all generated sprites.
+
+```bash
+# Run all unit tests
+npm test
+
+# Run property-based tests
+npm run test:properties
+
+# Run a single test file
+node --test tests/level-generators/lib/palette.spec.js
+```
+
+Key test areas:
+- **Palette compliance** — verifies color counts, channel ranges, enemy/player palette separation, and category lookup behavior
+- **Sprite dimensions** — ensures all generated sprites match expected sizes (64×32 terrain/castle, 32×32 units)
+- **Alpha invariant** — confirms all pixels are fully opaque or fully transparent (no partial alpha)
+- **Animation frames** — validates frame counts and inter-frame pixel differences
 
 ### Level File Format
 

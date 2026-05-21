@@ -12,7 +12,8 @@
     "serve": "npx serve . -l 8000",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",
     "start": "npm run serve",
-    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js"
+    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js",
+    "test:properties": "node --test property-tests/*.property.js"
   },
   "keywords": [
     "tower-defense",
@@ -25,6 +26,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "sharp": "^0.33.0"
+    "pixi.js": "7.4.2",
+    "sharp": "0.33.0",
+    "simplex-noise": "4.0.3"
+  },
+  "devDependencies": {
+    "fast-check": "3.23.2"
   }
 }
