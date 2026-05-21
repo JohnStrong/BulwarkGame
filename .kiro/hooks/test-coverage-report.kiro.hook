@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Test Coverage Gap Report",
+  "description": "After a task completes, analyze the test suite against production code to report coverage metrics (files, lines, branches) and highlight untested or partially tested methods with explanations. Outputs a summary to the session and writes a detailed markdown report to tests/reports/.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "After this task completed, generate a Test Coverage Gap Report. Do the following:\n\n1. Scan all production JS files under js/game-logic/ (including lib/ subdirectories).\n2. Scan all test spec files under tests/game-logic/ (including lib/ subdirectories).\n3. For each production file, identify all exported/defined functions and methods.\n4. Cross-reference against the test files to determine which functions have test coverage.\n5. Compute approximate coverage metrics:\n   - % of files with at least one corresponding test file\n   - % of functions/methods that have at least one test\n   - Estimate branch coverage based on conditional logic tested vs untested\n6. Print a concise summary to the session:\n   - One line per metric: Files covered, Functions covered, Branches estimated\n   - Use ✅ if >= 90%, ⚠️ if 70-89%, 🔴 if < 70%\n7. Print a detailed table of UNTESTED functions/methods with columns: File | Function | Reason Not Tested\n8. Print a table of PARTIALLY TESTED functions/methods with columns: File | Function | What's Missing\n9. Write the full report as a markdown file to tests/reports/coverage-gap-report.md (create the directory if needed). The markdown report should include:\n   - Header with date/time\n   - Summary metrics section\n   - Fully Untested section (table)\n   - Partially Tested section (table)\n   - Recommendations section with brief suggestions on how to add coverage\n\nKeep the session output scannable — bold the metrics, use tables, keep explanations to one sentence each."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Delete Spec Tests",
+  "description": "Automatically deletes the corresponding spec test file when a source JavaScript file is deleted.",
+  "version": "1",
+  "when": {
+    "type": "fileDeleted",
+    "patterns": [
+      "*.js",
+      "*.mjs"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A JavaScript file was just deleted. Find and delete the corresponding spec test file. Follow these rules:\n\n1. Look for the test file in a `tests` directory relative to the deleted source file, named `<filename>.spec.js`\n2. Also check for `<filename>.test.js` variants\n3. If the test file exists, delete it\n4. Do NOT take action if the deleted file was itself a test file (in tests or ending in .spec.js/.test.js)\n5. Confirm what was deleted or note if no corresponding test file was found"
+  }
+}

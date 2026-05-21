@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Generate Spec Tests",
+  "description": "On-demand hook that scans js/game-logic/ directory for JS files and generates spec tests under tests/ with matching subfolder structure (e.g. tests/game-logic/ and tests/game-logic/lib/). Test files are named <file>.spec.js.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Scan all .js files under js/game-logic/ (including subdirectories like lib/) in the BasicTowerDefense project. For each JS file found, write a comprehensive spec test file under the tests/ directory, mirroring the subfolder structure relative to js/. For example:\n- js/game-logic/utils.js → tests/game-logic/utils.spec.js\n- js/game-logic/lib/hud.js → tests/game-logic/lib/hud.spec.js\n\nFor each file:\n1. Read the source file to understand its exports, functions, and logic.\n2. Write a spec test file using plain JavaScript with a simple test runner pattern (describe/it style using console.assert or a lightweight framework if one is already configured in package.json).\n3. Cover the main exported functions with unit tests including edge cases.\n4. Name each test file as <original-filename>.spec.js.\n5. Skip files that already have a corresponding .spec.js test file.\n\nWork through all files systematically."
+  }
+}

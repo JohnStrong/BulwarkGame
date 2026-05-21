@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "enabled": true,
+  "name": "SyncDocumentationHook",
+  "description": "an agent that syncs my README documentation with the latest same state after I save changes to the project, if indeed there are changes required. ",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.js"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "update the README.md docs at the same layer of the saved file to align with any code changes that have been made or new game logic being added so we have a up to date living doc that will always get persisted in git with the changes associated with the doc changes. "
+  }
+}
