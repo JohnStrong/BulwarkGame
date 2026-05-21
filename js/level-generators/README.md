@@ -24,6 +24,12 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions (sword, bow, etc.) |
 | `lib/unit-body.js` | `drawUnit()` — draws the full humanoid figure (body layers + weapon) |
 | `lib/palette.js` | Enhanced palette system: `PRIMARY_PALETTE` (16 colors), `ENEMY_PALETTE` (8 colors), `CASTLE_ACCENT_COLORS` (4 colors), `BORDER_COLOR`, `ANIMATION_CONFIG`, `getPaletteForCategory()` |
+| `lib/noise-texture.js` | Simplex noise wrapper: `terrainNoise(x, y, scale, seed)` for deterministic terrain variation |
+| `lib/shading.js` | Directional lighting: `applyDirectionalShading()`, `applyFaceShading()`, `applyShadowEdge()` — upper-left light source |
+| `lib/dithering.js` | Ordered dithering: `applyOrderedDithering()` using 4×4 Bayer matrix for terrain transition edges |
+| `lib/palette-quantizer.js` | Final-pass palette enforcement: `quantizeToPalette(buffer, palette)` — Euclidean RGB nearest-color mapping |
+| `lib/atlas-packer.js` | Sprite atlas bin-packing: `packAtlas(sprites)` — power-of-two output with JSON metadata |
+| `lib/animation-frames.js` | Multi-frame generation: `generateWaterFrames()`, `generateFlagFrames()` for animated sprites |
 
 To add a new sprite, change a texture tone, or rename a sprite file — edit `lib/sprite-constants.js`.
 All generators import their colors and names from there.
@@ -463,6 +469,117 @@ node js/level-generators/render-level-preview.js [level-file] [output-file]
 ```
 
 Uses the same character→sprite mapping as the game's level loader, drawing each tile at its grid position. Useful for documentation screenshots without running a browser.
+
+---
+
+## lib/noise-texture.js — Procedural Noise
+
+Wraps `simplex-noise` to provide deterministic terrain-specific noise generation. Used to add natural variation to grass, water, and other terrain sprites so that no two seeded sprites are identical.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `terrainNoise` | `(x, y, scale, seed) → number` | Returns coherent noise value in range [-1, 1] for the given pixel coordinate |
+
+The `scale` parameter controls noise frequency (lower = smoother, larger features). Same `seed` always produces the same output, enabling reproducible sprite generation.
+
+---
+
+## lib/shading.js — Directional Lighting
+
+Provides layered shading utilities applied consistently across all sprite categories. The light source is always upper-left.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `applyDirectionalShading` | `(buffer, width, height, highlightPercent, shadowPercent)` | Brightens upper-left edges, darkens lower-right edges |
+| `applyFaceShading` | `(buffer, width, height, topColor, sideColor)` | Applies isometric face lighting (lit top, darker side) |
+| `applyShadowEdge` | `(buffer, width, height)` | Adds 1-pixel dark shadow on bottom-right perimeter |
+
+All functions modify the buffer in place and skip fully transparent pixels.
+
+---
+
+## lib/dithering.js — Ordered Dithering
+
+Implements 4×4 Bayer matrix ordered dithering for terrain transition edges. Blends two palette colors within a configurable border region without introducing any intermediate computed colors — the output contains only the two specified palette colors.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `applyOrderedDithering` | `(buffer, width, height, colorA, colorB, borderWidth, edge)` | Applies dithering in a border strip along the specified edge |
+| `BAYER_4X4` | `number[][]` | The 4×4 threshold matrix (values 0–15) |
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `buffer` | `Buffer` | — | RGBA pixel buffer (modified in place) |
+| `width` | `number` | — | Buffer width in pixels |
+| `height` | `number` | — | Buffer height in pixels |
+| `colorA` | `number[]` | — | First terrain palette color `[r, g, b]` (this tile's color) |
+| `colorB` | `number[]` | — | Second terrain palette color `[r, g, b]` (neighboring tile's color) |
+| `borderWidth` | `number` | `4` | Width of the dithering region in pixels |
+| `edge` | `string` | — | Which edge to dither: `'top'`, `'bottom'`, `'left'`, or `'right'` |
+
+### How it works
+
+1. For each pixel in the border strip, calculate its depth into the region (0 = at edge, `borderWidth-1` = deepest)
+2. Convert depth to a blend ratio scaled to the Bayer threshold range [0, 15]
+3. Compare against the Bayer matrix value at `(x % 4, y % 4)`
+4. Set pixel to `colorA` if the Bayer value is below the threshold, otherwise `colorB`
+
+Transparent pixels (alpha === 0) are always skipped. The result is a visually smooth gradient using only two discrete colors.
+
+---
+
+## lib/palette-quantizer.js — Palette Enforcement
+
+Final-pass module that maps every non-transparent pixel to the nearest color in a defined palette. Applied as the last step in every sprite generator to guarantee pixel-perfect palette adherence.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `quantizeToPalette` | `(buffer, palette) → Buffer` | Maps all opaque pixels to nearest palette color (in place) |
+
+Uses Euclidean distance in RGB space. Throws `Error('Quantization failed')` with pixel coordinates and color details if post-quantization validation finds any out-of-palette pixels.
+
+---
+
+## lib/atlas-packer.js — Sprite Atlas Generation
+
+Bin-packing algorithm that combines all generated sprites into power-of-two atlas images with JSON metadata for efficient runtime loading.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `packAtlas` | `(sprites) → {atlases, metadata}` | Packs sprite frames into atlas(es) with 1px padding |
+
+### Output
+
+- Atlas images: power-of-two dimensions (256, 512, 1024, or 2048px)
+- Auto-splits into multiple files (`atlas-0.png`, `atlas-1.png`, ...) if exceeding 2048px
+- JSON metadata includes frame positions, source sizes, atlas index, and animation sequences
+
+---
+
+## lib/animation-frames.js — Animation Generation
+
+Generates multi-frame animation sequences for water tiles and castle flags.
+
+### Exports
+
+| Export | Signature | Description |
+|--------|-----------|-------------|
+| `generateWaterFrames` | `(frameCount, seed) → Buffer[]` | Produces 3–8 water animation frames |
+| `generateFlagFrames` | `(frameCount, seed) → Buffer[]` | Produces flag waving animation frames |
+
+Each consecutive frame pair differs in at least 10% of non-transparent pixels, ensuring visible animation. Output is deterministic for the same seed.
 
 ---
 

@@ -151,6 +151,13 @@ BasicTowerDefense/
 │           ├── unit-body.spec.js       # Unit figure drawing
 │           └── weapons.spec.js         # Weapon drawing functions
 ├── property-tests/             # Property-based tests (fast-check)
+│   ├── setup.property.js      # Shared test setup/helpers
+│   ├── palette-compliance.property.js  # P2: Palette quantization exactness
+│   ├── alpha-binary.property.js        # P3: Binary alpha invariant
+│   ├── water-frames.property.js        # P5: Water animation frame difference
+│   ├── atlas-packing.property.js       # P10: Atlas non-overlapping packing
+│   ├── atlas-metadata.property.js      # P11: Atlas metadata completeness
+│   └── atlas-dimensions.property.js    # P12: Atlas power-of-two dimensions
 └── js/
     ├── game-logic/
     │   ├── utils.js            # Hex/iso geometry, constants, loaders
@@ -171,6 +178,12 @@ BasicTowerDefense/
             ├── pixel-utils.js       # createBuffer, setPixel, isInsideDiamond, seededRandom
             ├── fill-patterns.js     # fillDiamond, fillDiamondWithSpeckle, drawStoneBlocks
             ├── palette.js           # Enhanced palette definitions & category lookup
+            ├── noise-texture.js     # Simplex noise wrapper for terrain variation
+            ├── shading.js           # Directional, face, and shadow-edge shading
+            ├── dithering.js         # 4×4 Bayer matrix ordered dithering
+            ├── palette-quantizer.js # Final-pass palette enforcement (Euclidean RGB)
+            ├── atlas-packer.js      # Bin-packing into power-of-two sprite atlases
+            ├── animation-frames.js  # Multi-frame water and flag animation generation
             ├── unit-body.js         # drawUnit — full humanoid figure assembly
             └── weapons.js           # drawWeapon dispatcher + weapon functions
 ```
@@ -190,7 +203,7 @@ The sprite generation system is being upgraded with a layered pixel art pipeline
 - **Palette enforcement** — A strict 16-color primary palette shared across terrain, castle, and unit sprites, with a separate 8-color enemy palette (max 2 shared colors). Castle sprites get up to 4 additional accent colors. All sprites pass through a final quantization step guaranteeing pixel-perfect palette adherence.
 - **Procedural noise** — Simplex noise for terrain variation (grass, water) ensuring no two seeded sprites are identical.
 - **Directional shading** — Upper-left light source applied consistently across all sprite categories.
-- **Ordered dithering** — 4×4 Bayer matrix dithering on terrain transition edges using only palette colors.
+- **Ordered dithering** — 4×4 Bayer matrix dithering on terrain transition edges (configurable border width, default 4px). Blends two palette colors per edge (`top`, `bottom`, `left`, `right`) without introducing any intermediate computed colors. Transparent pixels are preserved.
 - **Animation frames** — Multi-frame sequences for water (3–8 frames) and castle flags.
 - **Sprite atlas** — All sprites packed into power-of-two atlas PNGs with JSON metadata for efficient runtime loading.
 - **Enemy sprites** — 5 distinct enemy unit types with visual differentiation from player units.
@@ -256,6 +269,9 @@ Key test areas:
 - **Sprite dimensions** — ensures all generated sprites match expected sizes (64×32 terrain/castle, 32×32 units)
 - **Alpha invariant** — confirms all pixels are fully opaque or fully transparent (no partial alpha)
 - **Animation frames** — validates frame counts and inter-frame pixel differences
+- **Atlas packing** — verifies no two sprite frames overlap and minimum 1-pixel padding between adjacent frames
+- **Atlas metadata** — ensures every sprite entry contains required fields (name, x, y, width, height) with correct types
+- **Atlas dimensions** — confirms all atlas images use power-of-two dimensions (256, 512, 1024, or 2048) and all frames fit within bounds
 
 ### Level File Format
 

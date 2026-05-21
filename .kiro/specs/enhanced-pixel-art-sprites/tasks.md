@@ -20,27 +20,27 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Define ANIMATION_CONFIG for water and flag frame counts/intervals
     - _Requirements: 10.1, 8.1, 2.5, 10.4_
 
-- [ ] 2. Implement core build-time library modules
-  - [~] 2.1 Implement noise-texture module
+- [x] 2. Implement core build-time library modules
+  - [x] 2.1 Implement noise-texture module
     - Create `js/level-generators/lib/noise-texture.js`
     - Implement `terrainNoise(x, y, scale, seed)` wrapping simplex-noise
     - Ensure deterministic output for same seed values
     - _Requirements: 1.2, 6.1_
 
-  - [~] 2.2 Implement shading module
+  - [x] 2.2 Implement shading module
     - Create `js/level-generators/lib/shading.js`
     - Implement `applyDirectionalShading(buffer, width, height, highlightPercent, shadowPercent)` with upper-left light source
     - Implement `applyFaceShading(buffer, width, height, topColor, sideColor)` for isometric face lighting
     - Implement `applyShadowEdge(buffer, width, height)` for 1-pixel bottom-right shadow
     - _Requirements: 1.1, 3.3, 10.4_
 
-  - [~] 2.3 Implement dithering module
+  - [x] 2.3 Implement dithering module
     - Create `js/level-generators/lib/dithering.js`
     - Implement `applyOrderedDithering(buffer, width, height, colorA, colorB, borderWidth, edge)` using 4×4 Bayer matrix
     - Ensure output uses only palette colors (no intermediate computed colors)
     - _Requirements: 1.5_
 
-  - [~] 2.4 Implement palette-quantizer module
+  - [x] 2.4 Implement palette-quantizer module
     - Create `js/level-generators/lib/palette-quantizer.js`
     - Implement `quantizeToPalette(buffer, palette)` using Euclidean RGB distance, modifying buffer in place
     - Skip fully transparent pixels (alpha === 0)
@@ -48,26 +48,26 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Throw `Error('Quantization failed')` with pixel coordinates and color details if post-quantization validation finds out-of-palette pixels
     - _Requirements: 10.2, 10.5_
 
-  - [ ]* 2.5 Write property tests for palette quantizer
+  - [x] 2.5 Write property tests for palette quantizer
     - Write to `property-tests/palette-compliance.property.js`
     - Write to `property-tests/alpha-binary.property.js`
     - **Property 2: Palette Quantization Exactness**
     - **Property 3: Binary Alpha Invariant**
     - **Validates: Requirements 10.2, 10.5**
 
-  - [~] 2.6 Implement animation-frames module
+  - [x] 2.6 Implement animation-frames module
     - Create `js/level-generators/lib/animation-frames.js`
     - Implement `generateWaterFrames(frameCount, seed)` producing 3–8 frames
     - Each consecutive frame pair must differ in at least 10% of non-transparent pixels
     - Implement `generateFlagFrames(frameCount, seed)` for castle flag animations
     - _Requirements: 1.3, 5.3_
 
-  - [ ]* 2.7 Write property tests for animation frames
+  - [x] 2.7 Write property tests for animation frames
     - Write to `property-tests/water-frames.property.js`
     - **Property 5: Water Animation Frame Difference**
     - **Validates: Requirements 1.3**
 
-  - [~] 2.8 Implement atlas-packer module
+  - [x] 2.8 Implement atlas-packer module
     - Create `js/level-generators/lib/atlas-packer.js`
     - Implement `packAtlas(sprites)` using bin-packing with 1-pixel padding between frames
     - Output power-of-two dimensions (256, 512, 1024, 2048)
@@ -78,7 +78,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Throw `Error('Atlas metadata serialization failed')` on JSON serialization failure
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ]* 2.9 Write property tests for atlas packer
+  - [ ] 2.9 Write property tests for atlas packer
     - Write to `property-tests/atlas-packing.property.js`
     - Write to `property-tests/atlas-metadata.property.js`
     - Write to `property-tests/atlas-dimensions.property.js`
@@ -87,11 +87,11 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 12: Atlas Power-of-Two Dimensions**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-- [~] 3. Checkpoint - Ensure all tests pass
+- [ ] 3. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 4. Implement enhanced terrain sprite generation
-  - [~] 4.1 Enhance terrain sprite generators with shading and noise
+  - [ ] 4.1 Enhance terrain sprite generators with shading and noise
     - Modify `js/level-generators/generate-iso-sprites-br-tl.js` to use noise-texture for grass variation
     - Apply `applyFaceShading` for lit top face and darker side face on all terrain tiles
     - Apply `applyShadowEdge` for 1-pixel bottom-right shadow
@@ -114,7 +114,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Validates: Requirements 1.1, 1.2, 1.5, 1.6**
 
 - [ ] 5. Implement enhanced castle sprite generation
-  - [~] 5.1 Enhance castle sprite generator with detail and outlines
+  - [ ] 5.1 Enhance castle sprite generator with detail and outlines
     - Modify `js/level-generators/generate-castle-sprites.js` to render stone block patterns (3+ horizontal courses, 1-pixel mortar lines, 2+ pixels color variation per block)
     - Add crenellation detail on tower tops (3+ alternating merlon/crenel shapes)
     - Add keep details: window slits (1×3 dark rectangles), flag element (3×5 pixels), layered stone texture
@@ -129,7 +129,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Validates: Requirements 2.4**
 
 - [ ] 6. Implement enhanced unit sprite generation
-  - [~] 6.1 Enhance unit sprite generator with silhouettes and weapons
+  - [ ] 6.1 Enhance unit sprite generator with silhouettes and weapons
     - Modify `js/level-generators/generate-unit-sprites.js` to produce unique silhouette shapes per unit type
     - Render weapon/held-item elements (min 4×4 pixels) specific to each unit type (sword, bow, spear, crossbow, hammer, pike, javelin, club, ramrod)
     - Apply directional lighting (upper-left highlight ≥20% brighter, lower-right shadow ≥20% darker)
@@ -146,7 +146,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Validates: Requirements 3.1, 3.2, 3.5**
 
 - [ ] 7. Implement enemy sprite generation
-  - [~] 7.1 Create enemy sprite generator
+  - [ ] 7.1 Create enemy sprite generator
     - Create `js/level-generators/generate-enemy-sprites.js`
     - Generate exactly 5 enemy unit types: enemy-knight, enemy-archer, enemy-spearman, enemy-militia, enemy-siege
     - Use ENEMY_PALETTE sharing no more than 2 colors with player unit palette
@@ -164,7 +164,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Validates: Requirements 8.1, 8.2**
 
 - [ ] 8. Implement damaged castle sprite generation
-  - [~] 8.1 Create damaged castle sprite generator
+  - [ ] 8.1 Create damaged castle sprite generator
     - Create `js/level-generators/generate-damaged-castle-sprites.js`
     - Generate exactly 10 damaged variants: castle-wall-damaged, castle-tower-damaged, castle-keep-tl-damaged, castle-keep-bl-damaged, castle-keep-br-damaged, castle-keep-center-damaged, castle-gatehouse-damaged, castle-bailey-1-damaged, castle-bailey-2-damaged, castle-bailey-3-damaged
     - Replace at least 15% of stone block area with cracks, missing blocks, or rubble debris
@@ -178,11 +178,11 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 17: Damaged Sprite Minimum Damage Area**
     - **Validates: Requirements 9.2**
 
-- [~] 9. Checkpoint - Ensure all build-time tests pass
+- [ ] 9. Checkpoint - Ensure all build-time tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 10. Wire atlas generation into build pipeline
-  - [~] 10.1 Integrate atlas packing into sprite generation script
+  - [ ] 10.1 Integrate atlas packing into sprite generation script
     - Update `npm run generate:sprites` script to call all generators then pack results into atlas
     - Add `generate-enemy-sprites.js` and `generate-damaged-castle-sprites.js` to the build script chain
     - Collect all generated sprite buffers and pass to `packAtlas()`
@@ -195,7 +195,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 7.2, 8.5, 9.5_
 
 - [ ] 11. Implement runtime rendering modules
-  - [~] 11.1 Implement animation-controller module
+  - [ ] 11.1 Implement animation-controller module
     - Create `js/game-logic/animation-controller.js`
     - Implement `registerAnimatedType(spriteType, frameCount, intervalMs)` with interval clamped to [100, 2000]
     - Implement `getCurrentFrame(spriteType)` returning shared frame index for all sprites of same type
@@ -208,7 +208,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 14: Animation Frame Rate Independence**
     - **Validates: Requirements 5.3, 7.5**
 
-  - [~] 11.3 Implement pixi-renderer module
+  - [ ] 11.3 Implement pixi-renderer module
     - Create `js/game-logic/pixi-renderer.js`
     - Implement `initPixiRenderer(canvas, timeout)` with fallback chain: WebGL (5s timeout) → CanvasRenderer → Canvas 2D
     - Implement `loadSpriteAtlas(atlasImagePath, atlasJsonPath)` using PixiJS Spritesheet class
@@ -226,7 +226,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Validates: Requirements 5.2, 7.4**
 
 - [ ] 12. Modify SpriteManager for atlas and PixiJS integration
-  - [~] 12.1 Extend SpriteManager with atlas loading and PixiJS delegation
+  - [ ] 12.1 Extend SpriteManager with atlas loading and PixiJS delegation
     - Modify `js/game-logic/sprites.js` to add `SpriteManager.loadAtlas(atlasPath, jsonPath)` method
     - Add `SpriteManager.usePixiRenderer(pixiRenderer)` method
     - Modify `draw(ctx, name, x, y, width, height)` to floor x,y to integers (prevent sub-pixel blur)
@@ -246,11 +246,11 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Test damaged sprite registration with `-damaged` suffix
     - _Requirements: 5.1, 5.2, 5.4, 8.6, 9.6_
 
-- [~] 13. Checkpoint - Ensure all tests pass
+- [ ] 13. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 14. Integration wiring and visual verification
-  - [~] 14.1 Wire PixiJS initialization into game startup
+  - [ ] 14.1 Wire PixiJS initialization into game startup
     - Modify game initialization in `index.html` or entry point to call `initPixiRenderer(canvas)` on load
     - Call `loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json')` after PixiJS init
     - Call `SpriteManager.usePixiRenderer(pixiRenderer)` to activate PixiJS path
@@ -266,7 +266,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Test damaged sprite renders on startup without errors
     - _Requirements: 7.2, 7.3, 5.5, 6.6, 9.7_
 
-- [~] 15. Final checkpoint - Ensure all tests pass
+- [ ] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
