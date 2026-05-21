@@ -78,7 +78,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Throw `Error('Atlas metadata serialization failed')` on JSON serialization failure
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ] 2.9 Write property tests for atlas packer
+  - [x] 2.9 Write property tests for atlas packer
     - Write to `property-tests/atlas-packing.property.js`
     - Write to `property-tests/atlas-metadata.property.js`
     - Write to `property-tests/atlas-dimensions.property.js`
@@ -87,11 +87,11 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 12: Atlas Power-of-Two Dimensions**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-- [ ] 3. Checkpoint - Ensure all tests pass
+- [x] 3. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Implement enhanced terrain sprite generation
-  - [ ] 4.1 Enhance terrain sprite generators with shading and noise
+- [x] 4. Implement enhanced terrain sprite generation
+  - [x] 4.1 Enhance terrain sprite generators with shading and noise
     - Modify `js/level-generators/generate-iso-sprites-br-tl.js` to use noise-texture for grass variation
     - Apply `applyFaceShading` for lit top face and darker side face on all terrain tiles
     - Apply `applyShadowEdge` for 1-pixel bottom-right shadow
@@ -102,7 +102,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Maintain 64×32 pixel tile dimensions
     - _Requirements: 1.1, 1.2, 1.4, 1.5, 1.6, 10.2, 10.3_
 
-  - [ ]* 4.2 Write property tests for terrain sprites
+  - [x] 4.2 Write property tests for terrain sprites
     - Write to `property-tests/sprite-dimensions.property.js`
     - Write to `property-tests/grass-uniqueness.property.js`
     - Write to `property-tests/directional-lighting.property.js`
@@ -123,7 +123,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` as final pass
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ]* 5.2 Write property tests for castle sprites
+  - [ ] 5.2 Write property tests for castle sprites
     - Write to `property-tests/castle-border.property.js`
     - **Property 7: Castle Outline Border**
     - **Validates: Requirements 2.4**
@@ -138,7 +138,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` as final pass
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ]* 6.2 Write property tests for unit sprites
+  - [ ] 6.2 Write property tests for unit sprites
     - Write to `property-tests/silhouette-uniqueness.property.js`
     - Write to `property-tests/weapon-area.property.js`
     - **Property 8: Unit Silhouette Uniqueness**
@@ -156,7 +156,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` with enemy palette as final pass
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.7_
 
-  - [ ]* 7.2 Write property tests for enemy sprites
+  - [ ] 7.2 Write property tests for enemy sprites
     - Write to `property-tests/enemy-palette.property.js`
     - Write to `property-tests/enemy-silhouette.property.js`
     - **Property 15: Enemy Palette Separation**
@@ -173,7 +173,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` as final pass
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-  - [ ]* 8.2 Write property tests for damaged castle sprites
+  - [ ] 8.2 Write property tests for damaged castle sprites
     - Write to `property-tests/damaged-area.property.js`
     - **Property 17: Damaged Sprite Minimum Damage Area**
     - **Validates: Requirements 9.2**

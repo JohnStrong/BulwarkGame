@@ -4,7 +4,29 @@
 
 ![Level 1 Preview](docs/snapshots/iso-viewpoint-map-level-units-hud-v-01.png)
 
-A turn-based medieval tower defense game rendered in isometric 2.5D with procedurally generated pixel art sprites. Built with vanilla JS and HTML5 Canvas. Defend your castle from invading forces by strategically placing defenses and managing resources.
+A turn-based medieval tower defense game rendered in isometric 2.5D with procedurally generated pixel art sprites. Defend your castle from invading forces by strategically placing defenses and managing resources.
+
+## Dependencies
+
+### Runtime
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [pixi.js](https://pixijs.com/) | 7.4.2 | 2D WebGL/Canvas rendering engine — handles sprite batching, texture management, and the isometric scene graph in the browser |
+| [sharp](https://sharp.pixelplumbing.com/) | 0.33.0 | High-performance image processing in Node.js — used by the sprite generators to create, composite, and export PNG sprite sheets and atlas textures |
+| [simplex-noise](https://github.com/jwagner/simplex-noise.js) | 4.0.3 | Deterministic simplex noise generation — drives procedural terrain variation (grass, water) so seeded sprites are unique but reproducible |
+
+### Development
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [fast-check](https://github.com/dubzzz/fast-check) | 3.23.2 | Property-based testing framework — validates universal correctness invariants (palette compliance, alpha binary, atlas packing) across all generated sprites |
+
+### Built-in / No External Dependency
+
+- **Test runner** — Node.js built-in `node:test` (no Mocha/Jest needed)
+- **HTTP server** — `npx serve` for local development (no install required)
+- **Browser rendering** — HTML5 Canvas API for the game viewport (pixi.js wraps this)
 
 ## The Game
 

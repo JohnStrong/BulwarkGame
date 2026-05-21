@@ -6,7 +6,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 
 | File | What it does |
 |------|-------------|
-| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) |
+| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) |
 | `generate-unit-sprites.js` | Generates army unit sprites (knight, archer, spearman, etc.) |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
@@ -50,28 +50,37 @@ node js/level-generators/generate-iso-sprites-br-tl.js
 
 | Sprite | Description |
 |--------|-------------|
-| `grass-short-1/2` | Green meadow with pixel noise |
-| `grass-flowers-1/2` | Meadow with colored flower clusters |
-| `road-full` | Sandy orange dirt road with crack details |
-| `water-1/2/3` | Blue water with vertical ripple streaks |
-| `bridge-mm` | Grey cobblestone with block pattern |
-| `tree-1` through `tree-7` | Trees with visible bark trunk (BR→TL viewpoint) |
-| `rock` | Grey stone on grass |
+| `grass-short-1/2` | Green meadow with simplex noise texture (3 palette colors) |
+| `grass-flowers-1/2` | Noise-textured meadow with cross-shaped flower clusters |
+| `road-full` | Sandy dirt road with crack details and left-edge dithering |
+| `water-1/2/3` | Blue water with ripple highlights and right-edge dithering |
+| `bridge-mm` | Grey cobblestone with offset block pattern |
+| `tree-1` through `tree-7` | Trees with 2 overlapping canopy layers (inner shadow + highlight rim) |
+| `rock` | Grey stone on noise-textured grass base |
 
-### How sprites are built
+All terrain sprites receive face shading (lit top, darker side), a 1-pixel shadow edge (bottom-right), and a final palette quantization pass.
 
-Each sprite starts as an empty 64×32 buffer. The generator:
-1. Fills pixels inside the diamond shape (`isInsideDiamond(x,y)` from `lib/pixel-utils.js`)
-2. Applies a base fill pattern (`fillDiamondWithSpeckle()` from `lib/fill-patterns.js`)
-3. Draws details (cracks, ripples, canopy, bark)
-4. Draws a thin dark border on edge pixels (`drawEdgeBorder()` from `lib/pixel-utils.js`)
-5. Writes as PNG via `sharp`
+### How sprites are built (enhanced pipeline)
+
+Each sprite starts as an empty 64×32 buffer. The generator applies a multi-stage pipeline:
+
+1. **Base fill** — Fills pixels inside the diamond shape using simplex noise to select from 3+ palette colors (`GRASS_COLORS` array), creating natural variation per seed
+2. **Detail pass** — Draws sprite-specific elements (cracks, ripples, flower clusters, canopy layers, bark)
+3. **Face shading** — `applyFaceShading()` applies isometric lighting: lit top face (brighter palette color), darker side face
+4. **Shadow edge** — `applyShadowEdge()` adds a 1-pixel dark shadow along the bottom-right perimeter
+5. **Ordered dithering** — `applyOrderedDithering()` blends two palette colors in a 4-pixel border strip on transition edges (bottom, left, or right depending on sprite type)
+6. **Edge border** — `drawEdgeBorder()` draws a thin dark border on outermost diamond pixels
+7. **Palette quantization** — `quantizeToPalette()` maps every non-transparent pixel to the nearest color in the terrain palette (final pass, guarantees palette compliance)
+8. **PNG export** — Writes as PNG via `sharp`
 
 ### Key functions
 
-- `fillDiamondWithSpeckle(buffer, baseColor, noiseAmount, seed)` — fills the diamond with a base color + per-pixel noise + occasional speckles
-- `drawEdgeBorder(buffer)` — finds edge pixels and colors them dark
-- `generateTree(variant)` — draws grass base → shadow → trunk (bark visible on BR side) → canopy on top
+- `generateGrass(variant, noiseGen)` — noise-driven grass with 3 palette colors + full shading pipeline
+- `generateTree(variant, noiseGen)` — grass base → ground shadow → bark trunk → 2 overlapping canopy layers (inner shadow + outer highlight rim)
+- `generateFlowers(variant, noiseGen)` — noise grass base + cross-shaped flower clusters in palette colors
+- `generateRoad()` / `generateWater(variant)` / `generateBridge()` — each applies the full shading + quantization pipeline
+- `createTerrainNoiseGenerator(seed)` — creates a deterministic noise function from `lib/noise-texture.js`
+- `getPaletteForCategory('terrain')` — returns the 16-color primary palette for quantization
 - `isInsideDiamond(x, y)` — returns true if pixel is inside the diamond: `|x-32|/32 + |y-16|/16 <= 1`
 
 ---
@@ -481,8 +490,9 @@ Wraps `simplex-noise` to provide deterministic terrain-specific noise generation
 | Export | Signature | Description |
 |--------|-----------|-------------|
 | `terrainNoise` | `(x, y, scale, seed) → number` | Returns coherent noise value in range [-1, 1] for the given pixel coordinate |
+| `createTerrainNoiseGenerator` | `(seed) → function` | Creates a reusable noise function `(x, y, scale) → number` bound to a specific seed |
 
-The `scale` parameter controls noise frequency (lower = smoother, larger features). Same `seed` always produces the same output, enabling reproducible sprite generation.
+The `scale` parameter controls noise frequency (lower = smoother, larger features). Same `seed` always produces the same output, enabling reproducible sprite generation. The terrain sprite generator uses `createTerrainNoiseGenerator` to create per-category noise functions (grass seed 42, tree seed 84, rock seed 126).
 
 ---
 
