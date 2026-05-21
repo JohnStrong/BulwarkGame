@@ -11,7 +11,11 @@
 ## Libraries/Frameworks
 
 - [pixelJS](https://pixijs.com/) - appears to be the common library used by JS devs making games - it has a pretty nice playground feature on the website to play around with and a 'Showcase' page with publically available (closed/open source games that use it including Happy Wheels)
- - TBC
+  - TBC
 
 - [pixel art icons](https://pixelarticons.com/) - simple pixel art that you can insert into the markup - has some nice ones that I am considering leveraging for my HUD such as a sword and shield - not sure if you can easily modify them (color, hue etc) if needed to fit the hud style but it appears it might be possible - need more research here
- -TBC 
+  - TBC 
+
+## Cool Games 
+
+- [sorcerers](https://github.com/lorgan3/sorcerers) - worms-inspired pixel art side-scrolling game on the web that appears to leverage pixeljs - might be nice to read the code to understand how I can use the lib to generate my own cool medivel/fantasy style game sprites 
