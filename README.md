@@ -234,5 +234,7 @@ Each level can have a `.elevation.txt` file (e.g., `level1.elevation.txt`) that 
 
 ### Architecture Documentation
 
-- **[docs/game-logic.md](docs/game-logic.md)** — Game code (sprites, level loader, renderers)
-- **[docs/generators.md](docs/generators.md)** — Sprite and level generators
+- **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: sprites, level loader, unit manager, game loop, and how they connect
+- **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
+- **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
+- **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random

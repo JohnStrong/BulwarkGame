@@ -1,55 +1,361 @@
 /**
- * Flat isometric diamond sprites — Viewpoint: BR → TL
- * Simple 2D diamonds (no 3D depth). Sprite size: 64x32.
+ * Flat isometric diamond terrain sprites — Viewpoint: Bottom-Right → Top-Left.
+ *
+ * Generates 17 terrain sprites as 64×32 pixel flat isometric diamonds.
+ * These are the base tiles used by the level loader to render the game map.
+ *
+ * Sprites produced:
+ *   - grass-short-1, grass-short-2       (green meadow with pixel noise)
+ *   - grass-flowers-1, grass-flowers-2   (meadow with colored flower clusters)
+ *   - road-full                          (sandy dirt road with crack details)
+ *   - water-1, water-2, water-3          (blue water with ripple streaks)
+ *   - bridge-mm                          (grey cobblestone with block pattern)
+ *   - tree-1 through tree-7             (trees with bark trunk visible from BR)
+ *   - rock                               (grey stone on grass base)
+ *
+ * Usage:
+ *   node js/level-generators/generate-iso-sprites-br-tl.js
  */
+
 const sharp = require('sharp');
 const path = require('path');
-const TILE_W = 64, TILE_H = 32;
-const OUTPUT_DIR = path.join(__dirname, '..', '..', 'assets', 'sprites');
-const GRASS=[95,180,72],GRASS_DARK=[75,155,55],ROAD=[210,165,110],WATER=[45,120,210];
-const BRIDGE=[140,138,128],TREE_TOP=[48,130,42],TREE_DARK=[28,85,25],TREE_LIGHT=[75,170,60];
-const BORDER=[30,30,28];
-let seed=1;
-function sr(){seed=(seed*1664525+1013904223)&0xFFFFFFFF;return(seed>>>0)/0xFFFFFFFF;}
-function rs(s){seed=s;}
-function createBuf(){return Buffer.alloc(TILE_W*TILE_H*4);}
-function px(buf,x,y,r,g,b){if(x<0||x>=TILE_W||y<0||y>=TILE_H)return;const i=(y*TILE_W+x)*4;buf[i]=Math.max(0,Math.min(255,Math.round(r)));buf[i+1]=Math.max(0,Math.min(255,Math.round(g)));buf[i+2]=Math.max(0,Math.min(255,Math.round(b)));buf[i+3]=255;}
-function inD(x,y){return(Math.abs(x-32)/32+Math.abs(y-16)/16)<=1;}
-function fillD(buf,color,noise,sv){rs(sv);for(let y=0;y<TILE_H;y++)for(let x=0;x<TILE_W;x++)if(inD(x,y)){const n=(sr()-0.5)*noise;const d=sr()>0.92?10:(sr()<0.08?-8:0);px(buf,x,y,color[0]+n+d,color[1]+n+d,color[2]+n+d);}}
-function drawBorder(buf){for(let y=0;y<TILE_H;y++)for(let x=0;x<TILE_W;x++){const i=(y*TILE_W+x)*4;if(buf[i+3]===0)continue;let e=false;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx<0||nx>=TILE_W||ny<0||ny>=TILE_H){e=true;continue;}if(buf[(ny*TILE_W+nx)*4+3]===0)e=true;}if(e){buf[i]=BORDER[0];buf[i+1]=BORDER[1];buf[i+2]=BORDER[2];}}}
 
-function genGrass(v){const buf=createBuf();fillD(buf,GRASS,12,1000+v*100);rs(1080+v*100);for(let i=0;i<8;i++){const x=Math.floor(sr()*TILE_W),y=Math.floor(sr()*TILE_H);if(inD(x,y))px(buf,x,y,...GRASS_DARK);}drawBorder(buf);return buf;}
-function genFlowers(v){const buf=createBuf();fillD(buf,GRASS,12,2000+v*100);rs(2080+v*100);const cols=[[240,80,120],[255,200,50],[220,220,240],[180,100,220]];for(let i=0;i<4;i++){const fx=12+Math.floor(sr()*40),fy=4+Math.floor(sr()*24);if(inD(fx,fy)){const c=cols[Math.floor(sr()*4)];px(buf,fx,fy,...c);px(buf,fx+1,fy,...c);px(buf,fx-1,fy,...c);px(buf,fx,fy-1,...c);px(buf,fx,fy+1,...c);}}drawBorder(buf);return buf;}
-function genRoad(){const buf=createBuf();fillD(buf,ROAD,10,3000);rs(3080);for(let i=0;i<5;i++){let cx=Math.floor(sr()*TILE_W),cy=Math.floor(sr()*TILE_H);for(let d=0;d<4;d++){if(inD(cx,cy))px(buf,cx,cy,170,130,80);cx+=Math.floor(sr()*3)-1;cy+=Math.floor(sr()*3)-1;}}drawBorder(buf);return buf;}
-function genWater(v){const buf=createBuf();fillD(buf,WATER,8,4000+v*100);rs(4080+v*100);for(let i=0;i<4;i++){const rx=10+Math.floor(sr()*44),ry=4+Math.floor(sr()*24);if(inD(rx,ry))for(let d=0;d<4;d++)px(buf,rx+d,ry,80,155,235);}drawBorder(buf);return buf;}
-function genBridge(){const buf=createBuf();fillD(buf,BRIDGE,8,5000);rs(5080);for(let sy=0;sy<TILE_H;sy+=5){const off=(sy/5)%2===0?0:4;for(let sx=off;sx<TILE_W;sx+=8)for(let dy=1;dy<3;dy++)for(let dx=1;dx<5;dx++)if(inD(sx+dx,sy+dy)){const n=(sr()-0.5)*6;px(buf,sx+dx,sy+dy,155+n,152+n,142+n);}}drawBorder(buf);return buf;}
-function genTree(v){const buf=createBuf();fillD(buf,GRASS,10,6000+v*100);
-// Trunk visible from BR→TL (bottom-right of canopy)
-const cx=32,cy=16,r=9+(v%2)*2;
-const trunkX=cx+3,trunkY=cy+4;
-rs(6070+v*100);
-// Shadow on ground
-for(let dy=-2;dy<=2;dy++)for(let dx=-4;dx<=4;dx++)if(inD(cx+dx+2,cy+dy+r-2)){const n=(sr()-0.5)*3;px(buf,cx+dx+2,cy+dy+r-2,55+n,120+n,38+n);}
-// Trunk (visible below-right of canopy, bark texture)
-for(let dy=-3;dy<=5;dy++)for(let dx=-2;dx<=2;dx++){if(inD(trunkX+dx,trunkY+dy)){const n=(sr()-0.5)*6;const bark=dx>0?[95,62,30]:[70,45,22];px(buf,trunkX+dx,trunkY+dy,bark[0]+n,bark[1]+n,bark[2]+n);}}
-// Canopy (overlaps trunk partially)
-rs(6080+v*100);
-for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const d=Math.sqrt(dx*dx+dy*dy);if(d<=r&&inD(cx+dx,cy+dy-2)){const n=(sr()-0.5)*8;const c=(d<r*0.35&&dy<0)?TREE_LIGHT:(d>r*0.72?TREE_DARK:TREE_TOP);px(buf,cx+dx,cy+dy-2,c[0]+n,c[1]+n,c[2]+n);}}
-drawBorder(buf);return buf;}
-function genRock(){const buf=createBuf();fillD(buf,GRASS,10,7000);const cx=32,cy=16;rs(7080);for(let dy=-4;dy<=4;dy++)for(let dx=-5;dx<=5;dx++)if(dx*dx+dy*dy<=20&&inD(cx+dx,cy+dy)){const n=(sr()-0.5)*8;px(buf,cx+dx,cy+dy,130+n,128+n,122+n);}drawBorder(buf);return buf;}
+const {
+    TILE_WIDTH,
+    TILE_HEIGHT,
+    OUTPUT_DIR,
+    TERRAIN_COLORS,
+    TERRAIN_SPRITES,
+} = require('./lib/sprite-constants');
 
-async function generateAll(){
-    const sprites=[
-        {name:'grass-short-1',buf:genGrass(0)},{name:'grass-short-2',buf:genGrass(1)},
-        {name:'grass-flowers-1',buf:genFlowers(0)},{name:'grass-flowers-2',buf:genFlowers(1)},
-        {name:'road-full',buf:genRoad()},
-        {name:'water-1',buf:genWater(0)},{name:'water-2',buf:genWater(1)},{name:'water-3',buf:genWater(2)},
-        {name:'bridge-mm',buf:genBridge()},
-        {name:'tree-1',buf:genTree(0)},{name:'tree-2',buf:genTree(1)},{name:'tree-3',buf:genTree(2)},
-        {name:'tree-4',buf:genTree(3)},{name:'tree-5',buf:genTree(4)},{name:'tree-6',buf:genTree(5)},{name:'tree-7',buf:genTree(6)},
-        {name:'rock',buf:genRock()},
-    ];
-    for(const s of sprites){await sharp(s.buf,{raw:{width:TILE_W,height:TILE_H,channels:4}}).png().toFile(path.join(OUTPUT_DIR,`${s.name}.png`));console.log(`  ✓ ${s.name}.png`);}
-    console.log(`\nDone! ${sprites.length} flat diamond sprites (64x32).`);
+const {
+    createBuffer,
+    setPixel,
+    isInsideDiamond,
+    seededRandom,
+    resetSeed,
+    drawEdgeBorder,
+} = require('./lib/pixel-utils');
+
+const { fillDiamondWithSpeckle } = require('./lib/fill-patterns');
+
+// ─── Sprite Generators ──────────────────────────────────────────────────────
+
+/**
+ * Generates a grass meadow sprite with subtle dark pixel accents.
+ * Used by the level loader for basic ground tiles (characters: 'g', '.').
+ *
+ * @param {number} variant - Variant index (0 or 1) for different random patterns.
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateGrass(variant) {
+    const buffer = createBuffer();
+
+    // Fill with green grass base (includes natural speckle)
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.grass, 12, 1000 + variant * 100);
+
+    // Scatter a few darker grass pixels for depth
+    resetSeed(1080 + variant * 100);
+    for (let i = 0; i < 8; i++) {
+        const x = Math.floor(seededRandom() * TILE_WIDTH);
+        const y = Math.floor(seededRandom() * TILE_HEIGHT);
+        if (isInsideDiamond(x, y)) {
+            setPixel(buffer, x, y, ...TERRAIN_COLORS.grassDark);
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
 }
-generateAll().catch(e=>{console.error(e);process.exit(1);});
+
+/**
+ * Generates a grass sprite with colorful flower clusters scattered on top.
+ * Used by the level loader for decorative meadow tiles (character: 'f').
+ *
+ * @param {number} variant - Variant index (0 or 1) for different flower placement.
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateFlowers(variant) {
+    const buffer = createBuffer();
+
+    // Green grass base
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.grass, 12, 2000 + variant * 100);
+
+    // Place 4 flower clusters in random positions
+    resetSeed(2080 + variant * 100);
+    const flowerColors = [
+        [240, 80, 120],   // pink
+        [255, 200, 50],   // yellow
+        [220, 220, 240],  // white
+        [180, 100, 220],  // purple
+    ];
+
+    for (let i = 0; i < 4; i++) {
+        const flowerX = 12 + Math.floor(seededRandom() * 40);
+        const flowerY = 4 + Math.floor(seededRandom() * 24);
+
+        if (isInsideDiamond(flowerX, flowerY)) {
+            const color = flowerColors[Math.floor(seededRandom() * 4)];
+
+            // Draw a small cross-shaped cluster (5 pixels)
+            setPixel(buffer, flowerX, flowerY, ...color);
+            setPixel(buffer, flowerX + 1, flowerY, ...color);
+            setPixel(buffer, flowerX - 1, flowerY, ...color);
+            setPixel(buffer, flowerX, flowerY - 1, ...color);
+            setPixel(buffer, flowerX, flowerY + 1, ...color);
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+/**
+ * Generates a dirt road sprite with crack details.
+ * Used by the level loader for path tiles (character: 'r').
+ *
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateRoad() {
+    const buffer = createBuffer();
+
+    // Sandy base fill
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.road, 10, 3000);
+
+    // Draw 5 small crack lines (darker brown, random-walk)
+    resetSeed(3080);
+    for (let crackIndex = 0; crackIndex < 5; crackIndex++) {
+        let crackX = Math.floor(seededRandom() * TILE_WIDTH);
+        let crackY = Math.floor(seededRandom() * TILE_HEIGHT);
+
+        for (let step = 0; step < 4; step++) {
+            if (isInsideDiamond(crackX, crackY)) {
+                setPixel(buffer, crackX, crackY, 170, 130, 80);
+            }
+            crackX += Math.floor(seededRandom() * 3) - 1;
+            crackY += Math.floor(seededRandom() * 3) - 1;
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+/**
+ * Generates a water tile with short horizontal ripple streaks.
+ * Used by the level loader for water tiles (character: 'w').
+ *
+ * @param {number} variant - Variant index (0, 1, or 2) for different ripple placement.
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateWater(variant) {
+    const buffer = createBuffer();
+
+    // Blue water base
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.water, 8, 4000 + variant * 100);
+
+    // Draw 4 short horizontal ripple highlights
+    resetSeed(4080 + variant * 100);
+    for (let rippleIndex = 0; rippleIndex < 4; rippleIndex++) {
+        const rippleX = 10 + Math.floor(seededRandom() * 44);
+        const rippleY = 4 + Math.floor(seededRandom() * 24);
+
+        if (isInsideDiamond(rippleX, rippleY)) {
+            for (let pixel = 0; pixel < 4; pixel++) {
+                setPixel(buffer, rippleX + pixel, rippleY, 80, 155, 235);
+            }
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+/**
+ * Generates a cobblestone bridge tile with an offset block pattern.
+ * Used by the level loader for bridge tiles (character: 'b').
+ *
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateBridge() {
+    const buffer = createBuffer();
+
+    // Grey stone base
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.bridgeStone, 8, 5000);
+
+    // Draw stone block pattern (offset rows like brickwork)
+    resetSeed(5080);
+    for (let blockRow = 0; blockRow < TILE_HEIGHT; blockRow += 5) {
+        const rowOffset = (blockRow / 5) % 2 === 0 ? 0 : 4;
+
+        for (let blockCol = rowOffset; blockCol < TILE_WIDTH; blockCol += 8) {
+            for (let pixelRow = 1; pixelRow < 3; pixelRow++) {
+                for (let pixelCol = 1; pixelCol < 5; pixelCol++) {
+                    const x = blockCol + pixelCol;
+                    const y = blockRow + pixelRow;
+
+                    if (isInsideDiamond(x, y)) {
+                        const noise = (seededRandom() - 0.5) * 6;
+                        setPixel(buffer, x, y, 155 + noise, 152 + noise, 142 + noise);
+                    }
+                }
+            }
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+/**
+ * Generates a tree sprite with grass base, ground shadow, bark trunk, and canopy.
+ * The trunk is visible on the bottom-right side (BR→TL viewpoint).
+ * Used by the level loader for forest tiles (characters: '1'–'7').
+ *
+ * @param {number} variant - Variant index (0–6) controlling canopy size and randomness.
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateTree(variant) {
+    const buffer = createBuffer();
+
+    // Grass base underneath the tree
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.grass, 10, 6000 + variant * 100);
+
+    const centerX = 32;
+    const centerY = 16;
+    const canopyRadius = 9 + (variant % 2) * 2; // alternates between 9 and 11
+
+    // Position trunk slightly to the bottom-right (visible from BR viewpoint)
+    const trunkX = centerX + 3;
+    const trunkY = centerY + 4;
+
+    resetSeed(6070 + variant * 100);
+
+    // ── Ground shadow (dark green ellipse beneath the tree) ──
+    for (let offsetY = -2; offsetY <= 2; offsetY++) {
+        for (let offsetX = -4; offsetX <= 4; offsetX++) {
+            const shadowX = centerX + offsetX + 2;
+            const shadowY = centerY + offsetY + canopyRadius - 2;
+
+            if (isInsideDiamond(shadowX, shadowY)) {
+                const noise = (seededRandom() - 0.5) * 3;
+                setPixel(buffer, shadowX, shadowY, 55 + noise, 120 + noise, 38 + noise);
+            }
+        }
+    }
+
+    // ── Trunk (bark texture, visible below-right of canopy) ──
+    for (let offsetY = -3; offsetY <= 5; offsetY++) {
+        for (let offsetX = -2; offsetX <= 2; offsetX++) {
+            if (isInsideDiamond(trunkX + offsetX, trunkY + offsetY)) {
+                const noise = (seededRandom() - 0.5) * 6;
+                // Right side of trunk is lighter (lit by BR light source)
+                const barkColor = offsetX > 0 ? [95, 62, 30] : [70, 45, 22];
+                setPixel(buffer, trunkX + offsetX, trunkY + offsetY,
+                    barkColor[0] + noise, barkColor[1] + noise, barkColor[2] + noise);
+            }
+        }
+    }
+
+    // ── Canopy (circular, drawn on top of trunk, with light/dark zones) ──
+    resetSeed(6080 + variant * 100);
+    for (let offsetY = -canopyRadius; offsetY <= canopyRadius; offsetY++) {
+        for (let offsetX = -canopyRadius; offsetX <= canopyRadius; offsetX++) {
+            const distanceFromCenter = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+            const canopyX = centerX + offsetX;
+            const canopyY = centerY + offsetY - 2; // raised 2px above center
+
+            if (distanceFromCenter <= canopyRadius && isInsideDiamond(canopyX, canopyY)) {
+                const noise = (seededRandom() - 0.5) * 8;
+
+                // Choose canopy color based on distance from center:
+                //   - Inner top = light green (sunlit crown)
+                //   - Outer edge = dark green (shadow/depth)
+                //   - Middle = standard canopy green
+                let leafColor;
+                if (distanceFromCenter < canopyRadius * 0.35 && offsetY < 0) {
+                    leafColor = TERRAIN_COLORS.treeCanopyLight;
+                } else if (distanceFromCenter > canopyRadius * 0.72) {
+                    leafColor = TERRAIN_COLORS.treeCanopyDark;
+                } else {
+                    leafColor = TERRAIN_COLORS.treeCanopy;
+                }
+
+                setPixel(buffer, canopyX, canopyY,
+                    leafColor[0] + noise, leafColor[1] + noise, leafColor[2] + noise);
+            }
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+/**
+ * Generates a rock sprite — a grey stone sitting on a grass base.
+ * Used by the level loader for obstacle tiles (character: 'k').
+ *
+ * @returns {Buffer} The completed pixel buffer.
+ */
+function generateRock() {
+    const buffer = createBuffer();
+
+    // Grass base
+    fillDiamondWithSpeckle(buffer, TERRAIN_COLORS.grass, 10, 7000);
+
+    // Draw a roughly circular grey stone in the center
+    const centerX = 32;
+    const centerY = 16;
+    resetSeed(7080);
+
+    for (let offsetY = -4; offsetY <= 4; offsetY++) {
+        for (let offsetX = -5; offsetX <= 5; offsetX++) {
+            // Use distance check for roughly circular shape (radius² ≈ 20)
+            const isInsideRock = (offsetX * offsetX + offsetY * offsetY) <= 20;
+
+            if (isInsideRock && isInsideDiamond(centerX + offsetX, centerY + offsetY)) {
+                const noise = (seededRandom() - 0.5) * 8;
+                setPixel(buffer, centerX + offsetX, centerY + offsetY,
+                    130 + noise, 128 + noise, 122 + noise);
+            }
+        }
+    }
+
+    drawEdgeBorder(buffer);
+    return buffer;
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
+
+async function generateAll() {
+    const sprites = [
+        { name: TERRAIN_SPRITES.grassShort1, buffer: generateGrass(0) },
+        { name: TERRAIN_SPRITES.grassShort2, buffer: generateGrass(1) },
+        { name: TERRAIN_SPRITES.grassFlowers1, buffer: generateFlowers(0) },
+        { name: TERRAIN_SPRITES.grassFlowers2, buffer: generateFlowers(1) },
+        { name: TERRAIN_SPRITES.road, buffer: generateRoad() },
+        { name: TERRAIN_SPRITES.water1, buffer: generateWater(0) },
+        { name: TERRAIN_SPRITES.water2, buffer: generateWater(1) },
+        { name: TERRAIN_SPRITES.water3, buffer: generateWater(2) },
+        { name: TERRAIN_SPRITES.bridge, buffer: generateBridge() },
+        { name: TERRAIN_SPRITES.tree1, buffer: generateTree(0) },
+        { name: TERRAIN_SPRITES.tree2, buffer: generateTree(1) },
+        { name: TERRAIN_SPRITES.tree3, buffer: generateTree(2) },
+        { name: TERRAIN_SPRITES.tree4, buffer: generateTree(3) },
+        { name: TERRAIN_SPRITES.tree5, buffer: generateTree(4) },
+        { name: TERRAIN_SPRITES.tree6, buffer: generateTree(5) },
+        { name: TERRAIN_SPRITES.tree7, buffer: generateTree(6) },
+        { name: TERRAIN_SPRITES.rock, buffer: generateRock() },
+    ];
+
+    for (const sprite of sprites) {
+        await sharp(sprite.buffer, { raw: { width: TILE_WIDTH, height: TILE_HEIGHT, channels: 4 } })
+            .png()
+            .toFile(path.join(OUTPUT_DIR, `${sprite.name}.png`));
+        console.log(`  ✓ ${sprite.name}.png`);
+    }
+
+    console.log(`\nDone! ${sprites.length} flat diamond sprites (64×32, BR→TL).`);
+}
+
+generateAll().catch(error => { console.error(error); process.exit(1); });
