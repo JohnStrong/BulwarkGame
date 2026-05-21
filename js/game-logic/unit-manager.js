@@ -122,6 +122,22 @@ const UnitManager = {
     },
 
     /**
+     * Check if a tile allows unit placement.
+     * Blocked: trees, water, wall, keep tiles.
+     * Allowed: grass, flowers, road, bridge, bailey, battlement, tower.
+     */
+    canPlaceOn(sprite) {
+        const blocked = [
+            'tree-', 'water-', 'castle-wall', 'castle-keep-',
+            'castle-gatehouse', 'rock'
+        ];
+        for (const prefix of blocked) {
+            if (sprite.startsWith(prefix)) return false;
+        }
+        return true;
+    },
+
+    /**
      * Check if a tile is occupied by a placed unit.
      */
     getUnitAt(row, col) {
