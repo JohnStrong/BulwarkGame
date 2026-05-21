@@ -10,6 +10,7 @@
     "generate:preview": "node js/level-generators/render-level-preview.js",
     "generate": "npm run generate:sprites && npm run generate:level",
     "serve": "npx serve . -l 8000",
+    "prepare": "git config core.hooksPath git-hooks",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",
     "start": "npm run serve",
     "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js"
