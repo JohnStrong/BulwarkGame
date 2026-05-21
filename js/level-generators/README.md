@@ -23,9 +23,12 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `lib/fill-patterns.js` | Shared diamond fill operations: `fillDiamond()`, `fillDiamondWithSpeckle()`, `drawStoneBlocks()` |
 | `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions (sword, bow, etc.) |
 | `lib/unit-body.js` | `drawUnit()` — draws the full humanoid figure (body layers + weapon) |
+| `lib/palette.js` | Enhanced palette system: `PRIMARY_PALETTE` (16 colors), `ENEMY_PALETTE` (8 colors), `CASTLE_ACCENT_COLORS` (4 colors), `BORDER_COLOR`, `ANIMATION_CONFIG`, `getPaletteForCategory()` |
 
 To add a new sprite, change a texture tone, or rename a sprite file — edit `lib/sprite-constants.js`.
 All generators import their colors and names from there.
+
+For the enhanced sprite pipeline's palette quantization and color enforcement, use `lib/palette.js`.
 
 ---
 
@@ -472,3 +475,50 @@ Uses the same character→sprite mapping as the game's level loader, drawing eac
 | `npm run generate:random` | `generate-random-level.js` |
 | `npm run generate:preview` | `render-level-preview.js` |
 | `npm run generate` | All sprites + level |
+| `npm run test:properties` | Runs property-based tests from `property-tests/` |
+
+---
+
+## lib/palette.js — Enhanced Palette System
+
+Defines the constrained color palettes for the enhanced sprite pipeline. Used by the palette quantizer as the target color set for final-pass enforcement, ensuring every non-transparent pixel in generated sprites matches a defined palette color exactly.
+
+### Exports
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `PRIMARY_PALETTE` | `number[][]` (16 colors) | Shared base palette for terrain, castle, and unit sprites |
+| `ENEMY_PALETTE` | `number[][]` (8 colors) | Distinct enemy palette (shares ≤2 colors with primary) |
+| `CASTLE_ACCENT_COLORS` | `number[][]` (4 colors) | Weathering/highlight accents extending castle palette |
+| `BORDER_COLOR` | `number[]` | Dark outline color `[25, 25, 22]` (matches PRIMARY_PALETTE[10]) |
+| `ANIMATION_CONFIG` | `object` | Frame counts and timing for water and flag animations |
+| `getPaletteForCategory(category)` | `function` | Returns the combined palette for a sprite category |
+
+### getPaletteForCategory(category)
+
+Returns the appropriate palette array for a given sprite category:
+
+| Category | Returns |
+|----------|---------|
+| `'terrain'` | `PRIMARY_PALETTE` (16 colors) |
+| `'unit'` | `PRIMARY_PALETTE` (16 colors) |
+| `'castle'` | `PRIMARY_PALETTE` + `CASTLE_ACCENT_COLORS` (20 colors) |
+| `'enemy'` | `ENEMY_PALETTE` (8 colors) |
+
+Throws `Error` for unknown categories.
+
+### ANIMATION_CONFIG
+
+```javascript
+{
+  water: { frameCount: 4, intervalMs: 500, minFrames: 3, maxFrames: 8 },
+  flag:  { frameCount: 3, intervalMs: 600, minFrames: 2, maxFrames: 6 },
+}
+```
+
+### Relationship to sprite-constants.js
+
+`lib/sprite-constants.js` remains the source of truth for tile dimensions, output paths, and per-unit color palettes (UNIT_PALETTES). `lib/palette.js` is the new source of truth for the enhanced pipeline's global palette constraints and quantization targets. The two modules serve different purposes:
+
+- **sprite-constants.js** — "What colors does each specific unit/tile use?" (per-sprite palettes)
+- **palette.js** — "What colors are allowed in the final output?" (global palette enforcement)
