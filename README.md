@@ -6,27 +6,32 @@
 
 A turn-based medieval tower defense game rendered in isometric 2.5D with procedurally generated pixel art sprites. Defend your castle from invading forces by strategically placing defenses and managing resources.
 
-## Dependencies
+---
 
-### Runtime
+## Table of Contents
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| [pixi.js](https://pixijs.com/) | 7.4.2 | 2D WebGL/Canvas rendering engine — handles sprite batching, texture management, and the isometric scene graph in the browser |
-| [sharp](https://sharp.pixelplumbing.com/) | 0.33.0 | High-performance image processing in Node.js — used by the sprite generators to create, composite, and export PNG sprite sheets and atlas textures |
-| [simplex-noise](https://github.com/jwagner/simplex-noise.js) | 4.0.3 | Deterministic simplex noise generation — drives procedural terrain variation (grass, water) so seeded sprites are unique but reproducible |
+### Play It
+- [The Game](#the-game)
+- [Controls](#controls-isometric-view)
+- [HUD Layout](#hud-layout)
+- [Your Army](#your-army)
+- [Visual Style](#visual-style)
 
-### Development
+### Develop It
+- [Development Philosophy](#development-philosophy)
+- [Dependencies](#dependencies)
+- [Quick Start](#quick-start)
+- [NPM Scripts](#npm-scripts)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Level File Format](#level-file-format)
+- [Elevation Files](#elevation-files)
+- [Enhanced Sprite Pipeline](#enhanced-sprite-pipeline)
+- [Architecture Documentation](#architecture-documentation)
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| [fast-check](https://github.com/dubzzz/fast-check) | 3.23.2 | Property-based testing framework — validates universal correctness invariants (palette compliance, alpha binary, atlas packing) across all generated sprites |
+---
 
-### Built-in / No External Dependency
-
-- **Test runner** — Node.js built-in `node:test` (no Mocha/Jest needed)
-- **HTTP server** — `npx serve` for local development (no install required)
-- **Browser rendering** — HTML5 Canvas API for the game viewport (pixi.js wraps this)
+# Play It
 
 ## The Game
 
@@ -44,7 +49,6 @@ The game is turn-based with two phases per turn:
 2. **Action phase** — attack, perform actions on adjacent tiles
 
 Win/fail conditions: TBC
-
 
 ### Controls (Isometric View)
 
@@ -144,6 +148,89 @@ Local levies armed with whatever's at hand. Militia patrol quiet sections, serve
 
 ---
 
+## Visual Style
+
+The game uses a classic isometric (2.5D) perspective — flat diamond tiles viewed from the bottom-right looking toward the top-left. Each tile is a 64×32px diamond with terrain texture, thin border, and transparent outside. The map supports elevation via a linked `.elevation.txt` file, creating subtle terraced steps across the landscape.
+
+Two viewpoints are available:
+- **Isometric** (`index.html`) — default, with camera scroll (WASD/arrows) and zoom (+/-/mousewheel)
+- **Top-down hex** (`index-topdown.html`) — flat hexagonal grid view
+
+---
+
+# Develop It
+
+## Development Philosophy
+
+This project is built using **specification-driven development** powered by [Kiro](https://kiro.dev) AI agents. Features move through a structured pipeline — requirements → design → implementation tasks — before any code is written. Each feature lives as a spec under `.kiro/specs/`, giving the development process a clear paper trail from intent to implementation.
+
+### Kiro Agent Hooks
+
+Automated agent hooks run continuously alongside development to maintain correctness and keep documentation in sync with the codebase:
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| **Sync Documentation** | JS file saved | Updates README docs at the same directory level to reflect code changes, keeping living documentation always current with the source |
+| **Generate Spec Tests** | JS file edited | Scans `js/` recursively and generates comprehensive `.spec.js` test files under `tests/`, mirroring the source folder structure |
+| **Delete Spec Tests** | JS file deleted | Cleans up orphaned test files when their corresponding source file is removed |
+| **Test Coverage Gap Report** | Agent task completes | Analyzes all production code against the test suite and writes a timestamped coverage report to `tests/reports/` with metrics and recommendations |
+
+This means documentation never drifts from the code, test coverage is continuously generated and monitored, and the spec-based workflow ensures features are well-defined before implementation begins. The hooks act as a quality safety net — every code change triggers documentation updates and test generation automatically.
+
+## Dependencies
+
+### Runtime
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [pixi.js](https://pixijs.com/) | 7.4.2 | 2D WebGL/Canvas rendering engine — handles sprite batching, texture management, and the isometric scene graph in the browser |
+| [sharp](https://sharp.pixelplumbing.com/) | 0.33.0 | High-performance image processing in Node.js — used by the sprite generators to create, composite, and export PNG sprite sheets and atlas textures |
+| [simplex-noise](https://github.com/jwagner/simplex-noise.js) | 4.0.3 | Deterministic simplex noise generation — drives procedural terrain variation (grass, water) so seeded sprites are unique but reproducible |
+
+### Development
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [fast-check](https://github.com/dubzzz/fast-check) | 3.23.2 | Property-based testing framework — validates universal correctness invariants (palette compliance, alpha binary, atlas packing) across all generated sprites |
+
+### Built-in / No External Dependency
+
+- **Test runner** — Node.js built-in `node:test` (no Mocha/Jest needed)
+- **HTTP server** — `npx serve` for local development (no install required)
+- **Browser rendering** — HTML5 Canvas API for the game viewport (pixi.js wraps this)
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js (v16+)
+
+### Setup
+
+```bash
+git clone https://github.com/JohnStrong/BasicGenAITowerDefense.git
+cd BasicGenAITowerDefense
+
+npm run init
+npm start
+```
+
+Open `http://localhost:8000` in your browser.
+
+## NPM Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run init` | Install deps, generate sprites + level |
+| `npm start` | Start local server on port 8000 |
+| `npm run generate` | Regenerate all sprites and level |
+| `npm run generate:sprites` | Regenerate sprite PNGs |
+| `npm run generate:level` | Regenerate tutorial level |
+| `npm run generate:random` | Generate random level to candidates/ |
+| `npm run generate:preview` | Render level to PNG |
+| `npm test` | Run all unit tests (node:test) |
+| `npm run test:properties` | Run property-based tests (fast-check) |
+
 ## Project Structure
 
 ```
@@ -210,68 +297,7 @@ BasicTowerDefense/
             └── weapons.js           # drawWeapon dispatcher + weapon functions
 ```
 
-## Visual Style
-
-The game uses a classic isometric (2.5D) perspective — flat diamond tiles viewed from the bottom-right looking toward the top-left. Each tile is a 64×32px diamond with terrain texture, thin border, and transparent outside. The map supports elevation via a linked `.elevation.txt` file, creating subtle terraced steps across the landscape.
-
-Two viewpoints are available:
-- **Isometric** (`index.html`) — default, with camera scroll (WASD/arrows) and zoom (+/-/mousewheel)
-- **Top-down hex** (`index-topdown.html`) — flat hexagonal grid view
-
-### Enhanced Sprite Pipeline
-
-The sprite generation system is being upgraded with a layered pixel art pipeline that adds:
-
-- **Palette enforcement** — A strict 16-color primary palette shared across terrain, castle, and unit sprites, with a separate 8-color enemy palette (max 2 shared colors). Castle sprites get up to 4 additional accent colors. All sprites pass through a final quantization step guaranteeing pixel-perfect palette adherence.
-- **Procedural noise** — Simplex noise for terrain variation (grass, water) ensuring no two seeded sprites are identical.
-- **Directional shading** — Upper-left light source applied consistently across all sprite categories.
-- **Ordered dithering** — 4×4 Bayer matrix dithering on terrain transition edges (configurable border width, default 4px). Blends two palette colors per edge (`top`, `bottom`, `left`, `right`) without introducing any intermediate computed colors. Transparent pixels are preserved.
-- **Animation frames** — Multi-frame sequences for water (3–8 frames) and castle flags.
-- **Sprite atlas** — All sprites packed into power-of-two atlas PNGs with JSON metadata for efficient runtime loading.
-- **Enemy sprites** — 5 distinct enemy unit types with visual differentiation from player units.
-- **Damaged castle variants** — 10 damaged versions of castle structures showing cracks and rubble.
-
-The palette definitions live in `js/level-generators/lib/palette.js` and export:
-- `PRIMARY_PALETTE` (16 colors) — terrain, castle, and unit sprites
-- `ENEMY_PALETTE` (8 colors) — enemy units, visually distinct from player palette
-- `CASTLE_ACCENT_COLORS` (4 colors) — weathering and highlight effects for castle sprites
-- `BORDER_COLOR` — dark outline for sprite edges
-- `ANIMATION_CONFIG` — frame counts and timing for water and flag animations
-- `getPaletteForCategory(category)` — returns the combined palette for a sprite category
-
-## Developer Guide
-
-### Prerequisites
-
-- Node.js (v16+)
-
-### Quick Start
-
-```bash
-git clone https://github.com/JohnStrong/BasicGenAITowerDefense.git
-cd BasicGenAITowerDefense
-
-npm run init
-npm start
-```
-
-Open `http://localhost:8000` in your browser.
-
-### NPM Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run init` | Install deps, generate sprites + level |
-| `npm start` | Start local server on port 8000 |
-| `npm run generate` | Regenerate all sprites and level |
-| `npm run generate:sprites` | Regenerate sprite PNGs |
-| `npm run generate:level` | Regenerate tutorial level |
-| `npm run generate:random` | Generate random level to candidates/ |
-| `npm run generate:preview` | Render level to PNG |
-| `npm test` | Run all unit tests (node:test) |
-| `npm run test:properties` | Run property-based tests (fast-check) |
-
-### Testing
+## Testing
 
 Tests use the Node.js built-in test runner (`node:test`). Unit tests mirror the source structure under `tests/`. Property-based tests (using [fast-check](https://github.com/dubzzz/fast-check)) live in `property-tests/` and validate universal correctness properties across all generated sprites.
 
@@ -295,7 +321,7 @@ Key test areas:
 - **Atlas metadata** — ensures every sprite entry contains required fields (name, x, y, width, height) with correct types
 - **Atlas dimensions** — confirms all atlas images use power-of-two dimensions (256, 512, 1024, or 2048) and all frames fit within bounds
 
-### Level File Format
+## Level File Format
 
 Levels are plain text files where each character represents an isometric tile.
 
@@ -320,7 +346,7 @@ Levels are plain text files where each character represents an isometric tile.
 | `W` | Wall (full stone) |
 | `C` | Bailey (dirt+hay floor, 3 variants) |
 
-### Elevation Files
+## Elevation Files
 
 Each level can have a `.elevation.txt` file (e.g., `level1.elevation.txt`) that defines per-column height offsets for the isometric staircase effect:
 
@@ -334,7 +360,28 @@ Each level can have a `.elevation.txt` file (e.g., `level1.elevation.txt`) that 
 50-59:-2
 ```
 
-### Architecture Documentation
+## Enhanced Sprite Pipeline
+
+The sprite generation system is being upgraded with a layered pixel art pipeline that adds:
+
+- **Palette enforcement** — A strict 16-color primary palette shared across terrain, castle, and unit sprites, with a separate 8-color enemy palette (max 2 shared colors). Castle sprites get up to 4 additional accent colors. All sprites pass through a final quantization step guaranteeing pixel-perfect palette adherence.
+- **Procedural noise** — Simplex noise for terrain variation (grass, water) ensuring no two seeded sprites are identical.
+- **Directional shading** — Upper-left light source applied consistently across all sprite categories.
+- **Ordered dithering** — 4×4 Bayer matrix dithering on terrain transition edges (configurable border width, default 4px). Blends two palette colors per edge (`top`, `bottom`, `left`, `right`) without introducing any intermediate computed colors. Transparent pixels are preserved.
+- **Animation frames** — Multi-frame sequences for water (3–8 frames) and castle flags.
+- **Sprite atlas** — All sprites packed into power-of-two atlas PNGs with JSON metadata for efficient runtime loading.
+- **Enemy sprites** — 5 distinct enemy unit types with visual differentiation from player units.
+- **Damaged castle variants** — 10 damaged versions of castle structures showing cracks and rubble.
+
+The palette definitions live in `js/level-generators/lib/palette.js` and export:
+- `PRIMARY_PALETTE` (16 colors) — terrain, castle, and unit sprites
+- `ENEMY_PALETTE` (8 colors) — enemy units, visually distinct from player palette
+- `CASTLE_ACCENT_COLORS` (4 colors) — weathering and highlight effects for castle sprites
+- `BORDER_COLOR` — dark outline for sprite edges
+- `ANIMATION_CONFIG` — frame counts and timing for water and flag animations
+- `getPaletteForCategory(category)` — returns the combined palette for a sprite category
+
+## Architecture Documentation
 
 - **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: sprites, level loader, unit manager, game loop, and how they connect
 - **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system

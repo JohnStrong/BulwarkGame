@@ -7,7 +7,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | File | What it does |
 |------|-------------|
 | `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
-| `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) |
+| `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (knight, archer, spearman, etc.) |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
@@ -87,7 +87,7 @@ Each sprite starts as an empty 64×32 buffer. The generator applies a multi-stag
 
 ## generate-castle-sprites.js
 
-Generates 13 castle structure sprites (64×32 diamonds, same format as terrain).
+Generates 13 castle structure sprites (64×32 diamonds, same format as terrain). Enhanced with the full sprite pipeline: stone block patterns, crenellation detail, keep details (window slits, flag), 1-pixel dark outline, face shading, shadow edge, and palette quantization.
 
 ```bash
 node js/level-generators/generate-castle-sprites.js
@@ -97,19 +97,33 @@ node js/level-generators/generate-castle-sprites.js
 
 | Sprite | Description |
 |--------|-------------|
-| `castle-bridge-start/mid/gate` | Wooden drawbridge planks |
-| `castle-tower` | Round stone tower (top-down circle) |
-| `castle-keep-tl/bl/br` | Keep quadrant tiles (stone blocks) |
-| `castle-keep-center` | Keep center with red+gold flag |
-| `castle-gatehouse` | Stone arch with iron portcullis grate |
-| `castle-wall` | Full stone curtain wall |
-| `castle-bailey-1/2/3` | Dirt+hay floor (3 density variants) |
+| `castle-bridge-start/mid/gate` | Wooden drawbridge planks with face shading |
+| `castle-tower` | Round stone tower with 4 alternating merlon/crenel crenellations |
+| `castle-keep-tl/bl/br` | Keep quadrant tiles (enhanced stone blocks + window slits) |
+| `castle-keep-center` | Keep center with layered stone, flag pole, and 7×5 waving red+gold flag |
+| `castle-gatehouse` | Enhanced stone courses with dark archway and iron portcullis grate |
+| `castle-wall` | Full stone curtain wall with 6+ horizontal courses and staggered masonry |
+| `castle-bailey-1/2/3` | Dirt+hay floor (3 density variants) with face shading |
+
+### Enhanced sprite pipeline (applied to all castle sprites)
+
+Every castle sprite now passes through the same multi-stage pipeline as terrain sprites:
+
+1. **Base fill / detail** — Sprite-specific geometry (stone blocks, planks, tower circle, etc.)
+2. **Face shading** — `applyFaceShading()` applies isometric lighting (lit top face, darker side face)
+3. **Shadow edge** — `applyShadowEdge()` adds a 1-pixel dark shadow along the bottom-right perimeter
+4. **Edge border** — `drawEdgeBorder()` draws a 1-pixel dark outline (BORDER_COLOR) on all outer-perimeter pixels bordering transparent pixels
+5. **Palette quantization** — `quantizeToPalette(buffer, CASTLE_PALETTE)` maps every non-transparent pixel to the nearest color in the castle palette (PRIMARY_PALETTE + CASTLE_ACCENT_COLORS = 20 colors)
 
 ### Key functions
 
-- `drawStoneBlocks(buffer, stoneColor, stoneLightColor, mortarColor, seed)` — fills diamond with stone block pattern (mortar gaps + offset rows). Shared via `lib/fill-patterns.js`.
-- `generateKeepCenter()` — stone base + flag pole + waving red flag with gold trim
-- `generateBailey1/2/3()` — road-colored dirt base with increasing amounts of straw strands
+- `drawEnhancedStoneBlocks(buffer, stoneColor, stoneLightColor, mortarColor, seed)` — fills diamond with enhanced masonry: 6+ horizontal courses (5px course height = 4 stone + 1 mortar), staggered block offsets on alternating rows, 2+ pixels of per-block color variation. Replaces the old `drawStoneBlocks` from `lib/fill-patterns.js` for castle sprites.
+- `generateTower()` — concentric stone circle + 4 merlon/crenel crenellation shapes (3×3 raised blocks with 2px gaps)
+- `generateKeepTopLeft/BottomLeft/BottomRight()` — enhanced stone blocks + 1×3 dark window slit rectangles + full shading pipeline
+- `generateKeepCenter()` — enhanced stone base + flag pole + 7×5 waving red flag with gold trim edges (exceeds 3×5 minimum)
+- `generateGatehouse()` — enhanced stone courses + dark archway + vertical iron bars (3px spacing) + horizontal crossbars
+- `generateWall()` — enhanced stone block pattern with full shading pipeline
+- `generateBailey1/2/3()` — dirt base with increasing straw density + face shading + quantization
 
 ---
 
@@ -562,7 +576,151 @@ Uses Euclidean distance in RGB space. Throws `Error('Quantization failed')` with
 
 ## lib/atlas-packer.js — Sprite Atlas Generation
 
-Bin-packing algorithm that combines all generated sprites into power-of-two atlas images with JSON metadata for efficient runtime loading.
+### What is a Sprite Atlas?
+
+A sprite atlas (also called a texture atlas or sprite sheet) is a single large image that contains many smaller sprites packed together, accompanied by a JSON metadata file that describes where each sprite lives within that image.
+
+**Why not just load individual PNGs?**
+
+Every separate image file means a separate HTTP request and a separate GPU texture upload. For a game with 30+ sprites (terrain, castle, units, animation frames), that's 30+ network round-trips and 30+ texture binds per frame. An atlas solves this by combining everything into one (or a few) images:
+
+| Approach | HTTP Requests | GPU Texture Binds | Memory Waste |
+|----------|--------------|-------------------|--------------|
+| Individual PNGs (30 sprites) | 30 | 30 per frame | High (each PNG padded to its own allocation) |
+| Single atlas | 1 | 1 per frame | Low (tightly packed, one allocation) |
+
+**The tradeoff:** You need metadata to know where each sprite is, and the atlas dimensions must be power-of-two (256, 512, 1024, 2048) because GPUs are optimized for these sizes.
+
+### How it works in this project
+
+The `packAtlas(sprites)` function takes an array of sprite objects and returns packed atlas buffer(s) plus JSON metadata:
+
+```
+Input:                                Output:
+┌──────────────┐                      ┌─────────────────────────────┐
+│ grass-short-1│ 64×32                │ ┌────┬────┬────┬────┐       │
+│ grass-short-2│ 64×32                │ │grs1│grs2│road│rock│       │ atlas-0.png
+│ road-full    │ 64×32    packAtlas() │ ├────┼────┼────┼────┤       │ (512×512)
+│ rock         │ 64×32   ──────────►  │ │wtr1│wtr2│wtr3│brg │       │
+│ water-1      │ 64×32                │ ├────┼────┴────┴────┤       │
+│ water-2      │ 64×32                │ │tree│               │       │
+│ water-3      │ 64×32                │ └────┴───────────────┘       │
+│ bridge-mm    │ 64×32                └─────────────────────────────┘
+│ tree-1       │ 64×32                         +
+└──────────────┘                      atlas-0.json (metadata)
+```
+
+### The packing algorithm (shelf-based bin packing)
+
+The packer uses a **shelf algorithm** — think of it like packing books onto shelves:
+
+1. **Sort sprites by height** (tallest first) for better space utilization
+2. **Place sprites left-to-right** on the current shelf
+3. When a sprite doesn't fit horizontally, **open a new shelf** below
+4. Each shelf's height equals the tallest sprite placed on it
+5. **1-pixel padding** between all sprites prevents texture bleeding (adjacent pixel colors leaking during GPU sampling)
+
+```
+Shelf 0 (height: 32px)
+┌─────────┬─────────┬─────────┬─────────┬─ ─ ─ ─ ─┐
+│ grass-1 │ grass-2 │  road   │  rock   │  (empty) │
+│  64×32  │  64×32  │  64×32  │  64×32  │          │
+└─────────┴─────────┴─────────┴─────────┴─ ─ ─ ─ ─┘
+           ↑ 1px padding between each sprite
+
+Shelf 1 (height: 32px)
+┌─────────┬─────────┬─────────┬─────────┐
+│ water-1 │ water-2 │ water-3 │ bridge  │
+│  64×32  │  64×32  │  64×32  │  64×32  │
+└─────────┴─────────┴─────────┴─────────┘
+```
+
+### Multi-frame animation handling
+
+Sprites with multiple animation frames (like water with 3–8 frames) are expanded into individual frame entries before packing:
+
+```
+Input: { name: "water-1", frames: 3, buffer: <all 3 frames stacked vertically> }
+
+Expanded to:
+  water-1-frame-0  (64×32)
+  water-1-frame-1  (64×32)
+  water-1-frame-2  (64×32)
+```
+
+The metadata's `animations` section groups these back together so the runtime knows which frames belong to which sprite:
+
+```json
+"animations": {
+  "water-1": ["water-1-frame-0", "water-1-frame-1", "water-1-frame-2"]
+}
+```
+
+### Auto-splitting
+
+If all sprites can't fit within a single 2048×2048 atlas (the GPU maximum this project targets), the packer automatically creates multiple atlas files:
+
+- `atlas-0.png` — first batch of sprites
+- `atlas-1.png` — overflow sprites
+- Each frame's metadata includes an `atlasIndex` field so the runtime knows which image to sample from
+
+### JSON metadata format
+
+The output metadata looks like this:
+
+```json
+{
+  "meta": {
+    "version": "1.0",
+    "image": "atlas-0.png",
+    "size": { "w": 512, "h": 512 },
+    "format": "RGBA8888"
+  },
+  "frames": {
+    "grass-short-1": {
+      "frame": { "x": 0, "y": 0, "w": 64, "h": 32 },
+      "sourceSize": { "w": 64, "h": 32 },
+      "atlasIndex": 0
+    },
+    "grass-short-2": {
+      "frame": { "x": 65, "y": 0, "w": 64, "h": 32 },
+      "sourceSize": { "w": 64, "h": 32 },
+      "atlasIndex": 0
+    },
+    "water-1-frame-0": {
+      "frame": { "x": 0, "y": 33, "w": 64, "h": 32 },
+      "sourceSize": { "w": 64, "h": 32 },
+      "atlasIndex": 0
+    }
+  },
+  "animations": {
+    "water-1": ["water-1-frame-0", "water-1-frame-1", "water-1-frame-2"]
+  }
+}
+```
+
+To render `grass-short-1` at runtime, the game reads the metadata, then draws a 64×32 rectangle from position (0, 0) of `atlas-0.png` onto the canvas. No separate file load needed.
+
+### Runtime usage (conceptual)
+
+```js
+// Load once at startup
+const atlasImage = await loadImage('assets/atlas-0.png');
+const metadata = await loadJSON('assets/atlas-0.json');
+
+// Draw a specific sprite
+function drawSprite(ctx, spriteName, destX, destY) {
+  const frame = metadata.frames[spriteName].frame;
+  ctx.drawImage(
+    atlasImage,
+    frame.x, frame.y, frame.w, frame.h,  // source rectangle in atlas
+    destX, destY, frame.w, frame.h        // destination on canvas
+  );
+}
+
+drawSprite(ctx, 'grass-short-1', 100, 50);
+drawSprite(ctx, 'castle-tower', 200, 80);
+```
 
 ### Exports
 
@@ -570,11 +728,14 @@ Bin-packing algorithm that combines all generated sprites into power-of-two atla
 |--------|-----------|-------------|
 | `packAtlas` | `(sprites) → {atlases, metadata}` | Packs sprite frames into atlas(es) with 1px padding |
 
-### Output
+### Constraints enforced
 
-- Atlas images: power-of-two dimensions (256, 512, 1024, or 2048px)
-- Auto-splits into multiple files (`atlas-0.png`, `atlas-1.png`, ...) if exceeding 2048px
-- JSON metadata includes frame positions, source sizes, atlas index, and animation sequences
+- **Power-of-two dimensions** — atlas width and height are always 256, 512, 1024, or 2048
+- **1-pixel padding** — prevents texture bleeding between adjacent sprites during GPU sampling
+- **No overlapping** — the shelf algorithm guarantees no two frames share any pixel region
+- **Unique names** — throws if any sprite has an empty or duplicate name
+- **Max 2048px** — auto-splits into multiple atlases if content exceeds this limit
+- **Deterministic** — same input sprites always produce the same atlas layout
 
 ---
 

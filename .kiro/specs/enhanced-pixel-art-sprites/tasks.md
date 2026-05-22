@@ -113,8 +113,8 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 19: Terrain Transition Dithering Palette Compliance**
     - **Validates: Requirements 1.1, 1.2, 1.5, 1.6**
 
-- [ ] 5. Implement enhanced castle sprite generation
-  - [ ] 5.1 Enhance castle sprite generator with detail and outlines
+- [x] 5. Implement enhanced castle sprite generation
+  - [x] 5.1 Enhance castle sprite generator with detail and outlines
     - Modify `js/level-generators/generate-castle-sprites.js` to render stone block patterns (3+ horizontal courses, 1-pixel mortar lines, 2+ pixels color variation per block)
     - Add crenellation detail on tower tops (3+ alternating merlon/crenel shapes)
     - Add keep details: window slits (1×3 dark rectangles), flag element (3×5 pixels), layered stone texture
@@ -123,7 +123,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` as final pass
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 5.2 Write property tests for castle sprites
+  - [x] 5.2 Write property tests for castle sprites
     - Write to `property-tests/castle-border.property.js`
     - **Property 7: Castle Outline Border**
     - **Validates: Requirements 2.4**
