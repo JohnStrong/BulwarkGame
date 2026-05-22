@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Fix Coverage Gap Recommendations",
+  "description": "Manually triggered hook that reads the latest coverage gap report from tests/reports/, implements fixes for the Recommendations section (adding missing tests, extracting testable helpers, etc.), then re-runs the test suite and regenerates the coverage gap report.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Implement fixes for the coverage gap recommendations. Follow these steps:\n\n1. **Find the latest report**: List all files in tests/reports/ matching the pattern coverage-gap-report.MM-DD-HH-mm.md. Identify the most recent one by parsing the MM-DD-HH-mm timestamp in the filename (higher month > higher day > higher hour > higher minute = more recent).\n\n2. **Read the Recommendations section**: Open the latest report and extract the content under the \"## Recommendations\" heading. These are the actionable items to fix.\n\n3. **Implement each recommendation**: For each recommendation in the list:\n   - Analyze what test coverage is missing\n   - Write new test files or extend existing test files under tests/ to address the gap\n   - If the recommendation suggests extracting helpers or refactoring for testability, do that too\n   - Ensure new tests follow the project's existing patterns (node:test runner, same assertion style)\n   - Do NOT break existing tests\n\n4. **Run the test suite**: Execute `npm test` to verify all existing and new tests pass. Fix any failures before proceeding.\n\n5. **Regenerate the coverage report**: After all tests pass, perform the same analysis as the \"Test Coverage Gap Report\" hook:\n   - Scan ALL production JS/MJS files under js/ recursively\n   - Scan ALL test spec files under tests/ recursively\n   - Cross-reference functions against test coverage\n   - Delete any existing coverage-gap-report*.md files in tests/reports/\n   - Write a fresh report to tests/reports/coverage-gap-report.MM-DD-HH-mm.md with current timestamp\n   - The report should include: Summary metrics, Fully Untested section, Partially Tested section, and updated Recommendations\n\n6. **Summary**: Report what was done — how many recommendations were addressed, how many new tests were added, and whether coverage improved."
+  }
+}
