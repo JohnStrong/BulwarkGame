@@ -2,6 +2,26 @@
 
 Node.js scripts that produce the game's PNG sprites and level text files. Run these at build time — they write output to `assets/sprites/` and `levels/`.
 
+## Table of Contents
+
+- [File Overview](#file-overview)
+- [generate-iso-sprites-br-tl.js](#generate-iso-sprites-br-tljs)
+- [generate-castle-sprites.js](#generate-castle-spritesjs)
+- [generate-unit-sprites.js](#generate-unit-spritesjs)
+- [generate-tutorial-level.js](#generate-tutorial-leveljs)
+- [generate-random-level.js](#generate-random-leveljs)
+- [render-level-preview.js](#render-level-previewjs)
+- [lib/noise-texture.js — Procedural Noise](#libnoise-texturejs--procedural-noise)
+- [lib/shading.js — Directional Lighting](#libshadingjs--directional-lighting)
+- [lib/dithering.js — Ordered Dithering](#libditheringjs--ordered-dithering)
+- [lib/palette-quantizer.js — Palette Enforcement](#libpalette-quantizerjs--palette-enforcement)
+- [lib/atlas-packer.js — Sprite Atlas Generation](#libatlas-packerjs--sprite-atlas-generation)
+- [lib/animation-frames.js — Animation Generation](#libanimation-framesjs--animation-generation)
+- [lib/palette.js — Enhanced Palette System](#libpalettejs--enhanced-palette-system)
+- [NPM Scripts](#npm-scripts)
+
+---
+
 ## File Overview
 
 | File | What it does |

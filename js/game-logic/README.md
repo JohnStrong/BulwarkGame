@@ -2,6 +2,18 @@
 
 All browser-side code that runs the game lives here. These files are loaded by `index.html` as plain `<script>` tags (no bundler).
 
+## Table of Contents
+
+- [File Overview](#file-overview)
+- [utils.js](#utilsjs)
+- [sprites.js — SpriteManager](#spritesjs--spritemanager)
+- [level-loader.js — LevelLoader](#level-loaderjs--levelloader)
+- [unit-manager.js — UnitManager](#unit-managerjs--unitmanager)
+- [game-iso.js — Game (Main Orchestrator)](#game-isojs--game-main-orchestrator)
+- [lib/ — Reusable Modules](#lib--reusable-modules)
+
+---
+
 ## File Overview
 
 | File | What it does |
