@@ -128,8 +128,8 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 7: Castle Outline Border**
     - **Validates: Requirements 2.4**
 
-- [ ] 6. Implement enhanced unit sprite generation
-  - [ ] 6.1 Enhance unit sprite generator with silhouettes and weapons
+- [x] 6. Implement enhanced unit sprite generation
+  - [x] 6.1 Enhance unit sprite generator with silhouettes and weapons
     - Modify `js/level-generators/generate-unit-sprites.js` to produce unique silhouette shapes per unit type
     - Render weapon/held-item elements (min 4×4 pixels) specific to each unit type (sword, bow, spear, crossbow, hammer, pike, javelin, club, ramrod)
     - Apply directional lighting (upper-left highlight ≥20% brighter, lower-right shadow ≥20% darker)
@@ -138,7 +138,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` as final pass
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ] 6.2 Write property tests for unit sprites
+  - [x] 6.2 Write property tests for unit sprites
     - Write to `property-tests/silhouette-uniqueness.property.js`
     - Write to `property-tests/weapon-area.property.js`
     - **Property 8: Unit Silhouette Uniqueness**

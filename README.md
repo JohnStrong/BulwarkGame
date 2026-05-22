@@ -247,7 +247,7 @@ BasicTowerDefense/
 │   ├── level1.elevation.txt    # Elevation map (step heights per column)
 │   └── candidates/             # Random generator output
 ├── assets/
-│   └── sprites/                # 64x32 isometric diamond PNGs
+│   └── sprites/                # Isometric PNGs (64×32 terrain/castle, 32×32 units)
 ├── tests/
 │   ├── game-logic/             # Unit tests for browser game logic
 │   └── level-generators/
@@ -277,7 +277,7 @@ BasicTowerDefense/
     └── level-generators/
         ├── generate-iso-sprites-br-tl.js  # Terrain sprites (BR→TL viewpoint)
         ├── generate-castle-sprites.js     # Castle structure sprites
-        ├── generate-unit-sprites.js       # Army unit sprites
+        ├── generate-unit-sprites.js       # Army unit sprites (32×32, enhanced pipeline)
         ├── generate-smooth-sprites.js     # Legacy hex sprites (kept for top-down)
         ├── generate-tutorial-level.js     # Tutorial level generator
         ├── generate-random-level.js       # Seeded random level generator
@@ -293,8 +293,8 @@ BasicTowerDefense/
             ├── palette-quantizer.js # Final-pass palette enforcement (Euclidean RGB)
             ├── atlas-packer.js      # Bin-packing into power-of-two sprite atlases
             ├── animation-frames.js  # Multi-frame water and flag animation generation
-            ├── unit-body.js         # drawUnit — full humanoid figure assembly
-            └── weapons.js           # drawWeapon dispatcher + weapon functions
+            ├── unit-body.js         # drawUnit — legacy humanoid figure (not used by enhanced generator)
+            └── weapons.js           # drawWeapon — legacy weapon functions (not used by enhanced generator)
 ```
 
 ## Testing

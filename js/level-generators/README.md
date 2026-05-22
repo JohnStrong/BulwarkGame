@@ -28,7 +28,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 |------|-------------|
 | `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
-| `generate-unit-sprites.js` | Generates army unit sprites (knight, archer, spearman, etc.) |
+| `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
 | `generate-smooth-sprites.js` | Legacy hex sprites (kept for top-down view) |
@@ -41,8 +41,8 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `lib/sprite-constants.js` | Single source of truth: tile dimensions, output path, all color palettes (terrain, castle, unit), sprite name registries |
 | `lib/pixel-utils.js` | Core drawing primitives: `createBuffer()`, `setPixel()`, `isInsideDiamond()`, `seededRandom()`, `resetSeed()`, `drawEdgeBorder()` |
 | `lib/fill-patterns.js` | Shared diamond fill operations: `fillDiamond()`, `fillDiamondWithSpeckle()`, `drawStoneBlocks()` |
-| `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions (sword, bow, etc.) |
-| `lib/unit-body.js` | `drawUnit()` — draws the full humanoid figure (body layers + weapon) |
+| `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions — legacy, not used by enhanced unit generator |
+| `lib/unit-body.js` | `drawUnit()` — legacy full humanoid figure assembly, not used by enhanced unit generator |
 | `lib/palette.js` | Enhanced palette system: `PRIMARY_PALETTE` (16 colors), `ENEMY_PALETTE` (8 colors), `CASTLE_ACCENT_COLORS` (4 colors), `BORDER_COLOR`, `ANIMATION_CONFIG`, `getPaletteForCategory()` |
 | `lib/noise-texture.js` | Simplex noise wrapper: `terrainNoise(x, y, scale, seed)` for deterministic terrain variation |
 | `lib/shading.js` | Directional lighting: `applyDirectionalShading()`, `applyFaceShading()`, `applyShadowEdge()` — upper-left light source |
@@ -149,7 +149,7 @@ Every castle sprite now passes through the same multi-stage pipeline as terrain 
 
 ## generate-unit-sprites.js
 
-Generates 9 army unit sprites (64×32, transparent background — units overlay terrain).
+Generates 9 army unit sprites (32×32 native resolution, transparent background — units overlay terrain). Enhanced with unique silhouette shapes per unit type, weapon elements (min 4×4 pixels), directional lighting, and palette quantization.
 
 ```bash
 node js/level-generators/generate-unit-sprites.js
@@ -157,288 +157,124 @@ node js/level-generators/generate-unit-sprites.js
 
 ### What it produces
 
-| Sprite | Unit | Visual |
-|--------|------|--------|
-| `unit-knight` | Men-at-arms | Silver armor, blue cape, sword |
-| `unit-heavy-infantry` | Heavy infantry | Chainmail, shield with boss |
-| `unit-spearman` | Spearman | Leather, long spear |
-| `unit-archer` | Archer | Green tunic, bow + arrow |
-| `unit-crossbowman` | Crossbowman | Brown tunic, crossbow |
-| `unit-skirmisher` | Skirmisher | Light leather, javelin |
-| `unit-engineer` | Engineer | Brown apron, hammer |
-| `unit-militia` | Militia | Simple clothes, club |
-| `unit-artillery` | Artillery crew | Dark clothes, cannon |
+| Sprite | Unit | Weapon | Silhouette features |
+|--------|------|--------|---------------------|
+| `unit-knight` | Men-at-arms | Sword (2×8 blade + 4×2 crossguard) | Broad shoulders, pauldrons, wide stance |
+| `unit-heavy-infantry` | Heavy infantry | Pike (2×14 shaft + 4×4 blade) | Very broad torso, great helm, armor skirt |
+| `unit-spearman` | Spearman | Spear (2×12 shaft + 4×4 head) | Tall upright figure, shield arm extended |
+| `unit-archer` | Archer | Bow (curved arc + string + arrow) | Lean figure, hood, quiver on back |
+| `unit-crossbowman` | Crossbowman | Crossbow (8×2 bar + 2×4 stock) | Stocky figure, wide hat, belt |
+| `unit-skirmisher` | Skirmisher | Javelin (angled 2×8 shaft + 4×4 tip) | Crouched throwing stance, bandana, pouch |
+| `unit-engineer` | Engineer | Hammer (1×6 handle + 4×4 head) | Stout figure, apron, tool belt |
+| `unit-militia` | Militia | Club (2×7 stick + 4×3 knob) | Hunched figure, ragged cloak, boots |
+| `unit-artillery` | Artillery crew | Ramrod (1×8 rod + 3×2 handle) | Figure beside cannon device |
 
 ### Code structure
 
-The unit sprite generator is split across the `lib/` folder:
+The unit sprite generator is self-contained (no longer uses `lib/unit-body.js` or `lib/weapons.js`):
 
 ```
 generate-unit-sprites.js          ← orchestrator (iterates units, writes PNGs)
-  └── lib/
-      ├── sprite-constants.js     ← UNIT_PALETTES, UNIT_SPRITES, TILE_WIDTH/HEIGHT, OUTPUT_DIR
-      ├── pixel-utils.js          ← createBuffer(), setPixel(), seededRandom(), isInsideDiamond()
-      ├── fill-patterns.js        ← fillDiamond(), fillDiamondWithSpeckle(), drawStoneBlocks()
-      ├── unit-body.js            ← drawUnit() — assembles the full figure
-      └── weapons.js              ← drawWeapon() — weapon-specific pixel art
+  ├── lib/
+  │   ├── sprite-constants.js     ← UNIT_PALETTES, UNIT_SPRITES, OUTPUT_DIR
+  │   ├── shading.js              ← applyDirectionalShading() — upper-left lighting
+  │   ├── palette-quantizer.js    ← quantizeToPalette() — final palette enforcement
+  │   └── palette.js              ← getPaletteForCategory('unit') — 16-color palette
+  └── (self-contained)
+      ├── getSilhouette(unitType)     ← unique body shape per unit type
+      ├── drawSilhouette(buffer, ...) ← fills body parts with palette colors + noise
+      └── drawWeaponElement(buffer, ...)  ← weapon-specific pixel art (min 4×4)
 ```
 
-### How units are drawn
+### How units are drawn (enhanced pipeline)
 
-Each unit figure is ~10×16px centered on the 64×32 canvas. The `drawUnit(buffer, palette, weaponType, seedValue)` function in `lib/unit-body.js` draws layer by layer, bottom to top.
+Each unit is rendered at 32×32 native resolution (half the terrain tile size). The figure occupies roughly 14×28 pixels centered on the canvas. The generation pipeline has 4 stages:
+
+1. **Silhouette rendering** — `drawSilhouette()` fills body part rectangles with palette-appropriate colors plus per-pixel noise (±40) for texture variation
+2. **Weapon drawing** — `drawWeaponElement()` adds the unit's weapon on top of the body (each weapon occupies at least 4×4 pixels / 16 pixel area)
+3. **Directional shading** — `applyDirectionalShading(buffer, 32, 32, 0.25, 0.25)` brightens upper-left edges by 25% and darkens lower-right edges by 25%
+4. **Palette quantization** — `quantizeToPalette(buffer, unitPalette)` maps every opaque pixel to the nearest color in the 16-color primary palette
 
 #### Glossary of terms used in the code
 
 | Term | Meaning |
 |------|---------|
-| `centerX` | Horizontal midpoint of the tile. Always `32` (half of 64px width). All figure parts are offset from this anchor. |
-| `centerY` | Vertical anchor for the figure. Always `14` (slightly above tile center, so the figure sits naturally on the diamond). |
-| `buffer` | Pixel buffer — a flat `Buffer` of length `64 × 32 × 4` bytes (RGBA per pixel). Every drawing call writes into this. |
-| `setPixel(buffer, x, y, red, green, blue)` | Writes one opaque pixel at (x, y) with the given RGB color (alpha is always 255). |
-| `noise` | A small random offset (typically ±7 to ±15) added per-pixel to break up flat color. |
+| `UNIT_SIZE` | Always `32`. Native resolution for all unit sprites. |
+| `cx` / `cy` | Center of the 32×32 canvas. Always `16`. All silhouette parts are offset from this anchor. |
+| `buffer` | Pixel buffer — a flat `Buffer` of length `32 × 32 × 4` bytes (RGBA per pixel). Starts fully transparent. |
+| `setPixel(buffer, x, y, r, g, b)` | Writes one opaque pixel at (x, y). Bounds-checked, color-clamped to [0, 255]. |
+| `fillRect(buffer, x, y, w, h, r, g, b)` | Fills a rectangular region with a solid color. |
 | `seededRandom()` | Returns a deterministic float 0–1. Same seed = same sprite every time. |
 | `resetSeed(value)` | Sets the PRNG state so subsequent `seededRandom()` calls are reproducible. |
-| `palette` | Object with 4 color arrays: `body`, `cape`, `accent`, `skin`. Each is `[red, green, blue]`. |
-| `palette.skin` | An `[red, green, blue]` array holding the unit's flesh tone (used for the head). E.g. knight's skin is `[210, 175, 140]`. |
-| `lightingShift` | Directional brightness shift. Negative = darker (shadow side), positive = lit side. Simulates BR→TL light. |
-| `offsetX` / `offsetY` | Loop offsets relative to `centerX` or `centerY`. |
-| `isInsideDiamond(x, y)` | Returns true if pixel is inside the isometric diamond: `\|x-32\|/32 + \|y-16\|/16 ≤ 1`. |
+| `palette` | Object with 4 color arrays: `body`, `cape`, `accent`, `skin`. Each is `[r, g, b]`. |
+| `silhouette` | Object mapping body part names to `{x, y, w, h}` rectangles relative to the 32×32 canvas. |
 
 ---
 
-#### 1. Drop shadow
+#### Silhouette system
 
-<table><tr><td width="50%">
+Each unit type has a unique silhouette defined in `getSilhouette(unitType)`. A silhouette is an object mapping body part names to `{x, y, w, h}` rectangles. The part names determine which palette color is used:
 
-```js
-// Semi-transparent dark ellipse below the figure
-for (let offsetX = -5; offsetX <= 5; offsetX++)
-  for (let offsetY = -1; offsetY <= 2; offsetY++)
-    if ((offsetX*offsetX)/25 + (offsetY*offsetY)/4 < 1) {
-      const pixelIndex = ((centerY+9+offsetY)*TILE_WIDTH
-                        + (centerX+offsetX+1))*4;
-      buffer[pixelIndex]=20; buffer[pixelIndex+1]=20;
-      buffer[pixelIndex+2]=15; buffer[pixelIndex+3]=100;
-    }
-// centerX=32, centerY=14 → ellipse center is at (33, 23)
-```
+| Part name pattern | Palette color used |
+|-------------------|--------------------|
+| `head` | `palette.skin` |
+| `helm`, `hood`, `hat`, `cap`, `bandana`, `pauldron` | `palette.accent` |
+| `cape`, `cloak`, `quiver`, `pouch` | `palette.cape` |
+| Everything else (torso, arms, legs, etc.) | `palette.body` |
 
-</td><td width="50%">
-
-Draws a soft oval shadow beneath the figure's feet. The ellipse equation `(offsetX²/25 + offsetY²/4 < 1)` makes it 5px wide × 2px tall. Alpha is set to 100 (semi-transparent) so terrain shows through. Offset by `(centerX+1, centerY+9)` to sit just below the boots and slightly right, matching the BR→TL light direction.
-
-</td></tr></table>
-
----
-
-#### 2. Legs
-
-<table><tr><td width="50%">
+**Example: Knight silhouette** (broad-shouldered, armored figure with wide stance)
 
 ```js
-// Two columns of pixels, 5px tall each
-for (let row = 0; row < 5; row++) {
-  const noise = (seededRandom() - 0.5) * 12;
-  // Left leg
-  setPixel(buffer, centerX-2, centerY+5+row,
-    palette.body[0]-20+noise, ...);
-  setPixel(buffer, centerX-1, centerY+5+row,
-    palette.body[0]-15+noise, ...);
-  // Right leg
-  setPixel(buffer, centerX+1, centerY+5+row,
-    palette.body[0]-20+noise, ...);
-  setPixel(buffer, centerX+2, centerY+5+row,
-    palette.body[0]-15+noise, ...);
+{
+  head:      { x: 14, y: 4,  w: 4, h: 4 },   // skin color
+  helmet:    { x: 13, y: 3,  w: 6, h: 3 },   // accent color (gold)
+  torso:     { x: 12, y: 8,  w: 8, h: 7 },   // body color (silver)
+  leftArm:   { x: 10, y: 9,  w: 2, h: 6 },   // body color
+  rightArm:  { x: 20, y: 9,  w: 2, h: 6 },   // body color
+  leftLeg:   { x: 13, y: 15, w: 3, h: 6 },   // body color
+  rightLeg:  { x: 17, y: 15, w: 3, h: 6 },   // body color
+  pauldrons: { x: 11, y: 8,  w: 10, h: 2 },  // accent color (gold)
 }
-// Boots: dark brown at bottom of each leg
-setPixel(buffer, centerX-2, centerY+9, 50, 35, 20);
-setPixel(buffer, centerX+1, centerY+9, 50, 35, 20);
-// centerX=32 → left leg cols 30–31, right leg cols 33–34
-// centerY=14 → legs span rows 19–23, boots at row 23
 ```
 
-</td><td width="50%">
+Each unit type has a distinct silhouette shape designed to be recognizable even at 16×16 (50% scale). Key differentiators:
 
-Two 2-pixel-wide columns, each 5px tall, drawn below the torso. The body color is darkened by 20 to look like trousers in shadow. Each pixel gets noise so the legs aren't flat. A single dark-brown pixel at the bottom of each column represents boots. The 1px gap between the legs (at `centerX`) gives the impression of two separate limbs.
-
-</td></tr></table>
+| Unit | Distinguishing shape features |
+|------|-------------------------------|
+| Knight | Wide pauldrons (10px), broad stance |
+| Archer | Lean torso (6px wide), quiver on back, hood |
+| Spearman | Tall figure (extends to y:-14), shield on left arm |
+| Crossbowman | Stocky (7px wide torso), wide hat, belt |
+| Heavy Infantry | Widest torso (10px), great helm (6×4), armor skirt |
+| Skirmisher | Crouched (head at y:-10), throwing arm raised, pouch |
+| Engineer | Stout with apron overlay, cap |
+| Militia | Hunched, ragged cloak, prominent boots |
+| Artillery | Offset figure (left side), cannon device (6×6) on right |
 
 ---
 
-#### 3. Body / torso
+#### Weapon elements
 
-<table><tr><td width="50%">
+`drawWeaponElement(buffer, unitType, palette)` draws each unit's weapon using `setPixel` and `fillRect`. Every weapon occupies at least 4×4 pixels (16 pixel minimum area) to ensure visibility at small scales.
 
-```js
-// 6px wide × 6px tall rectangle
-for (let row = 0; row < 6; row++)
-  for (let col = -3; col <= 2; col++) {
-    const noise = (seededRandom() - 0.5) * 15;
-    const lightingShift = col < 0 ? -10 : 5;
-    setPixel(buffer, centerX+col, centerY-1+row,
-       palette.body[0]+noise+lightingShift,
-       palette.body[1]+noise+lightingShift,
-       palette.body[2]+noise+lightingShift);
-  }
-// centerX=32, centerY=14 → rectangle spans x:29–34, y:13–18
-// lightingShift: left half (col<0) is 10 darker,
-//               right half is 5 lighter
-```
+| Weapon | Unit | Composition | Bounding area |
+|--------|------|-------------|---------------|
+| Sword | Knight | 2×8 silver blade + 4×2 gold crossguard | 2×8 + 4×2 = 24px |
+| Bow | Archer | Curved arc (2×9 via sin) + string (1×9) + arrow (5×1) | ~30px |
+| Spear | Spearman | 2×12 brown shaft + 4×4 silver head | 24 + 16 = 40px |
+| Crossbow | Crossbowman | 8×2 horizontal bar + 2×4 stock + 4×1 bolt | 16 + 8 + 4 = 28px |
+| Hammer | Engineer | 1×6 brown handle + 4×4 grey head | 6 + 16 = 22px |
+| Pike | Heavy Infantry | 2×14 brown shaft + 4×4 silver blade | 28 + 16 = 44px |
+| Javelin | Skirmisher | Angled 2×8 shaft + 4×4 silver tip | 16 + 16 = 32px |
+| Club | Militia | 2×7 brown stick + 4×3 dark knob | 14 + 12 = 26px |
+| Ramrod | Artillery | 1×8 grey rod + 3×2 handle + 5×4 cannon detail | 8 + 6 + 20 = 34px |
 
-</td><td width="50%">
-
-The main mass of the figure. A 6×6 pixel block centered on `centerX`. The `lightingShift` variable simulates directional lighting: pixels on the left (`col < 0`) are darkened by 10 because the light comes from the bottom-right. Pixels on the right get +5 brightness. Per-pixel noise of ±15 adds cloth/armor texture so it doesn't look like a flat rectangle.
-
-</td></tr></table>
-
----
-
-#### 4. Cape / cloak
-
-<table><tr><td width="50%">
-
-```js
-// 2px wide, 6px tall, offset to the back-left
-for (let row = 0; row < 6; row++) {
-  const noise = (seededRandom() - 0.5) * 10;
-  const windWobble = Math.round(
-    Math.sin(row * 0.8) * 0.5);
-  setPixel(buffer, centerX-4+windWobble, centerY+row,
-     palette.cape[0]+noise, ...);
-  setPixel(buffer, centerX-3+windWobble, centerY+1+row,
-     palette.cape[0]+noise-5, ...);
-}
-// centerX=32 → cape at columns 28–29 (with ±0.5px wave)
-// centerY=14 → cape spans rows 14–19
-```
-
-</td><td width="50%">
-
-A narrow strip drawn behind and to the left of the body, representing a cloak flowing in the wind. The `sin(row * 0.8) * 0.5` gives a subtle horizontal wobble (0 or 1 pixel) per row so it looks like fabric rather than a straight line. The second column is drawn 1 row lower and 5 units darker, adding depth. Visible from the BR→TL viewpoint as the figure's back.
-
-</td></tr></table>
-
----
-
-#### 5. Shoulders / pauldrons
-
-<table><tr><td width="50%">
-
-```js
-// 4 pixels at top corners of the body
-setPixel(buffer, centerX-3, centerY-1, ...palette.accent);
-setPixel(buffer, centerX+2, centerY-1, ...palette.accent);
-setPixel(buffer, centerX-3, centerY,   ...palette.accent);
-setPixel(buffer, centerX+2, centerY,   ...palette.accent);
-// centerX=32, centerY=14
-//   → pixels at (29,13), (34,13), (29,14), (34,14)
-```
-
-</td><td width="50%">
-
-Four accent-colored pixels placed at the outer top corners of the torso. They sit at the widest points of the body rectangle, one row above and one row at the top. Uses the unit's accent color (gold for knight, silver for spearman, etc.) to suggest armor plating or epaulettes. Small detail but makes the silhouette wider at the shoulders.
-
-</td></tr></table>
-
----
-
-#### 6. Head
-
-<table><tr><td width="50%">
-
-```js
-// 4×4 block with vertical shading
-for (let row = -2; row <= 1; row++)
-  for (let col = -1; col <= 2; col++) {
-    const noise = (seededRandom() - 0.5) * 8;
-    const verticalShading = (row < 0) ? 5 : -5;
-    setPixel(buffer, centerX+col, centerY-4+row,
-       palette.skin[0]+noise+verticalShading,
-       palette.skin[1]+noise+verticalShading,
-       palette.skin[2]+noise+verticalShading);
-  }
-// centerX=32, centerY=14 → head spans x:31–34, y:8–11
-// Top half (row<0) is lighter, bottom half is darker
-```
-
-</td><td width="50%">
-
-A 4×4 pixel block drawn above the torso. Uses the unit's skin color with subtle noise (±8). Vertical shading: the top two rows are 5 units brighter (light hitting the crown) and the bottom two rows are 5 units darker (chin/jaw in shadow). This tiny gradient makes the head read as a rounded form rather than a flat square.
-
-</td></tr></table>
-
----
-
-#### 7. Helmet / hat
-
-<table><tr><td width="50%">
-
-```js
-// 6 pixels forming a cap shape above the head
-setPixel(buffer, centerX,   centerY-6, ...palette.accent);
-setPixel(buffer, centerX+1, centerY-6, ...palette.accent);
-setPixel(buffer, centerX-1, centerY-5, ...palette.accent);
-setPixel(buffer, centerX,   centerY-5, ...palette.accent);
-setPixel(buffer, centerX+1, centerY-5, ...palette.accent);
-setPixel(buffer, centerX+2, centerY-5, ...palette.accent);
-// centerX=32, centerY=14 → helmet at y:8–9
-// Row centerY-6: 2px wide (top of helmet)
-// Row centerY-5: 4px wide (brim)
-```
-
-</td><td width="50%">
-
-Six accent-colored pixels arranged in a tapered shape: 2px on top, 4px on the row below. Sits directly above the head block, adding 2px of height to the figure's silhouette. The accent color (gold, green, brown, etc.) makes each unit type instantly recognizable from above. The wider bottom row suggests a helmet brim or hat edge.
-
-</td></tr></table>
-
----
-
-#### 8. Weapon
-
-Each weapon type has its own drawing function in `lib/weapons.js`. The dispatcher `drawWeapon(buffer, centerX, centerY, weaponType, palette)` is called last so weapons appear on top of all body parts.
-
-<table><tr><td width="50%">
-
-```js
-// Sword example (from lib/weapons.js)
-function drawSword(buffer, centerX, centerY) {
-  // 8px vertical silver blade
-  for (let row = 0; row < 8; row++) {
-    setPixel(buffer, centerX+4, centerY-3-row,
-      190, 190, 195);  // lit edge
-    setPixel(buffer, centerX+5, centerY-3-row,
-      170, 170, 175);  // shadow edge
-  }
-  // Gold crossguard
-  setPixel(buffer, centerX+3, centerY-3, 200,170,50);
-  setPixel(buffer, centerX+6, centerY-3, 200,170,50);
-  // Brown grip
-  setPixel(buffer, centerX+4, centerY+1, 80,55,30);
-  setPixel(buffer, centerX+5, centerY+1, 80,55,30);
-}
-// centerX=32 → blade at columns 36–37, rows 3–10
-```
-
-</td><td width="50%">
-
-The sword is a 2px-wide, 8px-tall vertical blade drawn to the right of the figure (`centerX+4`). Two silver tones (190 and 170) give it a lit/shadow edge. A gold crossguard (2 pixels) sits at the blade base, and a brown grip below. Each weapon follows the same pattern: positioned to the right or left of the body, using simple geometric shapes and 2–3 colors.
-
-</td></tr></table>
-
-**All weapon types at a glance:**
-
-| Weapon | Position | Visual description |
-|--------|----------|-------------------|
-| `sword` | `centerX+4`, vertical | 8px silver blade, gold crossguard, brown grip |
-| `spear` | `centerX+3`, vertical | 14px brown shaft, silver spearhead at top |
-| `bow` | `centerX-5`, curved | 9px arc via `sin()`, bowstring line, nocked arrow pointing right |
-| `crossbow` | `centerX±4`, horizontal | 8px bar at `centerY+1`, vertical stock, bolt in center |
-| `javelin` | `centerX+4`, vertical | 7px shaft, silver tip (2px) |
-| `hammer` | `centerX+4`, vertical | 6px brown handle, 3×3 grey hammerhead at top |
-| `shield` | `centerX-5`, vertical | 3×6px rectangle, accent color fill, gold boss dot center |
-| `cannon` | centered, horizontal | 8px barrel at `centerY+7`, wheels at sides |
-| `club` | `centerX+3`, vertical | 6px brown stick, wider top (2px) |
+**Weapon colors:**
+- Silver metal: `(180, 180, 190)` — blades, tips, heads
+- Brown wood: `(120, 78, 38)` — shafts, handles, bow staves
+- Dark iron: `(55, 55, 58)` — crossbow stock, cannon, ramrod
+- Gold: `(200, 170, 50)` — knight's crossguard
+- Bowstring: `(195, 175, 95)`
 
 ### Color palettes per unit
 
@@ -458,7 +294,27 @@ Each unit has 4 colors that define its look (defined in `lib/sprite-constants.js
 
 ### Transparent background
 
-Unlike terrain sprites, units have NO grass base and NO diamond border. The buffer starts fully transparent (alpha=0 everywhere). Only the pixels that make up the figure get alpha=255. This means units overlay terrain tiles cleanly when drawn on top.
+Unlike terrain sprites, units have NO grass base and NO diamond border. The 32×32 buffer starts fully transparent (alpha=0 everywhere). Only the pixels that make up the figure and weapon get alpha=255. This means units overlay terrain tiles cleanly when drawn on top.
+
+### Key functions (exported for testing)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `generateUnitSprite` | `(unitType, palette, seedValue) → Buffer` | Full pipeline: silhouette → weapon → shading → quantize |
+| `getSilhouette` | `(unitType) → object` | Returns body part rectangles for a unit type |
+| `drawSilhouette` | `(buffer, unitType, palette, seedValue)` | Fills silhouette parts with palette colors + noise |
+| `drawWeaponElement` | `(buffer, unitType, palette)` | Draws weapon pixels (min 4×4 area) |
+| `createUnitBuffer` | `() → Buffer` | Creates a 32×32 transparent RGBA buffer |
+| `setPixel` | `(buffer, x, y, r, g, b)` | Bounds-checked, color-clamped pixel write |
+| `fillRect` | `(buffer, x, y, w, h, r, g, b)` | Fills a rectangular region |
+| `UNIT_SIZE` | `32` | Native resolution constant |
+
+### Seed-based determinism
+
+Each unit is generated with a unique seed (`20000 + index * 200`). The seed controls:
+- Per-pixel noise variation in `drawSilhouette()` (±40 per channel)
+- 1–2 extra detail pixels placed at seed-dependent offsets
+- Reproducible output: same seed always produces the same sprite
 
 ---
 
