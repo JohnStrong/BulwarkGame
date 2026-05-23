@@ -4,7 +4,10 @@
   "description": "Manually triggered hook that reads the latest coverage gap report from tests/reports/, implements fixes for the Recommendations section (adding missing tests, extracting testable helpers, etc.), then re-runs the test suite and regenerates the coverage gap report.",
   "version": "1",
   "when": {
-    "type": "userTriggered"
+    "type": "fileEdited",
+    "patterns": [
+      "tests/reports/*.md"
+    ]
   },
   "then": {
     "type": "askAgent",
