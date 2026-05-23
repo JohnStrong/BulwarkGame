@@ -12,6 +12,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 - [generate-random-level.js](#generate-random-leveljs)
 - [render-level-preview.js](#render-level-previewjs)
 - [generate-enemy-sprites.js](#generate-enemy-spritesjs)
+- [generate-damaged-castle-sprites.js](#generate-damaged-castle-spritesjs)
 - [lib/noise-texture.js — Procedural Noise](#libnoise-texturejs--procedural-noise)
 - [lib/shading.js — Directional Lighting](#libshadingjs--directional-lighting)
 - [lib/dithering.js — Ordered Dithering](#libditheringjs--ordered-dithering)
@@ -31,6 +32,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
+| `generate-damaged-castle-sprites.js` | Generates 10 damaged castle variants (64×32, cracks/missing blocks/rubble, ≥15% damage area, CASTLE_PALETTE quantization) |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
 | `generate-smooth-sprites.js` | Legacy hex sprites (kept for top-down view) |
@@ -370,6 +372,139 @@ node js/level-generators/render-level-preview.js [level-file] [output-file]
 ```
 
 Uses the same character→sprite mapping as the game's level loader, drawing each tile at its grid position. Useful for documentation screenshots without running a browser.
+
+---
+
+## generate-enemy-sprites.js
+
+Generates 5 enemy unit sprites (64×32 isometric diamonds). These are visually distinct from player units via a separate 8-color ENEMY_PALETTE and unique silhouette modifiers (different helmets, banners, shield emblems).
+
+```bash
+node js/level-generators/generate-enemy-sprites.js
+```
+
+### What it produces
+
+| Sprite | Description |
+|--------|-------------|
+| `enemy-knight` | Blackened plate armor, spiked helm, heavy build |
+| `enemy-archer` | Lean figure with tattered war-banner on back |
+| `enemy-spearman` | Shield-bearer with round iron boss emblem |
+| `enemy-militia` | Crude horned helmet, ragged appearance |
+| `enemy-siege` | Siege crew with iron-capped battering ram, skull banner |
+
+### Enhanced sprite pipeline
+
+Each enemy sprite passes through the same multi-stage pipeline as player units:
+
+1. **Silhouette rendering** — Unique body shape per enemy type with at least one silhouette modifier (helmet, banner, or shield emblem)
+2. **Directional shading** — Upper-left light source applied consistently
+3. **Palette quantization** — `quantizeToPalette(buffer, ENEMY_PALETTE)` enforces the 8-color enemy palette
+
+### Palette separation
+
+The ENEMY_PALETTE shares no more than 2 colors with the player unit palette, ensuring enemies are immediately distinguishable on the battlefield. Enemy sprites use dark crimson and black tones.
+
+### Key constraints
+
+- 64×32 tile dimensions (same as terrain/castle)
+- Transparent backgrounds (alpha = 0 outside figure)
+- Legible at 50% native resolution (32×16)
+- Deterministic output (seeded PRNG)
+
+---
+
+## generate-damaged-castle-sprites.js
+
+Generates 10 damaged variants of castle structure sprites (64×32 isometric diamonds). Each variant shows battle damage — cracks, missing stone blocks, and rubble debris — replacing at least 15% of the original stone block area.
+
+```bash
+node js/level-generators/generate-damaged-castle-sprites.js
+```
+
+### What it produces
+
+| Sprite | Base structure | Damage features |
+|--------|---------------|-----------------|
+| `castle-wall-damaged` | Stone curtain wall | Crack lines through masonry, missing block gaps |
+| `castle-tower-damaged` | Round stone tower | Crumbling top, cracks through circular stonework |
+| `castle-keep-tl-damaged` | Keep top-left | Partially destroyed window slit, stone damage |
+| `castle-keep-bl-damaged` | Keep bottom-left | Cracked window slit, rubble accumulation |
+| `castle-keep-br-damaged` | Keep bottom-right | Stone block removal, crack patterns |
+| `castle-keep-center-damaged` | Keep center (flag) | Broken flag pole (shorter), crumbling stone |
+| `castle-gatehouse-damaged` | Gatehouse | Collapsed arch, bent/broken iron bars |
+| `castle-bailey-1-damaged` | Bailey (dirt floor) | Scattered rubble on dirt |
+| `castle-bailey-2-damaged` | Bailey (dirt+straw) | Debris mixed into straw |
+| `castle-bailey-3-damaged` | Bailey (dense straw) | Rubble clusters in straw |
+
+### How damage is applied
+
+Each sprite starts with the same enhanced stone block base as its undamaged counterpart (same `drawEnhancedStoneBlocks` function), then damage is applied in phases until the 15% threshold is met:
+
+1. **Phase 1: Cracks** (~5–8% coverage) — Dark jagged lines running diagonally/vertically through stone blocks. 1–2 pixels wide, random-walk path with horizontal jitter.
+2. **Phase 2: Missing blocks** (~5–8% coverage) — Rectangular sections removed (made transparent) or filled with rubble-colored pixels. 4–9px wide, 3–6px tall.
+3. **Phase 3: Rubble debris** (fills remaining gap) — Scattered stone fragment clusters at the bottom half of the sprite. 3–7px cluster size, 70% fill density.
+4. **Phase 4: Extra passes** — If still below 15% threshold after phases 1–3, additional crack/block/rubble passes are applied (up to 10 iterations).
+
+After damage application, the standard castle pipeline completes the sprite:
+- `applyFaceShading()` — isometric lighting
+- `applyShadowEdge()` — 1-pixel bottom-right shadow
+- `drawEdgeBorder()` — dark outline on perimeter
+- `quantizeToPalette(buffer, CASTLE_PALETTE)` — palette enforcement (PRIMARY_PALETTE + CASTLE_ACCENT_COLORS = 20 colors)
+
+### Damage colors
+
+All damage colors are drawn from the CASTLE_COLORS palette (no new colors introduced):
+
+| Purpose | Color source | RGB |
+|---------|-------------|-----|
+| Crack lines | `CASTLE_COLORS.wallDark` | [125, 115, 95] |
+| Rubble (light) | `CASTLE_COLORS.wallMortar` | [145, 135, 112] |
+| Rubble (dark) | `CASTLE_COLORS.towerDark` | [105, 98, 80] |
+| Missing blocks | Transparent (alpha = 0) | — |
+
+### Key functions (exported for testing)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `generateDamagedCastleSprite` | `(type, seedValue) → Buffer` | Dispatches to type-specific generator |
+| `generateDamagedWall` | `(seedValue) → Buffer` | Damaged wall variant |
+| `generateDamagedTower` | `(seedValue) → Buffer` | Damaged tower variant |
+| `generateDamagedKeepTL` | `(seedValue) → Buffer` | Damaged keep top-left |
+| `generateDamagedKeepBL` | `(seedValue) → Buffer` | Damaged keep bottom-left |
+| `generateDamagedKeepBR` | `(seedValue) → Buffer` | Damaged keep bottom-right |
+| `generateDamagedKeepCenter` | `(seedValue) → Buffer` | Damaged keep center (broken flag) |
+| `generateDamagedGatehouse` | `(seedValue) → Buffer` | Damaged gatehouse (collapsed arch) |
+| `generateDamagedBailey1` | `(seedValue) → Buffer` | Damaged bailey variant 1 |
+| `generateDamagedBailey2` | `(seedValue) → Buffer` | Damaged bailey variant 2 |
+| `generateDamagedBailey3` | `(seedValue) → Buffer` | Damaged bailey variant 3 |
+| `applyCracks` | `(buffer, seedValue, crackCount) → number` | Applies crack damage, returns pixels modified |
+| `applyMissingBlocks` | `(buffer, seedValue, blockCount) → number` | Removes/fills block sections |
+| `applyRubbleDebris` | `(buffer, seedValue, rubbleCount) → number` | Scatters rubble clusters |
+| `applyDamage` | `(buffer, seedValue, totalOpaquePixels)` | Orchestrates all damage phases to meet 15% threshold |
+| `countOpaquePixels` | `(buffer) → number` | Counts non-transparent pixels inside diamond |
+
+### Constants (exported)
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DAMAGED_CASTLE_TYPES` | Array (10 entries) | Name, type key, and seed for each variant |
+| `CASTLE_PALETTE` | `getPaletteForCategory('castle')` | 20-color palette used for quantization |
+| `MIN_DAMAGE_PERCENT` | `0.15` | Minimum fraction of stone area that must show damage |
+
+### Seed-based determinism
+
+Each damaged variant has a unique base seed (50000–50900, spaced by 100). Damage functions use seed offsets (+1000, +2000, +3000, etc.) to ensure crack placement, block removal, and rubble scatter are all independently reproducible. Same seed always produces the same damaged sprite.
+
+### Error handling
+
+On failure, logs structured diagnostics to stderr:
+```
+[SPRITE-BUILD-ERROR] generate-damaged-castle-sprites: <message>
+  Stage: generation
+  Details: <stack trace>
+```
+Exits with non-zero code to fail the build pipeline.
 
 ---
 
