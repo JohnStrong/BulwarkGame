@@ -11,6 +11,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 - [generate-tutorial-level.js](#generate-tutorial-leveljs)
 - [generate-random-level.js](#generate-random-leveljs)
 - [render-level-preview.js](#render-level-previewjs)
+- [generate-enemy-sprites.js](#generate-enemy-spritesjs)
 - [lib/noise-texture.js — Procedural Noise](#libnoise-texturejs--procedural-noise)
 - [lib/shading.js — Directional Lighting](#libshadingjs--directional-lighting)
 - [lib/dithering.js — Ordered Dithering](#libditheringjs--ordered-dithering)
@@ -29,6 +30,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
+| `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
 | `generate-smooth-sprites.js` | Legacy hex sprites (kept for top-down view) |

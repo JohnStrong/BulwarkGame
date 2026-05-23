@@ -145,8 +145,8 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - **Property 9: Unit Weapon Minimum Area**
     - **Validates: Requirements 3.1, 3.2, 3.5**
 
-- [ ] 7. Implement enemy sprite generation
-  - [ ] 7.1 Create enemy sprite generator
+- [x] 7. Implement enemy sprite generation
+  - [x] 7.1 Create enemy sprite generator
     - Create `js/level-generators/generate-enemy-sprites.js`
     - Generate exactly 5 enemy unit types: enemy-knight, enemy-archer, enemy-spearman, enemy-militia, enemy-siege
     - Use ENEMY_PALETTE sharing no more than 2 colors with player unit palette
@@ -156,7 +156,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Run `quantizeToPalette` with enemy palette as final pass
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.7_
 
-  - [ ] 7.2 Write property tests for enemy sprites
+  - [x] 7.2 Write property tests for enemy sprites
     - Write to `property-tests/enemy-palette.property.js`
     - Write to `property-tests/enemy-silhouette.property.js`
     - **Property 15: Enemy Palette Separation**
