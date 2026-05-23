@@ -336,18 +336,24 @@ function generateLevel(inputSeed) {
     return header + '\n' + mapStr + '\n';
 }
 
+// ============ EXPORTS (for testing) ============
+
+module.exports = { generateLevel, hashNoise, smoothNoise, setSeed, random, randomInt, W, H };
+
 // ============ MAIN ============
 
-const inputSeed = process.argv[2] ? parseInt(process.argv[2], 10) : Date.now();
-const output = generateLevel(inputSeed);
+if (require.main === module) {
+    const inputSeed = process.argv[2] ? parseInt(process.argv[2], 10) : Date.now();
+    const output = generateLevel(inputSeed);
 
-// Write to candidates folder with timestamp filename
-const now = new Date();
-const ts = now.toISOString().replace(/[T]/g, '_').replace(/[:]/g, '-').substring(0, 19);
-const filename = `${ts}_seed-${inputSeed}.txt`;
-const outputPath = path.join(__dirname, '..', '..', 'levels', 'candidates', filename);
+    // Write to candidates folder with timestamp filename
+    const now = new Date();
+    const ts = now.toISOString().replace(/[T]/g, '_').replace(/[:]/g, '-').substring(0, 19);
+    const filename = `${ts}_seed-${inputSeed}.txt`;
+    const outputPath = path.join(__dirname, '..', '..', 'levels', 'candidates', filename);
 
-fs.writeFileSync(outputPath, output);
-console.log(`\n  Written to: levels/candidates/${filename}`);
-console.log(`  Map size: ${W}x${H}`);
-console.log(`\n  To use: copy to levels/ folder and add filename to levels/manifest.txt`);
+    fs.writeFileSync(outputPath, output);
+    console.log(`\n  Written to: levels/candidates/${filename}`);
+    console.log(`  Map size: ${W}x${H}`);
+    console.log(`\n  To use: copy to levels/ folder and add filename to levels/manifest.txt`);
+}

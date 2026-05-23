@@ -4,3 +4,6 @@ node_modules/
 .idea
 docs/contexts
 tests/reports/
+.vscode
+generated/
+asserts/sprites/tests

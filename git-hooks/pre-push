@@ -41,28 +41,23 @@ while read local_ref local_sha remote_ref remote_sha; do
     exit 1
   fi
 
-  # Get all commits between remote HEAD and local HEAD
-  # These are the commits that would be pushed
-  commits=$(git rev-list "$remote_sha..$local_sha")
-
-  if [ -z "$commits" ]; then
-    # Nothing to push, allow
+  # Check only the tip commit (local_sha) — it must be a merge commit.
+  # Feature branch history reachable through the merge is allowed;
+  # only the commit landing directly on the protected branch is checked.
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
     continue
   fi
 
-  # Check each commit — if ANY is not a merge commit, block the push
   non_merge_found=0
-  for commit in $commits; do
-    parent_count=$(git cat-file -p "$commit" | grep -c '^parent ')
-    if [ "$parent_count" -lt 2 ]; then
-      non_merge_found=1
-      short=$(git log --oneline -1 "$commit")
-      echo ""
-      echo "BLOCKED: Non-merge commit found in push to '$branch':"
-      echo "  $short"
-      echo ""
-    fi
-  done
+  parent_count=$(git cat-file -p "$local_sha" | grep -c '^parent ')
+  if [ "$parent_count" -lt 2 ]; then
+    non_merge_found=1
+    short=$(git log --oneline -1 "$local_sha")
+    echo ""
+    echo "BLOCKED: Tip commit is not a merge commit:"
+    echo "  $short"
+    echo ""
+  fi
 
   if [ "$non_merge_found" -eq 1 ]; then
     echo "═══════════════════════════════════════════════════════════════"

@@ -2,13 +2,22 @@
  * Castle structure sprites — flat isometric diamonds (64×32), BR→TL viewpoint.
  * Matches the terrain sprite format from generate-iso-sprites-br-tl.js.
  *
+ * Enhanced with:
+ *   - Stone block patterns (3+ horizontal courses, 1-pixel mortar lines, 2+ px color variation)
+ *   - Crenellation detail on tower tops (3+ alternating merlon/crenel shapes)
+ *   - Keep details: window slits (1×3 dark rectangles), flag element (3×5 pixels), layered stone texture
+ *   - 1-pixel dark outline (BORDER_COLOR) on all outer-perimeter pixels bordering transparent pixels
+ *   - Palette quantization as final pass (CASTLE_COLORS + max 4 accent colors)
+ *
  * Sprites produced:
  *   - castle-bridge-start/mid/gate   (wooden drawbridge planks)
- *   - castle-tower                   (round stone tower, top-down circle)
- *   - castle-keep-tl/bl/br/center    (keep quadrant tiles with stone blocks)
+ *   - castle-tower                   (round stone tower with crenellations)
+ *   - castle-keep-tl/bl/br/center    (keep quadrant tiles with stone blocks + details)
  *   - castle-gatehouse               (stone arch with iron portcullis grate)
- *   - castle-wall                    (full stone curtain wall)
+ *   - castle-wall                    (full stone curtain wall with courses)
  *   - castle-bailey-1/2/3            (dirt+hay floor, 3 density variants)
+ *
+ * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6
  *
  * Usage:
  *   node js/level-generators/generate-castle-sprites.js
@@ -35,14 +44,82 @@ const {
     drawEdgeBorder,
 } = require('./lib/pixel-utils');
 
-const { fillDiamond, drawStoneBlocks } = require('./lib/fill-patterns');
+const { fillDiamond } = require('./lib/fill-patterns');
+const { applyFaceShading, applyShadowEdge } = require('./lib/shading');
+const { quantizeToPalette } = require('./lib/palette-quantizer');
+const { getPaletteForCategory } = require('./lib/palette');
+
+// Castle palette for quantization (PRIMARY_PALETTE + CASTLE_ACCENT_COLORS)
+const CASTLE_PALETTE = getPaletteForCategory('castle');
+
+// ─── Enhanced Stone Block Pattern ───────────────────────────────────────────
+
+/**
+ * Draws an enhanced stone masonry pattern with:
+ *   - At least 3 horizontal courses of blocks
+ *   - 1-pixel mortar lines between courses
+ *   - At least 2 pixels of color variation per block face
+ *
+ * Requirement 2.1: 3+ horizontal courses, 1-pixel mortar lines, 2+ px color variation.
+ *
+ * @param {Buffer} buffer - The pixel buffer to draw into.
+ * @param {number[]} stoneColor - Primary stone block color [r, g, b].
+ * @param {number[]} stoneLightColor - Lighter stone variant for variation.
+ * @param {number[]} mortarColor - Color for the 1-pixel mortar lines.
+ * @param {number} seedValue - Seed for reproducible randomness.
+ */
+function drawEnhancedStoneBlocks(buffer, stoneColor, stoneLightColor, mortarColor, seedValue) {
+    // Fill entire diamond with mortar (the gaps between stones)
+    fillDiamond(buffer, mortarColor, 4, seedValue);
+
+    resetSeed(seedValue + 100);
+
+    // Course height = 5 pixels (4 stone + 1 mortar line).
+    // With TILE_HEIGHT=32, we get ~6 courses (well above the 3 minimum).
+    const courseHeight = 5;
+    const mortarThickness = 1;
+    const blockMinWidth = 6;
+    const blockMaxWidth = 10;
+
+    for (let courseIndex = 0; courseIndex < Math.floor(TILE_HEIGHT / courseHeight); courseIndex++) {
+        const courseY = courseIndex * courseHeight;
+        // Offset alternating rows by half a block width for staggered masonry
+        const rowOffset = (courseIndex % 2 === 0) ? 0 : 4;
+
+        let blockX = rowOffset;
+        while (blockX < TILE_WIDTH) {
+            const blockWidth = blockMinWidth + Math.floor(seededRandom() * (blockMaxWidth - blockMinWidth + 1));
+
+            // Choose base color for this block (variation between light and standard)
+            const useLight = seededRandom() > 0.5;
+            const baseBlockColor = useLight ? stoneLightColor : stoneColor;
+
+            // Draw block interior (skip mortar row at bottom of each course)
+            for (let py = 0; py < courseHeight - mortarThickness; py++) {
+                for (let px = 0; px < blockWidth - 1; px++) { // -1 for vertical mortar gap
+                    const x = blockX + px;
+                    const y = courseY + py;
+
+                    if (x >= 0 && x < TILE_WIDTH && y >= 0 && y < TILE_HEIGHT && isInsideDiamond(x, y)) {
+                        // Per-pixel color variation (2+ pixels differ within each block)
+                        const variation = (seededRandom() - 0.5) * 12;
+                        setPixel(buffer, x, y,
+                            baseBlockColor[0] + variation,
+                            baseBlockColor[1] + variation,
+                            baseBlockColor[2] + variation);
+                    }
+                }
+            }
+
+            blockX += blockWidth;
+        }
+    }
+}
 
 // ─── Castle Bridge Sprites ──────────────────────────────────────────────────
 
 /**
  * Generates the bridge start tile — half road (left), half wooden planks (right).
- * Used where the bridge meets the road on the approach side.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBridgeStart() {
@@ -55,13 +132,11 @@ function generateBridgeStart() {
                 const noise = (seededRandom() - 0.5) * 10;
 
                 if (x < 32) {
-                    // Left half: road/dirt approach
                     setPixel(buffer, x, y,
                         TERRAIN_COLORS.road[0] + noise,
                         TERRAIN_COLORS.road[1] + noise * 0.8,
                         TERRAIN_COLORS.road[2] + noise * 0.6);
                 } else {
-                    // Right half: wooden planks with horizontal grain lines
                     const isPlankGap = y % 5 === 0;
                     const plankColor = isPlankGap ? CASTLE_COLORS.woodDark : CASTLE_COLORS.wood;
                     setPixel(buffer, x, y, ...plankColor);
@@ -70,14 +145,15 @@ function generateBridgeStart() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
  * Generates the bridge middle tile — full wooden planks with grain variation.
- * The main span of the drawbridge.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBridgeMid() {
@@ -87,7 +163,7 @@ function generateBridgeMid() {
     for (let y = 0; y < TILE_HEIGHT; y++) {
         for (let x = 0; x < TILE_WIDTH; x++) {
             if (isInsideDiamond(x, y)) {
-                seededRandom(); // consume for consistency
+                seededRandom();
                 const isPlankGap = y % 5 === 0;
                 let plankColor;
 
@@ -102,14 +178,15 @@ function generateBridgeMid() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.woodLight, CASTLE_COLORS.woodDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
  * Generates the bridge gate tile — wooden planks (left) meeting stone wall (right).
- * Where the bridge meets the castle gatehouse.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBridgeGate() {
@@ -122,12 +199,10 @@ function generateBridgeGate() {
                 const noise = (seededRandom() - 0.5) * 8;
 
                 if (x < 32) {
-                    // Left half: wooden planks
                     const isPlankGap = y % 5 === 0;
                     const plankColor = isPlankGap ? CASTLE_COLORS.woodDark : CASTLE_COLORS.wood;
                     setPixel(buffer, x, y, ...plankColor);
                 } else {
-                    // Right half: stone wall
                     setPixel(buffer, x, y,
                         CASTLE_COLORS.wall[0] + noise,
                         CASTLE_COLORS.wall[1] + noise,
@@ -137,7 +212,10 @@ function generateBridgeGate() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
@@ -145,8 +223,10 @@ function generateBridgeGate() {
 
 /**
  * Generates a round stone tower viewed from above (circular on the diamond).
- * Has concentric rings: light center, medium middle, dark outer edge.
- * Crenellation dots around the perimeter suggest battlements.
+ * Enhanced with crenellation detail: 3+ alternating merlon/crenel shapes.
+ *
+ * Requirement 2.2: At least 3 alternating merlon (raised, min 3×3 px) and
+ * crenel (gap, min 2 px wide) shapes on the top edge.
  *
  * @returns {Buffer} The completed pixel buffer.
  */
@@ -169,7 +249,6 @@ function generateTower() {
             if (distance <= towerRadius && isInsideDiamond(centerX + offsetX, centerY + offsetY)) {
                 const noise = (seededRandom() - 0.5) * 8;
 
-                // Color zones: dark edge → medium → light center
                 let stoneColor;
                 if (distance > towerRadius - 2) {
                     stoneColor = CASTLE_COLORS.towerDark;
@@ -185,98 +264,191 @@ function generateTower() {
         }
     }
 
-    // Crenellation dots around the perimeter (suggest battlements from above)
-    for (let dotIndex = 0; dotIndex < 10; dotIndex++) {
-        const angle = (dotIndex / 10) * Math.PI * 2;
-        const dotX = centerX + Math.round((towerRadius - 1) * Math.cos(angle));
-        const dotY = centerY + Math.round((towerRadius - 1) * Math.sin(angle) * 0.5);
-        setPixel(buffer, dotX, dotY, ...CASTLE_COLORS.towerDark);
+    // Crenellation: 4 alternating merlon/crenel shapes around the perimeter
+    // Merlons are 3×3 pixel raised blocks, crenels are 2-pixel gaps
+    // Requirement 2.2: at least 3 alternating merlon/crenel shapes
+    const merlonCount = 4;
+    for (let i = 0; i < merlonCount; i++) {
+        // Distribute merlons evenly around the circle
+        const angle = (i / merlonCount) * Math.PI * 2;
+        const merlonCenterX = centerX + Math.round((towerRadius - 1) * Math.cos(angle));
+        const merlonCenterY = centerY + Math.round((towerRadius - 1) * Math.sin(angle) * 0.5);
+
+        // Draw 3×3 merlon block (raised battlement)
+        for (let my = -1; my <= 1; my++) {
+            for (let mx = -1; mx <= 1; mx++) {
+                const px = merlonCenterX + mx;
+                const py = merlonCenterY + my;
+                if (isInsideDiamond(px, py)) {
+                    setPixel(buffer, px, py, ...CASTLE_COLORS.towerDark);
+                }
+            }
+        }
+
+        // Draw crenel gap (2px wide) between merlons — lighter color to suggest open space
+        const crenelAngle = ((i + 0.5) / merlonCount) * Math.PI * 2;
+        const crenelX = centerX + Math.round((towerRadius - 1) * Math.cos(crenelAngle));
+        const crenelY = centerY + Math.round((towerRadius - 1) * Math.sin(crenelAngle) * 0.5);
+        if (isInsideDiamond(crenelX, crenelY)) {
+            setPixel(buffer, crenelX, crenelY, ...CASTLE_COLORS.towerLight);
+        }
+        if (isInsideDiamond(crenelX + 1, crenelY)) {
+            setPixel(buffer, crenelX + 1, crenelY, ...CASTLE_COLORS.towerLight);
+        }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.towerLight, CASTLE_COLORS.towerDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 // ─── Keep Tiles ─────────────────────────────────────────────────────────────
 
 /**
- * Generates the top-left quadrant of the castle keep (stone blocks).
+ * Generates the top-left quadrant of the castle keep.
+ * Enhanced with layered stone texture (highlight on top face, shadow on side face)
+ * and a window slit (1×3 dark rectangle).
+ *
+ * Requirement 2.3: window slit (1×3 dark rectangle), layered stone texture.
+ *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateKeepTopLeft() {
     const buffer = createBuffer();
-    drawStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12000);
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12000);
+
+    // Window slit: 1×3 dark rectangle (Requirement 2.3)
+    const slitX = 30;
+    const slitY = 12;
+    for (let dy = 0; dy < 3; dy++) {
+        if (isInsideDiamond(slitX, slitY + dy)) {
+            setPixel(buffer, slitX, slitY + dy, 25, 25, 22);
+        }
+    }
+
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.towerLight, CASTLE_COLORS.towerDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
- * Generates the bottom-left quadrant of the castle keep (stone blocks).
+ * Generates the bottom-left quadrant of the castle keep.
+ * Enhanced with layered stone texture and a window slit.
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateKeepBottomLeft() {
     const buffer = createBuffer();
-    drawStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12200);
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12200);
+
+    // Window slit: 1×3 dark rectangle
+    const slitX = 34;
+    const slitY = 14;
+    for (let dy = 0; dy < 3; dy++) {
+        if (isInsideDiamond(slitX, slitY + dy)) {
+            setPixel(buffer, slitX, slitY + dy, 25, 25, 22);
+        }
+    }
+
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.towerLight, CASTLE_COLORS.towerDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
- * Generates the bottom-right quadrant of the castle keep (stone blocks).
+ * Generates the bottom-right quadrant of the castle keep.
+ * Enhanced with layered stone texture and a window slit.
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateKeepBottomRight() {
     const buffer = createBuffer();
-    drawStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12300);
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.tower, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallMortar, 12300);
+
+    // Window slit: 1×3 dark rectangle
+    const slitX = 28;
+    const slitY = 13;
+    for (let dy = 0; dy < 3; dy++) {
+        if (isInsideDiamond(slitX, slitY + dy)) {
+            setPixel(buffer, slitX, slitY + dy, 25, 25, 22);
+        }
+    }
+
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.towerLight, CASTLE_COLORS.towerDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
  * Generates the center of the castle keep — stone base with a flag pole
- * and a waving red flag with gold trim.
+ * and a waving flag (3×5 pixels minimum).
+ *
+ * Requirement 2.3: flag element of at least 3×5 pixels on the center tile,
+ * layered stone texture using distinct highlight/shadow colors.
  *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateKeepCenter() {
     const buffer = createBuffer();
 
-    // Stone block base (lighter than outer keep tiles)
-    drawStoneBlocks(buffer, CASTLE_COLORS.towerLight, [200, 190, 165], CASTLE_COLORS.wallMortar, 12400);
+    // Stone block base (lighter than outer keep tiles) with enhanced pattern
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.towerLight, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallMortar, 12400);
 
     // Flag pole (brown vertical line)
     for (let y = 4; y <= 18; y++) {
-        setPixel(buffer, 32, y, 55, 35, 18);   // dark side
-        setPixel(buffer, 33, y, 65, 42, 22);   // lit side
+        if (isInsideDiamond(32, y)) {
+            setPixel(buffer, 32, y, 55, 35, 18);   // dark side
+        }
+        if (isInsideDiamond(33, y)) {
+            setPixel(buffer, 33, y, 65, 42, 22);   // lit side
+        }
     }
 
-    // Waving red flag (sine-wave horizontal offset per row)
+    // Waving flag — at least 3×5 pixels (Requirement 2.3: 3×5 minimum)
+    // Actual size: 7 wide × 5 tall (exceeds minimum)
     resetSeed(12500);
-    for (let flagRow = 0; flagRow < 7; flagRow++) {
-        const windWave = Math.round(Math.sin(flagRow * 0.8) * 1.5);
+    const flagWidth = 7;
+    const flagHeight = 5;
+    const flagStartX = 34;
+    const flagStartY = 5;
 
-        for (let flagCol = 0; flagCol < 9; flagCol++) {
+    for (let flagRow = 0; flagRow < flagHeight; flagRow++) {
+        const windWave = Math.round(Math.sin(flagRow * 0.9) * 1);
+
+        for (let flagCol = 0; flagCol < flagWidth; flagCol++) {
             const noise = (seededRandom() - 0.5) * 6;
-            const flagX = 34 + flagCol + windWave;
-            const flagY = 4 + flagRow;
+            const flagX = flagStartX + flagCol + windWave;
+            const flagY = flagStartY + flagRow;
 
             if (isInsideDiamond(flagX, flagY)) {
+                // Red flag body
                 setPixel(buffer, flagX, flagY, 200 + noise, 30, 25);
             }
         }
     }
 
     // Gold trim on top and bottom edges of flag
-    for (let trimCol = 0; trimCol < 9; trimCol++) {
-        if (isInsideDiamond(34 + trimCol, 4)) {
-            setPixel(buffer, 34 + trimCol, 4, 230, 190, 50);
+    for (let trimCol = 0; trimCol < flagWidth; trimCol++) {
+        const topX = flagStartX + trimCol;
+        const botX = flagStartX + trimCol;
+        if (isInsideDiamond(topX, flagStartY)) {
+            setPixel(buffer, topX, flagStartY, 200, 170, 50);
         }
-        if (isInsideDiamond(34 + trimCol, 10)) {
-            setPixel(buffer, 34 + trimCol, 10, 230, 190, 50);
+        if (isInsideDiamond(botX, flagStartY + flagHeight - 1)) {
+            setPixel(buffer, botX, flagStartY + flagHeight - 1, 200, 170, 50);
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.towerLight, CASTLE_COLORS.towerDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
@@ -284,22 +456,22 @@ function generateKeepCenter() {
 
 /**
  * Generates the castle gatehouse — stone walls with a dark archway
- * and an iron portcullis grate pattern.
+ * and an iron portcullis grate pattern. Enhanced with stone block courses.
  *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateGatehouse() {
     const buffer = createBuffer();
 
-    // Stone wall base
-    drawStoneBlocks(buffer, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallMortar, 13000);
+    // Enhanced stone wall base with proper courses
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallMortar, 13000);
 
     // Dark archway opening (center rectangle)
     resetSeed(13100);
     for (let y = 8; y <= 24; y++) {
         for (let x = 22; x <= 42; x++) {
             if (isInsideDiamond(x, y)) {
-                setPixel(buffer, x, y, 25, 22, 20); // near-black void
+                setPixel(buffer, x, y, 25, 22, 20);
             }
         }
     }
@@ -322,22 +494,28 @@ function generateGatehouse() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 // ─── Wall ───────────────────────────────────────────────────────────────────
 
 /**
- * Generates a full stone curtain wall tile.
- * Uses the standard stone block pattern.
+ * Generates a full stone curtain wall tile with enhanced stone block pattern.
+ * Requirement 2.1: 3+ horizontal courses, 1-pixel mortar lines, 2+ px color variation.
  *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateWall() {
     const buffer = createBuffer();
-    drawStoneBlocks(buffer, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallMortar, 14000);
+    drawEnhancedStoneBlocks(buffer, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallMortar, 14000);
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
@@ -345,14 +523,11 @@ function generateWall() {
 
 /**
  * Generates bailey variant 1 — mostly dirt with scattered straw strands.
- * Lightest straw density of the three variants.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBailey1() {
     const buffer = createBuffer();
 
-    // Dirt floor base
     resetSeed(16000);
     for (let y = 0; y < TILE_HEIGHT; y++) {
         for (let x = 0; x < TILE_WIDTH; x++) {
@@ -366,7 +541,7 @@ function generateBailey1() {
         }
     }
 
-    // Scatter straw strands (short angled lines)
+    // Scatter straw strands
     resetSeed(16050);
     for (let strandIndex = 0; strandIndex < 15; strandIndex++) {
         const startX = Math.floor(seededRandom() * TILE_WIDTH);
@@ -384,14 +559,15 @@ function generateBailey1() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
  * Generates bailey variant 2 — mixed dirt and straw (medium density).
- * About 70% straw coverage, 30% visible dirt.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBailey2() {
@@ -410,7 +586,6 @@ function generateBailey2() {
                         CASTLE_COLORS.straw[1] + noise,
                         CASTLE_COLORS.straw[2] + noise);
                 } else {
-                    // Visible dirt patches
                     setPixel(buffer, x, y,
                         195 + noise,
                         150 + noise * 0.8,
@@ -420,14 +595,15 @@ function generateBailey2() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 
 /**
  * Generates bailey variant 3 — dense straw coverage (heaviest density).
- * About 80% bright straw, 20% darker straw. Almost no visible dirt.
- *
  * @returns {Buffer} The completed pixel buffer.
  */
 function generateBailey3() {
@@ -447,7 +623,10 @@ function generateBailey3() {
         }
     }
 
+    applyFaceShading(buffer, TILE_WIDTH, TILE_HEIGHT, CASTLE_COLORS.wallLight, CASTLE_COLORS.wallDark);
+    applyShadowEdge(buffer, TILE_WIDTH, TILE_HEIGHT);
     drawEdgeBorder(buffer);
+    quantizeToPalette(buffer, CASTLE_PALETTE);
     return buffer;
 }
 

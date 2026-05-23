@@ -1,18 +1,7 @@
-; Tutorial Level - The Crossing (Hex Grid)
-; Tiles: . grass  , flowers  P oak  O pine  S shrub  R rock
-;        D road   ~ water   = bridge (cobblestone)
-;
-; Castle tiles:
-;   b castle-bridge-start (road to wood)
-;   m castle-bridge-mid (wooden planks)
-;   g castle-bridge-gate (wood to stone)
-;   T castle-tower (round stone tower)
-;   K castle-keep-tl  j castle-keep-bl  J castle-keep-br
-;   F castle-keep-center (flag — protect this!)
-;   G castle-gatehouse (portcullis)
-;   W castle-wall (full stone)
-;   C castle-bailey (dirt+hay floor, 3 variants)
-name=Tutorial - The Crossing
+; Tutorial Level  The Crossing
+; Teaches: roads, river barrier, bridge chokepoint, forest cover
+; ( = grass|water border (left bank)  ) = water|grass border (right bank)
+name=Tutorial  The Crossing
 ~~~.PPP....DD.......~~~~~....OO.OOO..OO.OOO..OO.OOO........
 ~~~.PPPP...DD.......~~~~~...OOO..OO.OOO..OO.OOO..OO........
 ~~~~.PPP...DD.......~~~~~....OO.OOO..OO.OOO..OO.OOO........

@@ -121,8 +121,12 @@ async function renderLevel(levelFile, outputFile) {
     console.log(`Written: ${outputFile} (${width}x${height}px)`);
 }
 
-// Main
-const levelFile = process.argv[2] || path.join(__dirname, '..', '..', 'levels', 'level1.txt');
-const outputFile = process.argv[3] || path.join(__dirname, '..', '..', 'docs', 'level1-preview.png');
+// Export for testing
+module.exports = { charToSprite, tileHash, renderLevel };
 
-renderLevel(levelFile, outputFile).catch(err => { console.error(err); process.exit(1); });
+// Main
+if (require.main === module) {
+    const levelFile = process.argv[2] || path.join(__dirname, '..', '..', 'levels', 'level1.txt');
+    const outputFile = process.argv[3] || path.join(__dirname, '..', '..', 'docs', 'level1-preview.png');
+    renderLevel(levelFile, outputFile).catch(err => { console.error(err); process.exit(1); });
+}

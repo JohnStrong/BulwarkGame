@@ -1,10 +1,10 @@
 {
-  "name": "basic-genai-tower-defense",
+  "name": "bulwark",
   "version": "0.1.0",
-  "description": "A turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas.",
+  "description": "Bulwark — a turn-based medieval tower defense game with procedurally generated pixel art sprites, built with vanilla JS and HTML5 Canvas.",
   "main": "index.html",
   "scripts": {
-    "generate:sprites": "node js/level-generators/generate-iso-sprites-br-tl.js && node js/level-generators/generate-castle-sprites.js",
+    "generate:sprites": "node js/level-generators/build-sprites.js",
     "generate:level": "node js/level-generators/generate-tutorial-level.js",
     "generate:random": "node js/level-generators/generate-random-level.js",
     "generate:preview": "node js/level-generators/render-level-preview.js",
@@ -13,7 +13,8 @@
     "prepare": "git config core.hooksPath git-hooks",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",
     "start": "npm run serve",
-    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js"
+    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js",
+    "test:properties": "node --test property-tests/*.property.js"
   },
   "keywords": [
     "tower-defense",
@@ -23,9 +24,14 @@
     "procedural-generation",
     "html5-canvas"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "John Strong <johnstrongdublin@gmail.com>",
+  "license": "Apache-2.0",
   "dependencies": {
-    "sharp": "^0.33.0"
+    "pixi.js": "7.4.2",
+    "sharp": "0.33.0",
+    "simplex-noise": "4.0.3"
+  },
+  "devDependencies": {
+    "fast-check": "3.23.2"
   }
 }

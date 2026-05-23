@@ -2,6 +2,17 @@
 
 Reusable modules extracted from the isometric game engine. Each module is self-contained and can be used in other similar games.
 
+## Table of Contents
+
+- [Files](#files)
+- [iso-camera.js — IsoCamera](#iso-camerajs--isocamera)
+- [iso-input.js — IsoInput](#iso-inputjs--isoinput)
+- [iso-renderer.js — IsoRenderer](#iso-rendererjs--isorenderer)
+- [hud.js — HUD](#hudjs--hud)
+- [Usage in a New Game](#usage-in-a-new-game)
+
+---
+
 ## Files
 
 | Module | Purpose |
