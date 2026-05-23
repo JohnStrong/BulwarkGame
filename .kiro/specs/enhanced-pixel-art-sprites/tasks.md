@@ -246,7 +246,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Test damaged sprite registration with `-damaged` suffix
     - _Requirements: 5.1, 5.2, 5.4, 8.6, 9.6_
 
-- [ ] 13. Checkpoint - Ensure all tests pass
+- [x] 13. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 14. Integration wiring and visual verification
