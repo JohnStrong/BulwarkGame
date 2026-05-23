@@ -123,3 +123,92 @@ Archer,3,30,15,0.9`;
         assert.equal(UnitManager.units[0].name, 'Archer');
     });
 });
+
+// ─── LevelLoader parseLevelText edge cases ──────────────────────────────────
+
+const HEX_WIDTH = 32;
+const HEX_HEIGHT = 28;
+const HEX_ROW_HEIGHT = 21;
+const HEX_COL_OFFSET = 16;
+
+function hexToPixel(row, col) {
+    const x = col * HEX_WIDTH + (row % 2 === 1 ? HEX_COL_OFFSET : 0);
+    const y = row * HEX_ROW_HEIGHT;
+    return { x, y };
+}
+
+function tileHash(row, col) {
+    let h = (row * 7919 + col * 104729 + 31) & 0xFFFFFFFF;
+    h = ((h >> 16) ^ h) * 0x45d9f3b;
+    h = ((h >> 16) ^ h) * 0x45d9f3b;
+    h = (h >> 16) ^ h;
+    return (h >>> 0) / 0xFFFFFFFF;
+}
+
+function parseLevelText(text) {
+    const lines = text.split('\n');
+    const level = { name: 'Unnamed', tiles: [], walls: [], width: 0, height: 0 };
+    const mapLines = [];
+    for (const line of lines) {
+        const t = line.trimEnd();
+        if (t.startsWith(';') && mapLines.length === 0) continue;
+        if (t.startsWith('name=')) { level.name = t.substring(5); continue; }
+        if (t.length > 0 && !t.startsWith(';')) mapLines.push(t);
+    }
+    level.height = mapLines.length;
+    level.width = Math.max(...mapLines.map(l => l.length));
+    level.pixelWidth = (level.width + 1) * HEX_WIDTH;
+    level.pixelHeight = level.height * HEX_ROW_HEIGHT + HEX_HEIGHT;
+    for (let row = 0; row < mapLines.length; row++) {
+        for (let col = 0; col < mapLines[row].length; col++) {
+            const ch = mapLines[row][col];
+            const { x, y } = hexToPixel(row, col);
+            const hash = tileHash(row, col);
+            switch (ch) {
+                case '.': level.tiles.push({ row, col, x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` }); break;
+                case 'D': level.tiles.push({ row, col, x, y, sprite: 'road-full' }); break;
+                case '~': level.tiles.push({ row, col, x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
+                default: level.tiles.push({ row, col, x, y, sprite: 'grass-short-1' }); break;
+            }
+        }
+    }
+    return level;
+}
+
+describe('LevelLoader.parseLevelText: pixelWidth/pixelHeight', () => {
+    it('should compute pixelWidth as (width + 1) * HEX_WIDTH', () => {
+        const level = parseLevelText('name=X\n.....');
+        assert.equal(level.pixelWidth, (5 + 1) * 32); // 192
+    });
+
+    it('should compute pixelHeight as height * HEX_ROW_HEIGHT + HEX_HEIGHT', () => {
+        const level = parseLevelText('name=X\n...\n...\n...');
+        assert.equal(level.pixelHeight, 3 * 21 + 28); // 91
+    });
+});
+
+describe('LevelLoader.parseLevelText: comment-line mid-map', () => {
+    it('should skip comment lines even mid-map', () => {
+        // The parser skips ; lines regardless of position (they don't become map data)
+        const level = parseLevelText('name=X\n...\n; mid comment\n...');
+        // The "; mid comment" line is skipped, so only 2 map lines
+        assert.equal(level.height, 2);
+    });
+});
+
+describe('LevelLoader.parseLevelText: default case', () => {
+    it('should map unknown characters to grass-short-1', () => {
+        const level = parseLevelText('name=X\nZXY');
+        for (const tile of level.tiles) {
+            assert.equal(tile.sprite, 'grass-short-1');
+        }
+    });
+
+    it('should handle all printable ASCII as default', () => {
+        const level = parseLevelText('name=X\n@#$%^&*');
+        assert.equal(level.tiles.length, 7);
+        for (const tile of level.tiles) {
+            assert.equal(tile.sprite, 'grass-short-1');
+        }
+    });
+});

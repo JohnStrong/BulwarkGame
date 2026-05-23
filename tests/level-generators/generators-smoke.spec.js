@@ -131,7 +131,9 @@ describe('Generator smoke tests: generate-tutorial-level.js', () => {
                         }
                         return origWrite(filePath, data);
                     };
-                    require('./js/level-generators/generate-tutorial-level');
+                    const { generate } = require('./js/level-generators/generate-tutorial-level');
+                    const output = generate();
+                    fs.writeFileSync('${outputFile.replace(/'/g, "\\'")}', output);
                 "`,
                 { cwd: PROJECT_ROOT, timeout: 10000, encoding: 'utf8' }
             );

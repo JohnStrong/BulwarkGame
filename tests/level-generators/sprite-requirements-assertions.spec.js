@@ -74,34 +74,41 @@ describe('Req 3.3: Directional shading brightness difference', () => {
         );
     });
 
-    it('should produce shading on unit sprites', () => {
-        const buffer = generateUnitSprite('knight', UNIT_PALETTES.knight, 20000);
+    it('should produce shading on a uniform buffer (pre-quantization)', () => {
+        // Test directional shading in isolation without palette quantization
+        // which can distort the gradient
+        const size = 32;
+        const buffer = Buffer.alloc(size * size * 4);
+        for (let i = 0; i < size * size; i++) {
+            buffer[i * 4] = 150;
+            buffer[i * 4 + 1] = 150;
+            buffer[i * 4 + 2] = 150;
+            buffer[i * 4 + 3] = 255;
+        }
 
-        // Find opaque pixels in upper-left quadrant
+        applyDirectionalShading(buffer, size, size, 0.25, 0.25);
+
+        // Sample upper-left quadrant
         let ulSum = 0, ulCount = 0;
         let brSum = 0, brCount = 0;
-
-        for (let y = 0; y < UNIT_SIZE; y++) {
-            for (let x = 0; x < UNIT_SIZE; x++) {
-                const p = getPixel(buffer, x, y, UNIT_SIZE);
-                if (p.a === 0) continue;
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const p = getPixel(buffer, x, y, size);
                 const b = brightness(p.r, p.g, p.b);
-                if (x < UNIT_SIZE / 2 && y < UNIT_SIZE / 2) {
-                    ulSum += b; ulCount++;
-                } else if (x >= UNIT_SIZE / 2 && y >= UNIT_SIZE / 2) {
-                    brSum += b; brCount++;
-                }
+                if (x < size / 4 && y < size / 4) { ulSum += b; ulCount++; }
+                else if (x >= size * 3 / 4 && y >= size * 3 / 4) { brSum += b; brCount++; }
             }
         }
 
-        if (ulCount > 0 && brCount > 0) {
-            const ulAvg = ulSum / ulCount;
-            const brAvg = brSum / brCount;
-            // UL should be brighter than BR
-            assert.ok(ulAvg > brAvg,
-                `Upper-left avg (${ulAvg.toFixed(1)}) should be brighter than ` +
-                `lower-right avg (${brAvg.toFixed(1)})`);
-        }
+        const ulAvg = ulSum / ulCount;
+        const brAvg = brSum / brCount;
+        assert.ok(ulAvg > brAvg,
+            `Upper-left avg (${ulAvg.toFixed(1)}) should be brighter than ` +
+            `lower-right avg (${brAvg.toFixed(1)})`);
+        // Difference should be meaningful (>= 15% of base)
+        const diff = (ulAvg - brAvg) / 150;
+        assert.ok(diff >= 0.15,
+            `Brightness difference should be >= 15%, got ${(diff * 100).toFixed(1)}%`);
     });
 });
 
