@@ -6,8 +6,8 @@
   "when": {
     "type": "fileDeleted",
     "patterns": [
-      "*.js",
-      "*.mjs"
+      "js/**/*.js",
+      "js/**/*.mjs"
     ]
   },
   "then": {

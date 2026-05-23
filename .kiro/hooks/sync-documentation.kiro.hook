@@ -6,11 +6,18 @@
   "when": {
     "type": "fileEdited",
     "patterns": [
-      "*.js"
+      "js/*.js",
+      "js/**/*.js",
+      "tests/*.js",
+      "tests/**/*.js",
+      "property-tests/*.js",
+      "property-tests/**/*.js"
     ]
   },
   "then": {
     "type": "askAgent",
     "prompt": "update the README.md docs at the same layer of the saved file to align with any code changes that have been made or new game logic being added so we have a up to date living doc that will always get persisted in git with the changes associated with the doc changes. "
-  }
+  },
+  "workspaceFolderName": "BasicTowerDefense",
+  "shortName": "sync-documentation"
 }
