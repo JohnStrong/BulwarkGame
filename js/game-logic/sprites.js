@@ -57,6 +57,15 @@ const SpriteManager = {
         'tree-6',
         'tree-7',
 
+        // Tree overlay sprites (transparent background, drawn on top of grass ground tiles)
+        'tree-oak-overlay-1',
+        'tree-oak-overlay-2',
+        'tree-oak-overlay-3',
+        'tree-pine-overlay-1',
+        'tree-pine-overlay-2',
+        'tree-shrub-overlay-1',
+        'tree-shrub-overlay-2',
+
         // Decorations
         'rock',
 

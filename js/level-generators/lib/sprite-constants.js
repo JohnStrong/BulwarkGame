@@ -128,6 +128,20 @@ const UNIT_SPRITES = {
     artillery:     'unit-artillery',
 };
 
+// ─── Tree Overlay Sprite Registry ───────────────────────────────────────────
+// Transparent-background tree sprites drawn on top of grass ground tiles.
+// Each sprite is 64×48 px with alpha=0 outside the trunk+canopy shape.
+
+const TREE_OVERLAY_SPRITES = {
+    treeOakOverlay1:   'tree-oak-overlay-1',
+    treeOakOverlay2:   'tree-oak-overlay-2',
+    treeOakOverlay3:   'tree-oak-overlay-3',
+    treePineOverlay1:  'tree-pine-overlay-1',
+    treePineOverlay2:  'tree-pine-overlay-2',
+    treeShrubOverlay1: 'tree-shrub-overlay-1',
+    treeShrubOverlay2: 'tree-shrub-overlay-2',
+};
+
 module.exports = {
     TILE_WIDTH,
     TILE_HEIGHT,
@@ -139,4 +153,5 @@ module.exports = {
     TERRAIN_SPRITES,
     CASTLE_SPRITES,
     UNIT_SPRITES,
+    TREE_OVERLAY_SPRITES,
 };
