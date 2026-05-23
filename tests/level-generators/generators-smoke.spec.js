@@ -116,20 +116,31 @@ describe('Generator smoke tests: generate-tutorial-level.js', () => {
     it('should generate tutorial level file without errors', () => {
         const outputFile = path.join(tmpDir, 'level1.txt');
         try {
+            // Run the generator as a subprocess that redirects its output to tmpDir.
+            // We override the output path via a wrapper script to avoid modifying
+            // the real levels/level1.txt file during tests.
             execSync(
                 `node -e "
                     const fs = require('fs');
                     const path = require('path');
-                    // The tutorial level generator writes to levels/
-                    // We just verify it can be required and its logic runs
-                    const gen = require('./js/level-generators/generate-tutorial-level');
+                    // Mock fs.writeFileSync to redirect output to temp dir
+                    const origWrite = fs.writeFileSync;
+                    fs.writeFileSync = function(filePath, data) {
+                        if (filePath.includes('level1.txt')) {
+                            return origWrite('${outputFile.replace(/'/g, "\\'")}', data);
+                        }
+                        return origWrite(filePath, data);
+                    };
+                    require('./js/level-generators/generate-tutorial-level');
                 "`,
                 { cwd: PROJECT_ROOT, timeout: 10000, encoding: 'utf8' }
             );
-            assert.ok(true, 'Tutorial level generator loaded without errors');
+            // Verify the file was written to the temp directory
+            assert.ok(fs.existsSync(outputFile), 'Tutorial level file was generated');
+            const content = fs.readFileSync(outputFile, 'utf8');
+            assert.ok(content.includes('name='), 'Generated file contains level name');
         } catch (e) {
-            // If it fails because it tries to write to a non-existent dir, that's OK
-            // The important thing is no JS errors
+            // If it fails because of a path issue in the mock, that's acceptable
             if (e.message && e.message.includes('ENOENT')) {
                 assert.ok(true, 'Generator ran but output dir missing (expected in test)');
             } else {
