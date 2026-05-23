@@ -1,4 +1,4 @@
-# Medieval Tower Defense
+# Holdfast - A turn-based isometric tower defense browser game
 
 > ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the isometric map rendering, level generation, and camera systems are functional.
 
