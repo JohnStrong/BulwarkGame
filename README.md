@@ -15,6 +15,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [Controls](#controls-isometric-view)
 - [HUD Layout](#hud-layout)
 - [Your Army](#your-army)
+- [Enemy Forces](#enemy-forces)
 - [Visual Style](#visual-style)
 
 ### Develop It
@@ -145,6 +146,47 @@ Builders and operators. Engineers repair damaged walls, operate ballistae and ma
 | Defense | 0.90 (10% damage reduction) |
 
 Local levies armed with whatever's at hand. Militia patrol quiet sections, serve as early warning, and provide manpower reserves. They won't hold against a determined assault, but they buy time for your real soldiers to respond.
+
+---
+
+## Enemy Forces
+
+From the north marches the army of a rival castle — a bitter lord who claims your lands as his own. His forces wear dark crimson and black, their banners stained with old blood. They are disciplined, ruthless, and hungry for conquest.
+
+---
+
+### 🗡️ Enemy Knight
+![enemy-knight](assets/sprites/enemy-knight.png)
+
+The vanguard. Clad in blackened plate with a spiked helm, the enemy knight is a battering ram in human form. He leads the charge through your gates, cutting down anything in his path. His armor turns most arrows — you'll need spearmen or your own knights to stop him.
+
+---
+
+### 🏹 Enemy Archer
+![enemy-archer](assets/sprites/enemy-archer.png)
+
+Lean and quick, enemy archers carry tattered war-banners on their backs — trophies from castles they've already burned. They hang back behind the main assault, picking off your engineers and exposed defenders from range. Silence them early or your walls will fall unmanned.
+
+---
+
+### 🔱 Enemy Spearman
+![enemy-spearman](assets/sprites/enemy-spearman.png)
+
+Shield-bearers with round iron bosses emblazoned on their guards. Enemy spearmen form the backbone of the assault — they lock shields at your chokepoints and push forward relentlessly. Their reach keeps your cavalry at bay. Break their formation or they'll hold the bridge forever.
+
+---
+
+### 🪓 Enemy Militia
+![enemy-militia](assets/sprites/enemy-militia.png)
+
+Conscripts and desperate men, recognizable by their crude horned helmets. What they lack in skill they make up in numbers. The enemy lord throws them at your walls first — expendable bodies to soak arrows and tire your defenders before the real assault begins. Don't underestimate a mob.
+
+---
+
+### 🏗️ Enemy Siege
+![enemy-siege](assets/sprites/enemy-siege.png)
+
+The real threat. Siege crews push iron-capped battering rams toward your gates, war-banners with skull emblems flying overhead. If they reach your walls, the stone will crack. Every turn they survive is a turn closer to breach. Prioritize them above all else — send your knights, rain fire, do whatever it takes.
 
 ---
 
