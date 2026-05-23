@@ -302,14 +302,29 @@ Bulwark/
 │           ├── unit-body.spec.js       # Unit figure drawing
 │           └── weapons.spec.js         # Weapon drawing functions
 ├── property-tests/             # Property-based tests (fast-check)
-│   ├── setup.property.js      # Shared test setup/helpers
-│   ├── palette-compliance.property.js  # P2: Palette quantization exactness
-│   ├── alpha-binary.property.js        # P3: Binary alpha invariant
-│   ├── water-frames.property.js        # P5: Water animation frame difference
-│   ├── atlas-packing.property.js       # P10: Atlas non-overlapping packing
-│   ├── atlas-metadata.property.js      # P11: Atlas metadata completeness
-│   ├── atlas-dimensions.property.js    # P12: Atlas power-of-two dimensions
-│   └── damaged-area.property.js        # P17: Damaged sprite minimum damage area
+│   ├── README.md                               # Property index and authoring guide
+│   ├── setup.property.js                       # Shared helpers and arbitraries
+│   ├── palette-compliance.property.js          # P2: Palette quantization exactness
+│   ├── alpha-binary.property.js                # P3: Binary alpha invariant
+│   ├── water-frames.property.js                # P5: Water animation frame difference
+│   ├── flag-frames.property.js                 # P5 (flag): Flag animation frame difference
+│   ├── atlas-packing.property.js               # P10: Atlas non-overlapping packing
+│   ├── atlas-metadata.property.js              # P11: Atlas metadata completeness
+│   ├── atlas-dimensions.property.js            # P12: Atlas power-of-two dimensions
+│   ├── pixel-alignment.property.js             # P13: Integer pixel alignment (drawSprite floors coords)
+│   ├── animation-timing.property.js            # P14: Animation frame rate independence
+│   ├── enemy-palette.property.js               # P15: Enemy palette separation
+│   ├── enemy-silhouette.property.js            # P16: Enemy silhouette differentiation
+│   ├── damaged-area.property.js                # P17: Damaged sprite minimum damage area
+│   ├── draw-call-batching.property.js          # P18: Draw call batching bound (≤10 per layer)
+│   ├── dithering-palette.property.js           # P19: Terrain transition dithering palette compliance
+│   ├── sprite-dimensions.property.js           # P1: Sprite dimension invariant
+│   ├── grass-uniqueness.property.js            # P4: Grass noise uniqueness
+│   ├── directional-lighting.property.js        # P6: Directional lighting consistency
+│   ├── castle-border.property.js               # P7: Castle outline border
+│   ├── silhouette-uniqueness.property.js       # P8: Unit silhouette uniqueness
+│   ├── weapon-area.property.js                 # P9: Unit weapon minimum area
+│   └── tilehash-bias.property.js               # Documents known tileHash output bias
 └── js/
     ├── game-logic/
     │   ├── utils.js            # Hex/iso geometry, constants, loaders
@@ -365,6 +380,9 @@ Key test areas:
 - **Atlas packing** — verifies no two sprite frames overlap and minimum 1-pixel padding between adjacent frames
 - **Atlas metadata** — ensures every sprite entry contains required fields (name, x, y, width, height) with correct types
 - **Atlas dimensions** — confirms all atlas images use power-of-two dimensions (256, 512, 1024, or 2048) and all frames fit within bounds
+- **Integer pixel alignment** — verifies `drawSprite` floors any fractional x/y coordinate to an integer before passing it to the renderer, preventing sub-pixel blur on pixel art (Property 13)
+- **Draw-call batching** — confirms the per-layer draw-call budget (max 10 per layer per frame) is enforced independently across all four tile layers, and that counters reset correctly each frame (Property 18)
+- **Animation timing** — validates that animated sprites advance frames at the configured interval independent of render rate, that all sprites of the same type share one frame index, and that out-of-range intervals are clamped rather than rejected (Property 14)
 - **Damaged sprite area** — verifies each damaged castle variant replaces at least 15% of the stone block area with damage (cracks, missing blocks, rubble)
 
 ## Level File Format

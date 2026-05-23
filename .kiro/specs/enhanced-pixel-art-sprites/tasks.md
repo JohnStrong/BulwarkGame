@@ -194,8 +194,8 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Log structured diagnostics (`[SPRITE-BUILD-ERROR] module: message`) to stderr on failure
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 7.2, 8.5, 9.5_
 
-- [ ] 11. Implement runtime rendering modules
-  - [~] 11.1 Implement animation-controller module
+- [x] 11. Implement runtime rendering modules
+  - [x] 11.1 Implement animation-controller module
     - Create `js/game-logic/animation-controller.js`
     - Implement `registerAnimatedType(spriteType, frameCount, intervalMs)` with interval clamped to [100, 2000]
     - Implement `getCurrentFrame(spriteType)` returning shared frame index for all sprites of same type
@@ -203,12 +203,12 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Default interval: 500ms
     - _Requirements: 5.3, 7.5_
 
-  - [ ]* 11.2 Write property tests for animation controller
+  - [x] 11.2 Write property tests for animation controller
     - Write to `property-tests/animation-timing.property.js`
     - **Property 14: Animation Frame Rate Independence**
     - **Validates: Requirements 5.3, 7.5**
 
-  - [~] 11.3 Implement pixi-renderer module
+  - [x] 11.3 Implement pixi-renderer module
     - Create `js/game-logic/pixi-renderer.js`
     - Implement `initPixiRenderer(canvas, timeout)` with fallback chain: WebGL (5s timeout) → CanvasRenderer → Canvas 2D
     - Implement `loadSpriteAtlas(atlasImagePath, atlasJsonPath)` using PixiJS Spritesheet class
@@ -218,15 +218,15 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Batch sprite draw calls (max 10 draw calls per tile layer)
     - _Requirements: 5.5, 6.3, 6.4, 6.6, 6.7, 7.4_
 
-  - [ ]* 11.4 Write property tests for pixi-renderer
+  - [x] 11.4 Write property tests for pixi-renderer
     - Write to `property-tests/pixel-alignment.property.js`
     - Write to `property-tests/draw-call-batching.property.js`
     - **Property 13: Integer Pixel Alignment**
     - **Property 18: Draw Call Batching Bound**
     - **Validates: Requirements 5.2, 7.4**
 
-- [ ] 12. Modify SpriteManager for atlas and PixiJS integration
-  - [~] 12.1 Extend SpriteManager with atlas loading and PixiJS delegation
+- [x] 12. Modify SpriteManager for atlas and PixiJS integration
+  - [x] 12.1 Extend SpriteManager with atlas loading and PixiJS delegation
     - Modify `js/game-logic/sprites.js` to add `SpriteManager.loadAtlas(atlasPath, jsonPath)` method
     - Add `SpriteManager.usePixiRenderer(pixiRenderer)` method
     - Modify `draw(ctx, name, x, y, width, height)` to floor x,y to integers (prevent sub-pixel blur)
@@ -237,7 +237,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Preserve existing API signature (no changes to calling code in game-iso.js, iso-renderer.js)
     - _Requirements: 5.1, 5.2, 5.4, 8.6, 9.6_
 
-  - [ ]* 12.2 Write unit tests for SpriteManager integration
+  - [x] 12.2 Write unit tests for SpriteManager integration
     - Write to `tests/game-logic/sprites.spec.js` (extend existing file)
     - Test backward compatibility of `draw()` API signature
     - Test integer pixel alignment (Math.floor on fractional inputs)
@@ -246,11 +246,11 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Test damaged sprite registration with `-damaged` suffix
     - _Requirements: 5.1, 5.2, 5.4, 8.6, 9.6_
 
-- [~] 13. Checkpoint - Ensure all tests pass
+- [ ] 13. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 14. Integration wiring and visual verification
-  - [~] 14.1 Wire PixiJS initialization into game startup
+  - [ ] 14.1 Wire PixiJS initialization into game startup
     - Modify game initialization in `index.html` or entry point to call `initPixiRenderer(canvas)` on load
     - Call `loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json')` after PixiJS init
     - Call `SpriteManager.usePixiRenderer(pixiRenderer)` to activate PixiJS path
@@ -266,7 +266,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Test damaged sprite renders on startup without errors
     - _Requirements: 7.2, 7.3, 5.5, 6.6, 9.7_
 
-- [~] 15. Final checkpoint - Ensure all tests pass
+- [ ] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

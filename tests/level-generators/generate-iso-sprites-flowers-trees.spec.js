@@ -206,32 +206,37 @@ function countDistinctColors(buf) {
 // ─── Tests: generateFlowers ─────────────────────────────────────────────────
 
 describe('generate-iso-sprites: flowers (Req 1.2 — 3+ palette colors)', () => {
-    const noiseGen = createTerrainNoiseGenerator();
+    let noiseGen;
 
-    it('should produce opaque pixels inside the diamond', () => {
+    it('should produce opaque pixels inside the diamond', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateFlowers(0, noiseGen);
         assert.ok(countOpaquePixels(buf) > 500);
     });
 
-    it('should be deterministic for the same variant', () => {
+    it('should be deterministic for the same variant', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf1 = generateFlowers(0, noiseGen);
         const buf2 = generateFlowers(0, noiseGen);
         assert.ok(buf1.equals(buf2));
     });
 
-    it('variant 0 and variant 1 should produce different output', () => {
+    it('variant 0 and variant 1 should produce different output', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf0 = generateFlowers(0, noiseGen);
         const buf1 = generateFlowers(1, noiseGen);
         assert.ok(!buf0.equals(buf1));
     });
 
-    it('should use 3+ distinct palette colors for grass ground (Req 1.2)', () => {
+    it('should use 3+ distinct palette colors for grass ground (Req 1.2)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateFlowers(0, noiseGen);
         const distinctColors = countDistinctColors(buf);
         assert.ok(distinctColors >= 3, `Should have 3+ distinct colors, got ${distinctColors}`);
     });
 
-    it('should contain flower cluster pixels (non-green accent colors)', () => {
+    it('should contain flower cluster pixels (non-green accent colors)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateFlowers(0, noiseGen);
         // Flower colors are gold [200,170,50], straw [195,175,95],
         // silver [180,180,190], skin [210,175,140]
@@ -248,7 +253,8 @@ describe('generate-iso-sprites: flowers (Req 1.2 — 3+ palette colors)', () => 
         assert.ok(flowerPixels >= 3, `Should have flower accent pixels, got ${flowerPixels}`);
     });
 
-    it('should have green grass base as dominant color', () => {
+    it('should have green grass base as dominant color', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateFlowers(0, noiseGen);
         let greenPixels = 0;
         let totalOpaque = 0;
@@ -265,7 +271,8 @@ describe('generate-iso-sprites: flowers (Req 1.2 — 3+ palette colors)', () => 
         assert.ok(greenRatio > 0.5, `Grass should dominate (${(greenRatio * 100).toFixed(0)}% green)`);
     });
 
-    it('should leave corner pixels transparent (diamond shape)', () => {
+    it('should leave corner pixels transparent (diamond shape)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateFlowers(0, noiseGen);
         const cornerIdx = (0 * TILE_WIDTH + 0) * 4;
         assert.equal(buf[cornerIdx + 3], 0);
@@ -275,26 +282,30 @@ describe('generate-iso-sprites: flowers (Req 1.2 — 3+ palette colors)', () => 
 // ─── Tests: generateTree ────────────────────────────────────────────────────
 
 describe('generate-iso-sprites: tree (Req 1.4 — 2+ overlapping canopy layers)', () => {
-    const noiseGen = createTerrainNoiseGenerator();
+    let noiseGen;
 
-    it('should produce opaque pixels inside the diamond', () => {
+    it('should produce opaque pixels inside the diamond', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateTree(0, noiseGen);
         assert.ok(countOpaquePixels(buf) > 500);
     });
 
-    it('should be deterministic for the same variant', () => {
+    it('should be deterministic for the same variant', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf1 = generateTree(0, noiseGen);
         const buf2 = generateTree(0, noiseGen);
         assert.ok(buf1.equals(buf2));
     });
 
-    it('variant 0 and variant 1 should produce different output', () => {
+    it('variant 0 and variant 1 should produce different output', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf0 = generateTree(0, noiseGen);
         const buf1 = generateTree(1, noiseGen);
         assert.ok(!buf0.equals(buf1));
     });
 
-    it('should have 2+ overlapping canopy layers (Req 1.4)', () => {
+    it('should have 2+ overlapping canopy layers (Req 1.4)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateTree(0, noiseGen);
         // The canopy has two layers:
         // Layer 1 (back): innerRadius=9, centered at (32, 14)
@@ -320,7 +331,8 @@ describe('generate-iso-sprites: tree (Req 1.4 — 2+ overlapping canopy layers)'
         }
     });
 
-    it('should have a highlight rim on the outer canopy layer', () => {
+    it('should have a highlight rim on the outer canopy layer', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateTree(0, noiseGen);
         // The highlight rim is at distanceFromCenter > outerRadius * 0.8
         // outerRadius = 6, so rim starts at distance > 4.8
@@ -347,7 +359,8 @@ describe('generate-iso-sprites: tree (Req 1.4 — 2+ overlapping canopy layers)'
         assert.ok(rimPixels >= 3, `Should have highlight rim pixels, got ${rimPixels}`);
     });
 
-    it('should have a trunk (brown pixels below canopy)', () => {
+    it('should have a trunk (brown pixels below canopy)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateTree(0, noiseGen);
         // Trunk is at (35, 20) area — PRIMARY_PALETTE[7] = [120, 78, 38]
         let trunkPixels = 0;
@@ -362,7 +375,8 @@ describe('generate-iso-sprites: tree (Req 1.4 — 2+ overlapping canopy layers)'
         assert.ok(trunkPixels >= 2, `Should have trunk pixels, got ${trunkPixels}`);
     });
 
-    it('should have a ground shadow (dark green ellipse)', () => {
+    it('should have a ground shadow (dark green ellipse)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         const buf = generateTree(0, noiseGen);
         // Shadow is below the canopy, near (34, 23) for variant 0 (canopyRadius=9)
         const canopyRadius = 9;
@@ -379,7 +393,8 @@ describe('generate-iso-sprites: tree (Req 1.4 — 2+ overlapping canopy layers)'
         assert.ok(shadowPixels >= 0, 'Shadow area should exist (may be quantized)');
     });
 
-    it('canopy radius should alternate between variants (9 and 11)', () => {
+    it('canopy radius should alternate between variants (9 and 11)', async () => {
+        noiseGen = await createTerrainNoiseGenerator(42);
         // variant 0: canopyRadius = 9 + (0 % 2) * 2 = 9
         // variant 1: canopyRadius = 9 + (1 % 2) * 2 = 11
         const buf0 = generateTree(0, noiseGen);

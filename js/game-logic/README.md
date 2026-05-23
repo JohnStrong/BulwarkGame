@@ -9,6 +9,8 @@ All browser-side code that runs the game lives here. These files are loaded by `
 - [sprites.js — SpriteManager](#spritesjs--spritemanager)
 - [level-loader.js — LevelLoader](#level-loaderjs--levelloader)
 - [unit-manager.js — UnitManager](#unit-managerjs--unitmanager)
+- [animation-controller.js — AnimationController](#animation-controllerjs--animationcontroller)
+- [pixi-renderer.js — PixiRenderer](#pixi-rendererjs--pixirenderer)
 - [game-iso.js — Game (Main Orchestrator)](#game-isojs--game-main-orchestrator)
 - [lib/ — Reusable Modules](#lib--reusable-modules)
 
@@ -22,6 +24,8 @@ All browser-side code that runs the game lives here. These files are loaded by `
 | `sprites.js` | Loads PNG sprite images into memory |
 | `level-loader.js` | Reads level text files and turns them into tile data |
 | `unit-manager.js` | Manages army units — stats, placement, removal |
+| `animation-controller.js` | Shared frame-cycling timers for animated sprite types |
+| `pixi-renderer.js` | PixiJS-backed renderer with WebGL/Canvas fallback chain |
 | `game-iso.js` | The main game — ties everything together |
 | `lib/` | Reusable modules (camera, input, renderer, HUD) |
 
@@ -140,6 +144,136 @@ UnitManager.canPlaceOn('castle-wall')    // false (blocked)
 UnitManager.removeUnit(unit);
 // Removes from map AND restores qtyRemaining
 ```
+
+---
+
+## animation-controller.js — AnimationController
+
+Manages frame cycling for animated sprite types (water tiles, castle flags, etc.). All sprites of the same type share a **single shared timer** — they advance frames in unison rather than each running their own clock.
+
+The module is an IIFE that exposes a plain object, so it works both as a browser global and as a CommonJS module in tests.
+
+### Registering an animated type
+
+```js
+// Register water with 4 frames cycling every 600ms
+AnimationController.registerAnimatedType('water', 4, 600);
+
+// Register flag with 3 frames at the default 500ms interval
+AnimationController.registerAnimatedType('flag', 3);
+```
+
+The `intervalMs` argument is clamped to `[100, 2000]`. Registering a type that already exists stops the old timer and starts a fresh one.
+
+### Reading the current frame
+
+```js
+// Called each render frame to pick the right atlas frame name
+const frame = AnimationController.getCurrentFrame('water');
+// → 0, 1, 2, or 3 (cycles automatically)
+```
+
+Returns `0` for any type that has not been registered.
+
+### Constants
+
+```js
+AnimationController.MIN_INTERVAL_MS   // 100
+AnimationController.MAX_INTERVAL_MS   // 2000
+AnimationController.DEFAULT_INTERVAL_MS // 500
+```
+
+### Cleanup
+
+```js
+// Stop all timers and clear the registry (useful in tests or on game teardown)
+AnimationController.reset();
+
+// Check whether a type is registered
+AnimationController.isRegistered('water'); // true / false
+```
+
+### Design notes
+
+- One `setInterval` per sprite type, not per sprite instance — keeps timer count O(types) rather than O(sprites).
+- Frame index wraps with `% frameCount`, so adding or removing frames mid-game is safe as long as `registerAnimatedType` is called again.
+- `frameCount` is clamped to a minimum of 1 to prevent division-by-zero in the modulo.
+
+---
+
+## pixi-renderer.js — PixiRenderer
+
+PixiJS-backed renderer that sits between `SpriteManager` and the canvas. Provides a WebGL → CanvasRenderer → Canvas 2D fallback chain so the game runs on hardware that doesn't support WebGL.
+
+### Renderer initialisation
+
+```js
+// Attach to the existing game canvas; tries WebGL first (5 s timeout)
+const renderer = await initPixiRenderer(canvas);
+// renderer.rendererType → 'webgl' | 'canvas-renderer' | 'canvas2d'
+```
+
+**Fallback chain (Req 5.5):**
+1. PixiJS WebGL — hardware-accelerated, 5 s init timeout
+2. PixiJS CanvasRenderer — software canvas via PixiJS
+3. Canvas 2D — delegates directly to `SpriteManager` (no PixiJS)
+
+PixiJS is always attached to the *existing* `<canvas>` element via the `view` option, so the DOM is not modified.
+
+### Atlas loading
+
+```js
+await loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json');
+// Falls back to SpriteManager.loadAll() if atlas or JSON fails to load
+```
+
+The atlas JSON and image must both parse within 5 seconds. On any failure the module silently falls back to individual PNG loading via the existing `SpriteManager.loadAll()`.
+
+### Drawing sprites
+
+```js
+// Draw a sprite at (x, y) on the given tile layer
+drawSprite(ctx, 'grass-short-1', x, y, 64, 32, 'ground');
+```
+
+**Integer pixel alignment (Req 5.2, Property 13):** `x` and `y` are always floored to integers with `Math.floor` before being passed to the underlying renderer. This prevents sub-pixel blur on pixel art sprites regardless of whether the input is already an integer or a floating-point value.
+
+When PixiJS is active and the atlas is loaded, the sprite is drawn via a `PIXI.Sprite`. Otherwise the call is delegated to `SpriteManager.draw()`.
+
+### Draw-call budgeting (Req 7.4, Property 18)
+
+Each tile layer (`ground`, `structure`, `unit`, `overlay`) has a budget of **10 draw calls per frame**. Calls beyond the budget are silently dropped.
+
+```js
+resetDrawCallCounters();          // call once per frame before drawing
+trackDrawCall('ground');          // returns true if within budget, false if exceeded
+getDrawCallCount('ground');       // current count for diagnostics
+MAX_DRAW_CALLS_PER_LAYER;         // 10
+```
+
+Counters are independent per layer — exceeding the budget on `unit` does not affect `ground`.
+
+### Testing interface
+
+The module exports a `_reset()` function for test isolation. It clears all internal state (renderer type, textures, atlas flag, draw-call counters) so each property-test run starts from a clean slate without module cache tricks.
+
+```js
+const { drawSprite, _reset } = require('./pixi-renderer');
+_reset(); // force canvas2d mode, clear all state
+```
+
+### Module exports (Node.js / CommonJS)
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `initPixiRenderer(canvas, timeout?)` | `async fn` | Initialise renderer with fallback chain |
+| `loadSpriteAtlas(imgPath, jsonPath)` | `async fn` | Load atlas; falls back to individual PNGs |
+| `drawSprite(ctx, name, x, y, w?, h?, layer?)` | `fn` | Draw one sprite, floors coords to integers |
+| `resetDrawCallCounters()` | `fn` | Reset per-layer counters (call each frame) |
+| `trackDrawCall(layer)` | `fn` | Increment counter; returns false if over budget |
+| `getDrawCallCount(layer)` | `fn` | Read current counter for a layer |
+| `MAX_DRAW_CALLS_PER_LAYER` | `number` | `10` |
+| `_reset()` | `fn` | Full state reset for test isolation |
 
 ---
 
