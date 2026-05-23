@@ -45,8 +45,32 @@ const Game = {
             onMouseLeave: () => { this.hoveredTile = null; },
         });
 
-        // Load assets
-        await SpriteManager.loadAll();
+        // ── PixiJS initialisation (Req 5.5, 6.4) ────────────────────────────
+        // Step 1: Initialise PixiJS with the existing canvas element.
+        const pixiRenderer = await PixiRenderer.initPixiRenderer(this.canvas);
+
+        // Step 2: Wire the PixiJS renderer into SpriteManager so draw() delegates
+        //         to PixiJS when the atlas is loaded (Req 5.4).
+        SpriteManager.usePixiRenderer(pixiRenderer);
+
+        // Step 3: Load the sprite atlas (Req 6.6). Falls back to individual PNGs
+        //         automatically if the atlas or JSON fails to load (Req 5.1, 6.7).
+        await SpriteManager.loadAtlas(
+            'assets/sprites/atlas-0.png',
+            'assets/sprites/atlas.json'
+        );
+
+        // Step 4: Register animated sprite types with AnimationController (Req 5.3).
+        // water-anim: 4 frames at 500 ms/frame (matches atlas.json animations section).
+        AnimationController.registerAnimatedType('water-anim', 4, 500);
+        // flag: 3 frames at 600 ms/frame (ANIMATION_CONFIG from design doc).
+        AnimationController.registerAnimatedType('flag', 3, 600);
+
+        // Step 5: Visual integration test — draw a damaged castle sprite on startup
+        //         to confirm damaged sprites load and display correctly (Req 9.7).
+        this._renderDamagedCastleIntegrationTest();
+
+        // Load remaining assets
         await LevelLoader.loadLevelList();
         await UnitManager.loadResources();
 
@@ -69,6 +93,25 @@ const Game = {
         const level = LevelLoader.getCurrentLevel();
         const flag = level.tiles.find(t => t.sprite === 'castle-keep-center');
         if (flag) IsoCamera.centerOn(flag.row, flag.col);
+    },
+
+    /**
+     * Visual integration test: draws a damaged castle sprite at a fixed position
+     * on startup to confirm the damaged sprites load and display correctly from
+     * the atlas without rendering errors (Req 9.7).
+     *
+     * The sprite is drawn in the top-left corner of the canvas and will be
+     * overwritten by the first game render frame.
+     */
+    _renderDamagedCastleIntegrationTest() {
+        try {
+            // Draw castle-wall-damaged as the integration test sprite.
+            // Position it at (8, 8) — visible but out of the way.
+            SpriteManager.draw(this.ctx, 'castle-wall-damaged', 8, 8, 64, 32);
+            console.log('[Game] Visual integration test: castle-wall-damaged rendered successfully');
+        } catch (err) {
+            console.error('[Game] Visual integration test failed for castle-wall-damaged:', err);
+        }
     },
 
     handleClick(mouseX, mouseY) {

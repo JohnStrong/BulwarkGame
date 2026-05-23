@@ -51,15 +51,21 @@ hexToPixel(row, col) // Converts grid position to pixel (hex view only)
 
 ## sprites.js — SpriteManager
 
-Loads all game sprites at startup. Each sprite is a 64×32 isometric diamond PNG.
+Loads game sprites and delegates rendering to PixiJS when available. Each sprite is a 64×32 isometric diamond PNG (terrain/castle) or 32×32 PNG (units).
 
 ```js
-// On startup:
+// Preferred startup path — atlas + PixiJS (see game-iso.js init):
+SpriteManager.usePixiRenderer(pixiRenderer);
+await SpriteManager.loadAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json');
+
+// Legacy fallback (used automatically if atlas load fails):
 await SpriteManager.loadAll();
 
-// During rendering:
+// During rendering (API unchanged):
 SpriteManager.draw(ctx, 'grass-short-1', x, y, 64, 32);
 ```
+
+`draw()` floors `x` and `y` to integers before rendering to prevent sub-pixel blur on pixel art. When a PixiJS renderer is wired in and the atlas is loaded, the call is delegated to `PixiRenderer.drawSprite()`; otherwise it falls back to Canvas 2D.
 
 If a sprite file is missing, it creates a grey placeholder with the name printed on it so the game still runs.
 
@@ -288,12 +294,27 @@ Game.init()
   → set canvas size (1024×768)
   → IsoCamera.init()
   → IsoInput.init() with callbacks
-  → SpriteManager.loadAll()
+  → PixiRenderer.initPixiRenderer(canvas)        // WebGL → CanvasRenderer → Canvas 2D
+  → SpriteManager.usePixiRenderer(pixiRenderer)  // wire PixiJS into draw() path
+  → SpriteManager.loadAtlas(atlas-0.png, atlas.json)  // falls back to loadAll() on failure
+  → AnimationController.registerAnimatedType('water-anim', 4, 500)
+  → AnimationController.registerAnimatedType('flag', 3, 600)
+  → Game._renderDamagedCastleIntegrationTest()   // startup visual smoke test (Req 9.7)
   → LevelLoader.loadLevelList()
   → UnitManager.loadResources()
   → Game.startLevel()
   → Game.loop()
 ```
+
+#### PixiJS initialisation detail
+
+The startup sequence replaces the old `SpriteManager.loadAll()` call with a five-step PixiJS pipeline:
+
+1. **`PixiRenderer.initPixiRenderer(canvas)`** — attempts WebGL (5 s timeout), falls back to PixiJS CanvasRenderer, then to plain Canvas 2D. Always attaches to the existing `<canvas>` element via the `view` option.
+2. **`SpriteManager.usePixiRenderer(pixiRenderer)`** — wires the renderer into `SpriteManager.draw()` so all subsequent draw calls delegate to PixiJS when the atlas is loaded.
+3. **`SpriteManager.loadAtlas(...)`** — loads `atlas-0.png` + `atlas.json` via PixiJS Spritesheet. On any failure (missing file, parse error, timeout) it automatically falls back to `SpriteManager.loadAll()` which loads individual PNGs.
+4. **`AnimationController.registerAnimatedType(...)`** — registers `water-anim` (4 frames, 500 ms) and `flag` (3 frames, 600 ms) so animated tiles cycle frames from the atlas automatically.
+5. **`_renderDamagedCastleIntegrationTest()`** — draws `castle-wall-damaged` at position (8, 8) as a startup smoke test confirming damaged sprites load from the atlas without errors. The sprite is overwritten by the first game render frame.
 
 ### Game loop (runs every frame ~60fps)
 

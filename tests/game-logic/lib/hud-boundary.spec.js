@@ -198,3 +198,69 @@ describe('HUD.drawSheenBorder - gradient and stroke calls', () => {
         assert.deepEqual(strokeCalls[0].args, [10, 20, 200, 100]);
     });
 });
+
+describe('HUD.getUnitBarClick - explicit boundary conditions', () => {
+    // canvasH=768: barY = 768 - 56 - 28 = 684
+    // valid y: barY (684) to barY + UNIT_BOX_SIZE + 20 (= 684 + 56 + 20 = 760)
+    // For unit 0: bx = barStartX + 0 * 62 = barStartX
+    // valid x: bx to bx + 56
+
+    const UNIT_BOX_SIZE = 56;
+    const UNIT_BOX_PAD = 6;
+    const testCanvasW = 1024;
+    const testCanvasH = 768;
+
+    const totalBarW = mockUnits.length * (UNIT_BOX_SIZE + UNIT_BOX_PAD) - UNIT_BOX_PAD;
+    const barStartX = (testCanvasW - totalBarW) / 2;
+    const barY = testCanvasH - UNIT_BOX_SIZE - 28;
+    const bx0 = barStartX; // left edge of unit 0
+
+    it('click exactly at mouseY = barY (top edge) should return a valid index', () => {
+        const result = HUD.getUnitBarClick(bx0 + 10, barY, mockUnits, testCanvasW, testCanvasH);
+        assert.ok(result >= 0, `Expected valid index, got ${result}`);
+    });
+
+    it('click exactly at mouseY = barY + UNIT_BOX_SIZE + 20 (bottom edge) should return a valid index', () => {
+        const bottomEdge = barY + UNIT_BOX_SIZE + 20;
+        const result = HUD.getUnitBarClick(bx0 + 10, bottomEdge, mockUnits, testCanvasW, testCanvasH);
+        assert.ok(result >= 0, `Expected valid index, got ${result}`);
+    });
+
+    it('click at mouseY = barY - 1 (just above) should return -1', () => {
+        const result = HUD.getUnitBarClick(bx0 + 10, barY - 1, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, -1);
+    });
+
+    it('click at mouseY = barY + UNIT_BOX_SIZE + 21 (just below) should return -1', () => {
+        const result = HUD.getUnitBarClick(bx0 + 10, barY + UNIT_BOX_SIZE + 21, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, -1);
+    });
+
+    it('click exactly at mouseX = bx (left edge of unit 0) should return 0', () => {
+        const result = HUD.getUnitBarClick(bx0, barY + 10, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, 0);
+    });
+
+    it('click exactly at mouseX = bx + UNIT_BOX_SIZE (right edge of unit 0) should return 0', () => {
+        const result = HUD.getUnitBarClick(bx0 + UNIT_BOX_SIZE, barY + 10, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, 0);
+    });
+
+    it('click at mouseX = bx - 1 (just left of unit 0) should return -1', () => {
+        const result = HUD.getUnitBarClick(bx0 - 1, barY + 10, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, -1);
+    });
+
+    it('click at mouseX = bx + UNIT_BOX_SIZE + 1 (in padding after unit 0) should return -1', () => {
+        // bx0 + 56 + 1 = in the 6px padding gap between unit 0 and unit 1
+        const result = HUD.getUnitBarClick(bx0 + UNIT_BOX_SIZE + 1, barY + 10, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, -1);
+    });
+
+    it('click in the gap between unit 0 and unit 1 (UNIT_BOX_PAD region) should return -1', () => {
+        // Gap is from bx0+56+1 to bx0+62-1 (i.e. bx0+57 to bx0+61)
+        const gapX = bx0 + UNIT_BOX_SIZE + Math.floor(UNIT_BOX_PAD / 2); // middle of padding
+        const result = HUD.getUnitBarClick(gapX, barY + 10, mockUnits, testCanvasW, testCanvasH);
+        assert.equal(result, -1);
+    });
+});

@@ -6,3 +6,4 @@ docs/contexts
 tests/reports/
 .vscode
 generated/
+asserts/sprites/tests

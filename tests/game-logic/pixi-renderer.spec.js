@@ -410,3 +410,106 @@ describe('pixi-renderer: drawSprite Canvas 2D delegation', () => {
         delete global.SpriteManager;
     });
 });
+
+describe('pixi-renderer: drawSprite PixiJS path (Req 7.4)', () => {
+    // Helper: initialise a fresh module into webgl mode and load a texture.
+    // Returns { mod, api } — mod is module.exports, api is the initPixiRenderer result.
+    // api.app.stage is the live stage object that drawSprite uses internally.
+    async function setupWebGLMode() {
+        const mod = loadFreshModule();
+        const canvas = { width: 800, height: 600 };
+        // initPixiRenderer with the default PIXI stub enters 'webgl' mode.
+        const api = await mod.initPixiRenderer(canvas, 5000);
+        return { mod, api };
+    }
+
+    it('should NOT call SpriteManager.draw when _rendererType is webgl and texture exists', async () => {
+        const { mod } = await setupWebGLMode();
+
+        const atlasData = {
+            meta: { image: 'atlas-0.png', size: { w: 512, h: 512 } },
+            frames: { 'test-sprite': { frame: { x: 0, y: 0, w: 64, h: 32 } } },
+        };
+        global.fetch = makeFetchStub(atlasData);
+        await mod.loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json');
+        delete global.fetch;
+
+        // Now _atlasLoaded is true and _rendererType is 'webgl'.
+        assert.equal(mod._getRendererType(), 'webgl');
+        assert.equal(mod._getAtlasLoaded(), true);
+
+        let spriteManagerCalled = false;
+        global.SpriteManager = {
+            draw() { spriteManagerCalled = true; },
+        };
+
+        const mockCtx = {};
+        mod.drawSprite(mockCtx, 'test-sprite', 10, 20, 64, 32);
+
+        assert.equal(spriteManagerCalled, false, 'SpriteManager.draw must NOT be called on PixiJS path');
+
+        delete global.SpriteManager;
+    });
+
+    it('should silently skip (no stage.addChild) when draw-call budget is exceeded', async () => {
+        const { mod, api } = await setupWebGLMode();
+
+        const atlasData = {
+            meta: { image: 'atlas-0.png', size: { w: 512, h: 512 } },
+            frames: { 'test-sprite': { frame: { x: 0, y: 0, w: 64, h: 32 } } },
+        };
+        global.fetch = makeFetchStub(atlasData);
+        await mod.loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json');
+        delete global.fetch;
+
+        // Exhaust the budget for 'ground' layer.
+        const max = mod.MAX_DRAW_CALLS_PER_LAYER;
+        for (let i = 0; i < max; i++) mod.trackDrawCall('ground');
+
+        // Intercept addChild on the live stage (api.app is the PIXI.Application instance).
+        let addChildCalled = false;
+        if (api.app && api.app.stage) {
+            const origAddChild = api.app.stage.addChild.bind(api.app.stage);
+            api.app.stage.addChild = (...args) => {
+                addChildCalled = true;
+                return origAddChild(...args);
+            };
+        }
+
+        const mockCtx = {};
+        mod.drawSprite(mockCtx, 'test-sprite', 0, 0, 64, 32, 'ground');
+
+        assert.equal(addChildCalled, false, 'stage.addChild must not be called when budget exceeded');
+    });
+
+    it('should create a PIXI.Sprite and call stage.addChild for a known texture', async () => {
+        const { mod, api } = await setupWebGLMode();
+
+        const atlasData = {
+            meta: { image: 'atlas-0.png', size: { w: 512, h: 512 } },
+            frames: { 'test-sprite': { frame: { x: 0, y: 0, w: 64, h: 32 } } },
+        };
+        global.fetch = makeFetchStub(atlasData);
+        await mod.loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json');
+        delete global.fetch;
+
+        assert.equal(mod._getRendererType(), 'webgl');
+        assert.equal(mod._getAtlasLoaded(), true);
+        assert.ok(mod._textures.has('test-sprite'), 'texture must be registered');
+
+        // Intercept addChild on the live stage via the api.app reference.
+        const addedChildren = [];
+        assert.ok(api.app && api.app.stage, 'api.app.stage must exist in webgl mode');
+        api.app.stage.addChild = (child) => { addedChildren.push(child); };
+
+        const mockCtx = {};
+        mod.drawSprite(mockCtx, 'test-sprite', 50, 75, 64, 32);
+
+        assert.equal(addedChildren.length, 1, 'stage.addChild should be called once');
+        // The added child should be a PIXI.Sprite with floored coordinates.
+        const sprite = addedChildren[0];
+        assert.ok(sprite instanceof global.PIXI.Sprite, 'added child should be a PIXI.Sprite');
+        assert.equal(sprite.x, 50, 'sprite x should be floored integer');
+        assert.equal(sprite.y, 75, 'sprite y should be floored integer');
+    });
+});

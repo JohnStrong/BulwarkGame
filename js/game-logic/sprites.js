@@ -276,3 +276,8 @@ const SpriteManager = {
         return name;
     }
 };
+
+// Export for Node.js (tests) while remaining usable as a browser global
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SpriteManager;
+}

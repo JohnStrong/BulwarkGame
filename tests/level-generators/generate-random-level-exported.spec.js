@@ -129,3 +129,80 @@ describe('generate-tutorial-level (exported): generate', () => {
         assert.ok(output.includes('O'), 'Should have tree tiles');
     });
 });
+
+describe('generate-random-level (exported): hasBranch branch coverage', () => {
+    /**
+     * Find a seed where the 4th random() call (hasBranch) returns <= 0.4.
+     * Sequence after setSeed: forestWeight, waterWidth, roadCount, hasBranch.
+     */
+    function findNoBranchSeed() {
+        for (let s = 1; s <= 10000; s++) {
+            setSeed(s);
+            random(); // forestWeight
+            random(); // waterWidth
+            random(); // roadCount
+            if (random() <= 0.4) return s;
+        }
+        throw new Error('Could not find a no-branch seed in 1..10000');
+    }
+
+    function findBranchSeed() {
+        for (let s = 1; s <= 10000; s++) {
+            setSeed(s);
+            random(); // forestWeight
+            random(); // waterWidth
+            random(); // roadCount
+            if (random() > 0.4) return s;
+        }
+        throw new Error('Could not find a branch seed in 1..10000');
+    }
+
+    it('should include "; Roads: 1" (no "+ branch") when hasBranch is false', () => {
+        const seed = findNoBranchSeed();
+        const output = generateLevel(seed);
+        assert.ok(
+            output.includes('; Roads: 1\n') || output.includes('; Roads: 2\n'),
+            `Expected header without "+ branch", got: ${output.split('\n').find(l => l.startsWith('; Roads'))}`
+        );
+        const roadsLine = output.split('\n').find(l => l.startsWith('; Roads'));
+        assert.ok(roadsLine !== undefined, 'Should have a Roads header line');
+        assert.ok(!roadsLine.includes('+ branch'), `Expected no "+ branch" in "${roadsLine}"`);
+    });
+
+    it('should include "+ branch" in header when hasBranch is true', () => {
+        const seed = findBranchSeed();
+        const output = generateLevel(seed);
+        const roadsLine = output.split('\n').find(l => l.startsWith('; Roads'));
+        assert.ok(roadsLine !== undefined, 'Should have a Roads header line');
+        assert.ok(roadsLine.includes('+ branch'), `Expected "+ branch" in "${roadsLine}"`);
+    });
+
+    it('should have fewer road tiles when hasBranch is false vs true', () => {
+        const noBranchSeed = findNoBranchSeed();
+        const branchSeed = findBranchSeed();
+
+        const noBranchOutput = generateLevel(noBranchSeed);
+        const branchOutput = generateLevel(branchSeed);
+
+        // Count road tiles (L, D, r, U, u characters) in map section only
+        function countRoadTiles(output) {
+            const lines = output.split('\n');
+            const mapLines = lines.filter(l => l.length > 0 && !l.startsWith(';') && !l.startsWith('name='));
+            const mapStr = mapLines.join('');
+            let count = 0;
+            for (const ch of mapStr) {
+                if (ch === 'L' || ch === 'D' || ch === 'r' || ch === 'U' || ch === 'u') count++;
+            }
+            return count;
+        }
+
+        const noBranchRoads = countRoadTiles(noBranchOutput);
+        const branchRoads = countRoadTiles(branchOutput);
+
+        // The branch adds a significant number of road tiles; no-branch should have fewer
+        assert.ok(
+            noBranchRoads < branchRoads,
+            `Expected no-branch (${noBranchRoads}) < branch (${branchRoads}) road tiles`
+        );
+    });
+});

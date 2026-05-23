@@ -328,9 +328,11 @@ Bulwark/
 └── js/
     ├── game-logic/
     │   ├── utils.js            # Hex/iso geometry, constants, loaders
-    │   ├── sprites.js          # Sprite loading and rendering
+    │   ├── sprites.js          # Sprite loading, atlas support, PixiJS delegation, Canvas 2D fallback
     │   ├── level-loader.js     # Text file → tile grid parser + elevation
     │   ├── game.js             # Top-down hex renderer
+    │   ├── animation-controller.js  # Shared frame-cycling timers for animated sprite types
+    │   ├── pixi-renderer.js    # PixiJS WebGL/Canvas renderer with atlas loading + draw-call budgeting
     │   └── game-iso.js         # Isometric 2.5D renderer (default)
     └── level-generators/
         ├── generate-iso-sprites-br-tl.js  # Terrain sprites (BR→TL viewpoint)
@@ -447,7 +449,7 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 
 ## Architecture Documentation
 
-- **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: sprites, level loader, unit manager, game loop, and how they connect
+- **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: PixiJS renderer initialisation, sprite atlas loading, animation controller, SpriteManager delegation, level loader, unit manager, game loop, and how they connect
 - **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
 - **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
 - **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random

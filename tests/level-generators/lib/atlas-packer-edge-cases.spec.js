@@ -105,3 +105,81 @@ describe('atlas-packer: multi-frame sprites across pages', () => {
         assert.equal(Object.keys(metadata.frames).length, 5);
     });
 });
+
+describe('atlas-packer: oversized sprites', () => {
+    // MAX_ATLAS_SIZE is 2048. ShelfPacker.place() is called with
+    // paddedWidth = width + 1 and paddedHeight = height + 1.
+    // If paddedWidth > 2048 or paddedHeight > 2048, place() returns null,
+    // placed.length === 0, and packAtlas throws 'Atlas metadata serialization failed'.
+
+    it('sprite with width > 2048 throws Atlas metadata serialization failed', () => {
+        // width 2049 → paddedWidth 2050 > 2048 → place() returns null
+        const sprite = createSprite('too-wide', 2049, 32);
+        assert.throws(
+            () => packAtlas([sprite]),
+            (err) => err.message === 'Atlas metadata serialization failed'
+        );
+    });
+
+    it('sprite with height > 2048 throws Atlas metadata serialization failed', () => {
+        // height 2049 → paddedHeight 2050 > 2048 → place() returns null
+        const sprite = createSprite('too-tall', 32, 2049);
+        assert.throws(
+            () => packAtlas([sprite]),
+            (err) => err.message === 'Atlas metadata serialization failed'
+        );
+    });
+
+    it('sprite with width = 2048 exactly packs successfully (boundary)', () => {
+        // width 2048 → paddedWidth 2049 > 2048 → place() returns null on current shelf,
+        // then tries new shelf: width 2048 <= maxWidth (2048), so it fits.
+        // Actually paddedWidth = 2049 > maxWidth = 2048, so place() returns null.
+        // This means width=2048 also fails. Let's test width=2047 as the true boundary.
+        // width 2047 → paddedWidth 2048 <= 2048 → fits.
+        const sprite = createSprite('max-width', 2047, 32);
+        assert.doesNotThrow(() => {
+            const { atlases, metadata } = packAtlas([sprite]);
+            assert.ok(atlases.length >= 1);
+            assert.ok(metadata.frames['max-width']);
+        });
+    });
+
+    it('sprite with height = 2047 packs successfully (boundary)', () => {
+        // height 2047 → paddedHeight 2048 <= 2048 → fits vertically
+        const sprite = createSprite('max-height', 32, 2047);
+        assert.doesNotThrow(() => {
+            const { atlases, metadata } = packAtlas([sprite]);
+            assert.ok(atlases.length >= 1);
+            assert.ok(metadata.frames['max-height']);
+        });
+    });
+
+    it('sprite with width = 2048 throws (paddedWidth 2049 exceeds maxWidth 2048)', () => {
+        // Confirms the exact boundary: width=2048 → paddedWidth=2049 > 2048 → fails
+        const sprite = createSprite('exact-max-width', 2048, 32);
+        assert.throws(
+            () => packAtlas([sprite]),
+            (err) => err.message === 'Atlas metadata serialization failed'
+        );
+    });
+
+    it('sprite with height = 2048 throws (paddedHeight 2049 exceeds maxHeight 2048)', () => {
+        const sprite = createSprite('exact-max-height', 32, 2048);
+        assert.throws(
+            () => packAtlas([sprite]),
+            (err) => err.message === 'Atlas metadata serialization failed'
+        );
+    });
+
+    it('mix of normal and oversized sprites: oversized causes throw', () => {
+        const sprites = [
+            createSprite('normal-a', 64, 32),
+            createSprite('oversized', 2049, 32),
+            createSprite('normal-b', 64, 32),
+        ];
+        assert.throws(
+            () => packAtlas(sprites),
+            (err) => err.message === 'Atlas metadata serialization failed'
+        );
+    });
+});

@@ -307,3 +307,100 @@ describe('IsoCamera bl-tr viewpoint: centerOn', () => {
         assert.equal(camBLTR.camY, camBRTL.camY);
     });
 });
+
+describe('IsoCamera screenToGrid: explicit out-of-bounds cases', () => {
+    // For bl-tr viewpoint:
+    //   col = round((worldX/halfW + worldY/halfH) / 2)
+    //   row = round((worldY/halfH - worldX/halfW) / 2)
+    // worldX = (screenX - cx) / zoom + cx + camX - mapOffsetX
+    // worldY = (screenY - cy) / zoom + cy + camY - mapOffsetY
+
+    it('should return null when computed row < 0 (click far up-left)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        // Center camera on (0, 0) so the top-left of the map is near screen center
+        cam.centerOn(0, 0);
+
+        // Clicking far to the upper-left produces negative row
+        const result = cam.screenToGrid(0, 0, 20, 15);
+        // With camera centered on (0,0), clicking at screen (0,0) is far upper-left
+        // row will be negative
+        assert.equal(result, null);
+    });
+
+    it('should return null when computed col < 0 (click far upper-right in bl-tr)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(0, 0);
+
+        // In bl-tr, moving right on screen decreases col (col = round((worldY/halfH - worldX/halfW)/2))
+        // Click far right to get negative col
+        const result = cam.screenToGrid(mockCanvas.width, 0, 20, 15);
+        assert.equal(result, null);
+    });
+
+    it('should return null when computed row >= levelHeight (click far down)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(0, 0);
+
+        // Clicking very far down produces row >= levelHeight
+        const result = cam.screenToGrid(mockCanvas.width / 2, 99999, 20, 15);
+        assert.equal(result, null);
+    });
+
+    it('should return null when computed col >= levelWidth (click far down-left in bl-tr)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(0, 0);
+
+        // In bl-tr, col increases as we move down-left; click far down to exceed levelWidth
+        const result = cam.screenToGrid(0, 99999, 20, 15);
+        assert.equal(result, null);
+    });
+
+    it('should return null for levelWidth=0 (empty level)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(0, 0);
+        cam.camX = 0;
+        cam.camY = 0;
+
+        // Any click on a zero-size level should return null
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 0, 10);
+        assert.equal(result, null);
+    });
+
+    it('should return null for levelHeight=0 (empty level)', () => {
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 0);
+        cam.camX = 0;
+        cam.camY = 0;
+
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 0);
+        assert.equal(result, null);
+    });
+
+    it('should return valid result for the exact last valid tile (levelHeight-1, levelWidth-1)', () => {
+        const levelWidth = 20;
+        const levelHeight = 15;
+        const cam = createCamera();
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(levelWidth, levelHeight);
+
+        const lastRow = levelHeight - 1;
+        const lastCol = levelWidth - 1;
+        cam.centerOn(lastRow, lastCol);
+
+        // Screen center should map to the last tile
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, levelWidth, levelHeight);
+        assert.ok(result !== null, 'Should return a valid result for the last tile');
+        assert.equal(result.row, lastRow);
+        assert.equal(result.col, lastCol);
+    });
+});

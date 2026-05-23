@@ -250,7 +250,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 14. Integration wiring and visual verification
-  - [ ] 14.1 Wire PixiJS initialization into game startup
+  - [x] 14.1 Wire PixiJS initialization into game startup
     - Modify game initialization in `index.html` or entry point to call `initPixiRenderer(canvas)` on load
     - Call `loadSpriteAtlas('assets/sprites/atlas-0.png', 'assets/sprites/atlas.json')` after PixiJS init
     - Call `SpriteManager.usePixiRenderer(pixiRenderer)` to activate PixiJS path
@@ -258,7 +258,7 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Render at least one damaged castle sprite on startup as visual integration test
     - _Requirements: 5.5, 6.4, 6.6, 9.7_
 
-  - [ ]* 14.2 Integration tests (TBD — deferred to future iteration)
+  - [ ] 14.2 Integration tests (TBD — deferred to future iteration)
     - Test full sprite generation completes in <30 seconds
     - Test atlas file size under 4MB
     - Test PixiJS WebGL → CanvasRenderer → Canvas 2D fallback chain
