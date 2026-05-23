@@ -151,8 +151,14 @@ function generate() {
     return header + '\n' + map.map(r => r.join('')).join('\n') + '\n';
 }
 
-const output = generate();
-const outputPath = path.join(__dirname, '..', '..', 'levels', 'level1.txt');
-fs.writeFileSync(outputPath, output);
-console.log('Generated tutorial level: levels/level1.txt');
-console.log(`  Map size: ${W}x${H}`);
+// Export for testing
+module.exports = { generate, W, H };
+
+// Run if executed directly
+if (require.main === module) {
+    const output = generate();
+    const outputPath = path.join(__dirname, '..', '..', 'levels', 'level1.txt');
+    fs.writeFileSync(outputPath, output);
+    console.log('Generated tutorial level: levels/level1.txt');
+    console.log(`  Map size: ${W}x${H}`);
+}

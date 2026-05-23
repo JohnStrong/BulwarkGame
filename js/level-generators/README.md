@@ -1,10 +1,11 @@
 # Level & Sprite Generators
 
-Node.js scripts that produce the game's PNG sprites and level text files. Run these at build time — they write output to `assets/sprites/` and `levels/`.
+Node.js scripts that produce the game's PNG sprites and level text files. Run these at build time — individual generators write PNGs to `assets/sprites/`, the unified build pipeline packs them into atlas files at `generated/assets/atlas/`, and level generators write to `levels/`.
 
 ## Table of Contents
 
 - [File Overview](#file-overview)
+- [build-sprites.js](#build-spritesjs)
 - [generate-iso-sprites-br-tl.js](#generate-iso-sprites-br-tljs)
 - [generate-castle-sprites.js](#generate-castle-spritesjs)
 - [generate-unit-sprites.js](#generate-unit-spritesjs)
@@ -28,6 +29,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 
 | File | What it does |
 |------|-------------|
+| `build-sprites.js` | Unified build pipeline — orchestrates all generators, collects PNGs, packs atlas, outputs to `generated/assets/atlas/` |
 | `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
@@ -59,6 +61,79 @@ To add a new sprite, change a texture tone, or rename a sprite file — edit `li
 All generators import their colors and names from there.
 
 For the enhanced sprite pipeline's palette quantization and color enforcement, use `lib/palette.js`.
+
+---
+
+## build-sprites.js
+
+The unified sprite build pipeline. This is what `npm run generate:sprites` executes. It orchestrates all individual generators, collects their output, generates water animation frames, packs everything into a sprite atlas, and writes the final atlas files.
+
+```bash
+node js/level-generators/build-sprites.js
+```
+
+### Pipeline steps
+
+| Step | Action | Output |
+|------|--------|--------|
+| 1 | Run all generator scripts as child processes | Individual PNGs in `assets/sprites/` |
+| 2 | Read all generated PNGs as raw RGBA buffers | In-memory sprite entries |
+| 3 | Generate water animation frames (in-process) | Additional sprite entry with multiple frames |
+| 4 | Pack all sprites into atlas via `packAtlas()` | Atlas buffer(s) + JSON metadata |
+| 5 | Write atlas PNG files | `generated/assets/atlas/atlas-0.png` (+ additional if needed) |
+| 6 | Write atlas JSON metadata | `generated/assets/atlas/atlas.json` |
+| 7 | Verify atlas file size < 4MB | Throws on violation |
+
+### Generator scripts (executed in order)
+
+1. `generate-iso-sprites-br-tl.js` — terrain sprites
+2. `generate-castle-sprites.js` — castle structure sprites
+3. `generate-unit-sprites.js` — player army unit sprites
+4. `generate-enemy-sprites.js` — enemy unit sprites
+5. `generate-damaged-castle-sprites.js` — damaged castle variants
+
+### Output directory
+
+Atlas files are written to `generated/assets/atlas/`:
+
+```
+generated/
+└── assets/
+    └── atlas/
+        ├── atlas-0.png    ← packed sprite atlas (power-of-two dimensions)
+        └── atlas.json     ← frame metadata + animation sequences
+```
+
+This directory is created automatically if it doesn't exist. The `generated/` folder separates build artifacts from source-controlled assets.
+
+### Sprites packed into the atlas
+
+| Category | Count | Dimensions | Naming |
+|----------|-------|------------|--------|
+| Terrain | 17 | 64×32 | `grass-short-1`, `road-full`, `water-1`, etc. |
+| Castle | 13 | 64×32 | `castle-wall`, `castle-tower`, etc. |
+| Units | 9 | 32×32 | `unit-knight`, `unit-archer`, etc. |
+| Enemy | 5 | 64×32 | `enemy-knight`, `enemy-archer`, etc. |
+| Damaged castle | 10 | 64×32 | `castle-wall-damaged`, `castle-tower-damaged`, etc. |
+| Water animation | 1 entry (multi-frame) | 64×32 per frame | `water-anim` → individual frame entries |
+
+### Error handling
+
+All generator failures propagate non-zero exit codes. On any failure, structured diagnostics are logged to stderr:
+
+```
+[SPRITE-BUILD-ERROR] <module>: <message>
+  Sprite: <sprite name>
+  Stage: <generation|packing|encoding|pipeline>
+  Details: <additional context>
+```
+
+### Constraints enforced
+
+- Atlas file size must be under 4MB (Requirement 7.2)
+- All sprites must have valid PNG files before packing
+- Atlas dimensions are power-of-two (256, 512, 1024, or 2048)
+- JSON metadata serialization must succeed
 
 ---
 
@@ -616,12 +691,20 @@ Input:                                Output:
 │ road-full    │ 64×32    packAtlas() │ ├────┼────┼────┼────┤       │ (512×512)
 │ rock         │ 64×32   ──────────►  │ │wtr1│wtr2│wtr3│brg │       │
 │ water-1      │ 64×32                │ ├────┼────┴────┴────┤       │
-│ water-2      │ 64×32                │ │tree│               │       │
-│ water-3      │ 64×32                │ └────┴───────────────┘       │
+│ water-2      │ 64×32                │ │tree│              │       │
+│ water-3      │ 64×32                │ └────┴──────────────┘       │
 │ bridge-mm    │ 64×32                └─────────────────────────────┘
 │ tree-1       │ 64×32                         +
 └──────────────┘                      atlas-0.json (metadata)
 ```
+
+### Example atlas output
+
+Below is an actual generated atlas PNG showing all sprites packed together. Each sprite occupies its own region with 1-pixel padding between frames:
+
+![Atlas Example](../../docs/atlas-0-example.png)
+
+The atlas is generated by running `npm run generate:sprites` and output to `generated/assets/atlas/atlas-0.png`.
 
 ### The packing algorithm (shelf-based bin packing)
 
@@ -636,8 +719,8 @@ The packer uses a **shelf algorithm** — think of it like packing books onto sh
 ```
 Shelf 0 (height: 32px)
 ┌─────────┬─────────┬─────────┬─────────┬─ ─ ─ ─ ─┐
-│ grass-1 │ grass-2 │  road   │  rock   │  (empty) │
-│  64×32  │  64×32  │  64×32  │  64×32  │          │
+│ grass-1 │ grass-2 │  road   │  rock   │ (empty) │
+│  64×32  │  64×32  │  64×32  │  64×32  │         │
 └─────────┴─────────┴─────────┴─────────┴─ ─ ─ ─ ─┘
            ↑ 1px padding between each sprite
 
@@ -771,11 +854,11 @@ Each consecutive frame pair differs in at least 10% of non-transparent pixels, e
 
 | Command | What it runs |
 |---------|-------------|
-| `npm run generate:sprites` | `generate-iso-sprites-br-tl.js` + `generate-castle-sprites.js` |
+| `npm run generate:sprites` | `build-sprites.js` — runs all generators + packs atlas to `generated/assets/atlas/` |
 | `npm run generate:level` | `generate-tutorial-level.js` |
 | `npm run generate:random` | `generate-random-level.js` |
 | `npm run generate:preview` | `render-level-preview.js` |
-| `npm run generate` | All sprites + level |
+| `npm run generate` | All sprites + level (`generate:sprites` then `generate:level`) |
 | `npm run test:properties` | Runs property-based tests from `property-tests/` |
 
 ---

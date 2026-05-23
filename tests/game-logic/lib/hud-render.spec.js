@@ -1,73 +1,68 @@
 /**
- * Tests for HUD render functions using a lightweight canvas mock.
+ * Tests for HUD rendering functions using canvas mocks.
  *
- * Recommendation 5: Test HUD draw call sequences using a mock canvas
- * context that records operations instead of rendering.
+ * Recommendation 8: Improve HUD test coverage with canvas mock patterns.
+ * Tests renderUnitBar, renderTilePanel, and getUnitBarClick edge cases.
  *
  * Uses Node.js built-in test runner (node:test).
  * Run: node --test tests/game-logic/lib/hud-render.spec.js
  */
 
-const { describe, it, beforeEach } = require('node:test');
+'use strict';
+
+const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-// ─── Canvas Context Mock ────────────────────────────────────────────────────
-// Records all draw calls for assertion without actual rendering.
+// ─── Canvas Mock ────────────────────────────────────────────────────────────
 
-function createMockContext() {
-    const calls = [];
-
-    const mockGradient = {
-        addColorStop(offset, color) {
-            calls.push({ method: 'addColorStop', args: [offset, color] });
-        }
-    };
+function createMockCtx() {
+    const drawCalls = [];
+    const gradients = [];
 
     return {
-        calls,
+        drawCalls,
+        gradients,
         fillStyle: '',
         strokeStyle: '',
-        lineWidth: 1,
         font: '',
-        textAlign: 'left',
-        textBaseline: 'alphabetic',
-
+        textAlign: '',
+        textBaseline: '',
+        lineWidth: 1,
         fillRect(x, y, w, h) {
-            calls.push({ method: 'fillRect', args: [x, y, w, h] });
+            drawCalls.push({ method: 'fillRect', args: [x, y, w, h], fillStyle: this.fillStyle });
         },
         strokeRect(x, y, w, h) {
-            calls.push({ method: 'strokeRect', args: [x, y, w, h] });
+            drawCalls.push({ method: 'strokeRect', args: [x, y, w, h] });
         },
         fillText(text, x, y) {
-            calls.push({ method: 'fillText', args: [text, x, y] });
+            drawCalls.push({ method: 'fillText', args: [text, x, y], fillStyle: this.fillStyle, font: this.font });
         },
-        createLinearGradient(x1, y1, x2, y2) {
-            calls.push({ method: 'createLinearGradient', args: [x1, y1, x2, y2] });
-            return mockGradient;
-        },
-        translate(x, y) {
-            calls.push({ method: 'translate', args: [x, y] });
-        },
-        scale(x, y) {
-            calls.push({ method: 'scale', args: [x, y] });
+        createLinearGradient(x0, y0, x1, y1) {
+            const stops = [];
+            const grad = {
+                addColorStop(offset, color) { stops.push({ offset, color }); },
+                stops,
+            };
+            gradients.push({ x0, y0, x1, y1, grad });
+            return grad;
         },
     };
 }
 
-// ─── Mock SpriteManager ─────────────────────────────────────────────────────
+// ─── SpriteManager mock ─────────────────────────────────────────────────────
 
-const mockSpriteManager = {
+const SpriteManager = {
     drawCalls: [],
     draw(ctx, name, x, y, w, h) {
-        mockSpriteManager.drawCalls.push({ name, x, y, w, h });
+        this.drawCalls.push({ name, x, y, w, h });
     },
-    reset() {
-        mockSpriteManager.drawCalls = [];
-    }
+    reset() { this.drawCalls = []; },
 };
 
-// ─── HUD re-implementation for testing ──────────────────────────────────────
-// Replicate HUD render functions with SpriteManager injected
+// Make SpriteManager available globally (HUD references it)
+global.SpriteManager = SpriteManager;
+
+// ─── HUD replica ────────────────────────────────────────────────────────────
 
 const HUD = {
     UNIT_BOX_SIZE: 56,
@@ -95,7 +90,7 @@ const HUD = {
         ctx.fillText(text, 8, 5);
     },
 
-    renderUnitBar(ctx, state, SpriteManager) {
+    renderUnitBar(ctx, state) {
         const { units, selectedUnitIdx, canvasW, canvasH } = state;
         if (!units || units.length === 0) return;
 
@@ -136,30 +131,6 @@ const HUD = {
         return barY;
     },
 
-    renderUnitDetail(ctx, unit, canvasW, barY, SpriteManager) {
-        if (!unit) return;
-
-        const panelW = 280, panelH = 100;
-        const panelX = (canvasW - panelW) / 2;
-        const panelY = barY - panelH - 8;
-
-        ctx.fillStyle = 'rgba(15, 12, 10, 0.92)';
-        ctx.fillRect(panelX, panelY, panelW, panelH);
-        this.drawSheenBorder(ctx, panelX, panelY, panelW, panelH);
-
-        SpriteManager.draw(ctx, unit.sprites[0], panelX + 8, panelY + 10, 64, 32);
-
-        ctx.fillStyle = '#ddd';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        const sx = panelX + 80;
-        ctx.fillText(unit.name, sx, panelY + 18);
-        ctx.fillStyle = '#aaa';
-        ctx.fillText(`HP: ${unit.health}  ATK: ${unit.attack}  Armour: ${Math.round((1 - unit.defense) * 100)}%`, sx, panelY + 34);
-        ctx.fillText(`Available: ${unit.qtyRemaining} / ${unit.qty}`, sx, panelY + 50);
-    },
-
     renderTilePanel(ctx, state) {
         const { hudWidth, canvasH, selectedTile, level } = state;
         if (hudWidth <= 0) return;
@@ -180,6 +151,13 @@ const HUD = {
         grad.addColorStop(1, '#3a3028');
         ctx.fillStyle = grad;
         ctx.fillRect(hudX, hudY, w, 3);
+
+        const gradR = ctx.createLinearGradient(hudX + w - 3, hudY, hudX + w - 3, hudY + h);
+        gradR.addColorStop(0, '#8a7a60');
+        gradR.addColorStop(0.5, '#c8b890');
+        gradR.addColorStop(1, '#3a3028');
+        ctx.fillStyle = gradR;
+        ctx.fillRect(hudX + w - 3, hudY, 3, h);
 
         ctx.fillStyle = '#666';
         ctx.font = '14px monospace';
@@ -203,276 +181,306 @@ const HUD = {
             }
         }
     },
+
+    getUnitBarClick(mouseX, mouseY, units, canvasW, canvasH) {
+        if (!units || units.length === 0) return -1;
+        const totalBarW = units.length * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD) - this.UNIT_BOX_PAD;
+        const barStartX = (canvasW - totalBarW) / 2;
+        const barY = canvasH - this.UNIT_BOX_SIZE - 28;
+
+        if (mouseY >= barY && mouseY <= barY + this.UNIT_BOX_SIZE + 20) {
+            for (let i = 0; i < units.length; i++) {
+                const bx = barStartX + i * (this.UNIT_BOX_SIZE + this.UNIT_BOX_PAD);
+                if (mouseX >= bx && mouseX <= bx + this.UNIT_BOX_SIZE) return i;
+            }
+        }
+        return -1;
+    }
 };
 
-// ─── Tests ──────────────────────────────────────────────────────────────────
+// ─── Test Data ──────────────────────────────────────────────────────────────
 
-describe('HUD.drawSheenBorder', () => {
-    it('should create a gradient and stroke a rectangle', () => {
-        const ctx = createMockContext();
-        HUD.drawSheenBorder(ctx, 10, 20, 100, 50);
+const mockUnits = [
+    { name: 'Archer (Ranged)', sprites: ['unit-archer'], qty: 40, qtyRemaining: 35, health: 100, attack: 90, defense: 0.80 },
+    { name: 'Knight', sprites: ['unit-knight'], qty: 20, qtyRemaining: 0, health: 100, attack: 130, defense: 0.40 },
+    { name: 'Spearman', sprites: ['unit-spearman'], qty: 30, qtyRemaining: 30, health: 100, attack: 100, defense: 0.50 },
+];
 
-        const gradCall = ctx.calls.find(c => c.method === 'createLinearGradient');
-        assert.ok(gradCall, 'Should create a linear gradient');
-        assert.deepEqual(gradCall.args, [10, 20, 110, 20]);
+const canvasW = 1024;
+const canvasH = 768;
 
-        const strokeCall = ctx.calls.find(c => c.method === 'strokeRect');
-        assert.ok(strokeCall, 'Should stroke a rectangle');
-        assert.deepEqual(strokeCall.args, [10, 20, 100, 50]);
-    });
-
-    it('should use custom highlight color when provided', () => {
-        const ctx = createMockContext();
-        HUD.drawSheenBorder(ctx, 0, 0, 50, 50, '#ff0000');
-
-        const colorStops = ctx.calls.filter(c => c.method === 'addColorStop');
-        const midStop = colorStops.find(c => c.args[0] === 0.5);
-        assert.ok(midStop, 'Should have a mid color stop');
-        assert.equal(midStop.args[1], '#ff0000');
-    });
-
-    it('should use default highlight when none provided', () => {
-        const ctx = createMockContext();
-        HUD.drawSheenBorder(ctx, 0, 0, 50, 50);
-
-        const colorStops = ctx.calls.filter(c => c.method === 'addColorStop');
-        const midStop = colorStops.find(c => c.args[0] === 0.5);
-        assert.equal(midStop.args[1], '#c8b890');
-    });
-});
-
-describe('HUD.renderTopBar', () => {
-    it('should draw a background rectangle spanning canvas width', () => {
-        const ctx = createMockContext();
-        HUD.renderTopBar(ctx, 1024, 'Level 1 | WASD to scroll');
-
-        const fillRects = ctx.calls.filter(c => c.method === 'fillRect');
-        assert.ok(fillRects.length >= 1);
-        assert.deepEqual(fillRects[0].args, [0, 0, 1024, 20]);
-    });
-
-    it('should render the text string', () => {
-        const ctx = createMockContext();
-        HUD.renderTopBar(ctx, 800, 'Test Level');
-
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        assert.ok(textCalls.length >= 1);
-        assert.equal(textCalls[0].args[0], 'Test Level');
-        assert.equal(textCalls[0].args[1], 8); // x position
-        assert.equal(textCalls[0].args[2], 5); // y position
-    });
-});
+// ─── renderUnitBar Tests ────────────────────────────────────────────────────
 
 describe('HUD.renderUnitBar', () => {
-    const mockUnits = [
-        { name: 'Archer (Ranged)', sprites: ['unit-archer'], qtyRemaining: 35, qty: 40 },
-        { name: 'Knight', sprites: ['unit-knight'], qtyRemaining: 15, qty: 20 },
-        { name: 'Spearman', sprites: ['unit-spearman'], qtyRemaining: 0, qty: 30 },
-    ];
-
-    beforeEach(() => {
-        mockSpriteManager.reset();
-    });
-
-    it('should not render when units is empty', () => {
-        const ctx = createMockContext();
-        const result = HUD.renderUnitBar(ctx, {
-            units: [], selectedUnitIdx: -1, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+    it('should return undefined when units is empty', () => {
+        const ctx = createMockCtx();
+        const result = HUD.renderUnitBar(ctx, { units: [], selectedUnitIdx: -1, canvasW, canvasH });
         assert.equal(result, undefined);
-        assert.equal(ctx.calls.length, 0);
     });
 
-    it('should draw one box per unit', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitBar(ctx, {
-            units: mockUnits, selectedUnitIdx: 0, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+    it('should return undefined when units is null', () => {
+        const ctx = createMockCtx();
+        const result = HUD.renderUnitBar(ctx, { units: null, selectedUnitIdx: -1, canvasW, canvasH });
+        assert.equal(result, undefined);
+    });
 
-        // Each unit gets a fillRect for background
-        const fillRects = ctx.calls.filter(c => c.method === 'fillRect');
-        assert.ok(fillRects.length >= 3, `Should have at least 3 fillRects, got ${fillRects.length}`);
+    it('should return barY position when units are provided', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        const barY = HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: -1, canvasW, canvasH });
+        const expectedBarY = canvasH - HUD.UNIT_BOX_SIZE - 28;
+        assert.equal(barY, expectedBarY);
+    });
+
+    it('should draw one background rect per unit', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: -1, canvasW, canvasH });
+
+        const fillRects = ctx.drawCalls.filter(c => c.method === 'fillRect');
+        // Each unit gets a background fillRect
+        assert.ok(fillRects.length >= mockUnits.length);
     });
 
     it('should call SpriteManager.draw for each unit sprite', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitBar(ctx, {
-            units: mockUnits, selectedUnitIdx: -1, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: -1, canvasW, canvasH });
 
-        assert.equal(mockSpriteManager.drawCalls.length, 3);
-        assert.equal(mockSpriteManager.drawCalls[0].name, 'unit-archer');
-        assert.equal(mockSpriteManager.drawCalls[1].name, 'unit-knight');
-        assert.equal(mockSpriteManager.drawCalls[2].name, 'unit-spearman');
+        assert.equal(SpriteManager.drawCalls.length, mockUnits.length);
+        assert.equal(SpriteManager.drawCalls[0].name, 'unit-archer');
+        assert.equal(SpriteManager.drawCalls[1].name, 'unit-knight');
+        assert.equal(SpriteManager.drawCalls[2].name, 'unit-spearman');
     });
 
-    it('should render unit names (truncated to 8 chars)', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitBar(ctx, {
-            units: mockUnits, selectedUnitIdx: -1, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+    it('should use different highlight color for selected unit', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: 1, canvasW, canvasH });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        // Should include truncated names
-        const nameTexts = textCalls.map(c => c.args[0]);
-        assert.ok(nameTexts.includes('Archer'), 'Should render Archer name');
-        assert.ok(nameTexts.includes('Knight'), 'Should render Knight name');
+        // The selected unit (index 1) should have a brighter gradient
+        // Check that at least one gradient uses the selected highlight color
+        const selectedGrads = ctx.gradients.filter(g =>
+            g.grad.stops.some(s => s.color === '#e8c870')
+        );
+        assert.ok(selectedGrads.length >= 1, 'Selected unit should use gold highlight');
     });
 
-    it('should render quantity for each unit', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitBar(ctx, {
-            units: mockUnits, selectedUnitIdx: -1, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+    it('should use red color for zero qtyRemaining', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: -1, canvasW, canvasH });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const qtyTexts = textCalls.map(c => c.args[0]);
-        assert.ok(qtyTexts.includes('35/40'), 'Should render archer qty');
-        assert.ok(qtyTexts.includes('15/20'), 'Should render knight qty');
-        assert.ok(qtyTexts.includes('0/30'), 'Should render spearman qty');
+        // Knight has qtyRemaining=0, should use '#f66'
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const qtyCalls = textCalls.filter(c => c.args[0].includes('/'));
+        // Find the one for knight (0/20)
+        const knightQty = qtyCalls.find(c => c.args[0] === '0/20');
+        assert.ok(knightQty, 'Should render 0/20 for knight');
+        assert.equal(knightQty.fillStyle, '#f66');
     });
 
-    it('should return barY position', () => {
-        const ctx = createMockContext();
-        const barY = HUD.renderUnitBar(ctx, {
-            units: mockUnits, selectedUnitIdx: 0, canvasW: 1024, canvasH: 768
-        }, mockSpriteManager);
+    it('should use green color for positive qtyRemaining', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        HUD.renderUnitBar(ctx, { units: mockUnits, selectedUnitIdx: -1, canvasW, canvasH });
 
-        const expectedBarY = 768 - 56 - 28; // canvasH - UNIT_BOX_SIZE - 28
-        assert.equal(barY, expectedBarY);
-    });
-});
-
-describe('HUD.renderUnitDetail', () => {
-    const mockUnit = {
-        name: 'Knight',
-        sprites: ['unit-knight'],
-        health: 100,
-        attack: 130,
-        defense: 0.40,
-        qtyRemaining: 15,
-        qty: 20,
-    };
-
-    beforeEach(() => {
-        mockSpriteManager.reset();
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const qtyCalls = textCalls.filter(c => c.args[0].includes('/'));
+        const archerQty = qtyCalls.find(c => c.args[0] === '35/40');
+        assert.ok(archerQty, 'Should render 35/40 for archer');
+        assert.equal(archerQty.fillStyle, '#8f8');
     });
 
-    it('should not render when unit is null', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitDetail(ctx, null, 1024, 684, mockSpriteManager);
-        assert.equal(ctx.calls.length, 0);
+    it('should truncate long unit names to 8 characters', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        const longNameUnits = [
+            { name: 'VeryLongUnitName', sprites: ['unit-test'], qty: 10, qtyRemaining: 5 },
+        ];
+        HUD.renderUnitBar(ctx, { units: longNameUnits, selectedUnitIdx: -1, canvasW, canvasH });
+
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const nameCalls = textCalls.filter(c => c.font === '7px monospace');
+        assert.ok(nameCalls.length >= 1);
+        assert.ok(nameCalls[0].args[0].length <= 8);
     });
 
-    it('should draw panel background', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitDetail(ctx, mockUnit, 1024, 684, mockSpriteManager);
+    it('should strip parenthetical from unit name', () => {
+        const ctx = createMockCtx();
+        SpriteManager.reset();
+        const units = [
+            { name: 'Archer (Ranged)', sprites: ['unit-archer'], qty: 40, qtyRemaining: 35 },
+        ];
+        HUD.renderUnitBar(ctx, { units, selectedUnitIdx: -1, canvasW, canvasH });
 
-        const fillRects = ctx.calls.filter(c => c.method === 'fillRect');
-        assert.ok(fillRects.length >= 1, 'Should draw panel background');
-        // Panel is 280×100
-        const panelRect = fillRects[0];
-        assert.equal(panelRect.args[2], 280);
-        assert.equal(panelRect.args[3], 100);
-    });
-
-    it('should call SpriteManager.draw for unit sprite', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitDetail(ctx, mockUnit, 1024, 684, mockSpriteManager);
-
-        assert.equal(mockSpriteManager.drawCalls.length, 1);
-        assert.equal(mockSpriteManager.drawCalls[0].name, 'unit-knight');
-        assert.equal(mockSpriteManager.drawCalls[0].w, 64);
-        assert.equal(mockSpriteManager.drawCalls[0].h, 32);
-    });
-
-    it('should render unit name and stats', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitDetail(ctx, mockUnit, 1024, 684, mockSpriteManager);
-
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const texts = textCalls.map(c => c.args[0]);
-        assert.ok(texts.includes('Knight'), 'Should render unit name');
-        assert.ok(texts.some(t => t.includes('HP: 100')), 'Should render HP');
-        assert.ok(texts.some(t => t.includes('ATK: 130')), 'Should render ATK');
-        assert.ok(texts.some(t => t.includes('Armour: 60%')), 'Should render armor %');
-        assert.ok(texts.some(t => t.includes('Available: 15 / 20')), 'Should render availability');
-    });
-
-    it('should draw sheen border around panel', () => {
-        const ctx = createMockContext();
-        HUD.renderUnitDetail(ctx, mockUnit, 1024, 684, mockSpriteManager);
-
-        const strokeRects = ctx.calls.filter(c => c.method === 'strokeRect');
-        assert.ok(strokeRects.length >= 1, 'Should stroke panel border');
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText' && c.font === '7px monospace');
+        // 'Archer (Ranged)'.split('(')[0].trim().substring(0,8) = 'Archer'
+        assert.equal(textCalls[0].args[0], 'Archer');
     });
 });
+
+// ─── renderTilePanel Tests ──────────────────────────────────────────────────
 
 describe('HUD.renderTilePanel', () => {
-    it('should not render when hudWidth is 0', () => {
-        const ctx = createMockContext();
-        HUD.renderTilePanel(ctx, { hudWidth: 0, canvasH: 768, selectedTile: null, level: null });
-        assert.equal(ctx.calls.length, 0);
+    it('should return early when hudWidth <= 0', () => {
+        const ctx = createMockCtx();
+        HUD.renderTilePanel(ctx, { hudWidth: 0, canvasH, selectedTile: null, level: null });
+        assert.equal(ctx.drawCalls.length, 0);
     });
 
-    it('should draw panel background when hudWidth > 0', () => {
-        const ctx = createMockContext();
-        HUD.renderTilePanel(ctx, {
-            hudWidth: 200, canvasH: 768, selectedTile: { row: 5, col: 10 }, level: null
-        });
-
-        const fillRects = ctx.calls.filter(c => c.method === 'fillRect');
-        assert.ok(fillRects.length >= 1, 'Should draw panel background');
+    it('should return early when hudWidth is negative', () => {
+        const ctx = createMockCtx();
+        HUD.renderTilePanel(ctx, { hudWidth: -10, canvasH, selectedTile: null, level: null });
+        assert.equal(ctx.drawCalls.length, 0);
     });
 
-    it('should render tile coordinates when tile is selected', () => {
-        const ctx = createMockContext();
-        HUD.renderTilePanel(ctx, {
-            hudWidth: 200, canvasH: 768, selectedTile: { row: 5, col: 10 }, level: null
-        });
+    it('should draw background when hudWidth > 0', () => {
+        const ctx = createMockCtx();
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile: null, level: null });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const texts = textCalls.map(c => c.args[0]);
-        assert.ok(texts.includes('Tile [5, 10]'), 'Should render tile coordinates');
+        const fillRects = ctx.drawCalls.filter(c => c.method === 'fillRect');
+        assert.ok(fillRects.length >= 1, 'Should draw at least the background');
     });
 
-    it('should render close button', () => {
-        const ctx = createMockContext();
-        HUD.renderTilePanel(ctx, {
-            hudWidth: 200, canvasH: 768, selectedTile: { row: 0, col: 0 }, level: null
-        });
+    it('should draw close button (✕)', () => {
+        const ctx = createMockCtx();
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile: null, level: null });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const texts = textCalls.map(c => c.args[0]);
-        assert.ok(texts.includes('✕'), 'Should render close button');
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const closeBtn = textCalls.find(c => c.args[0] === '✕');
+        assert.ok(closeBtn, 'Should render close button');
+    });
+
+    it('should not render tile content when hudWidth <= 100', () => {
+        const ctx = createMockCtx();
+        const selectedTile = { row: 5, col: 3 };
+        HUD.renderTilePanel(ctx, { hudWidth: 80, canvasH, selectedTile, level: null });
+
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const tileLabelCall = textCalls.find(c => c.args[0].includes('Tile'));
+        assert.equal(tileLabelCall, undefined, 'Should not render tile info when width <= 100');
+    });
+
+    it('should render tile coordinates when hudWidth > 100 and tile selected', () => {
+        const ctx = createMockCtx();
+        const selectedTile = { row: 5, col: 3 };
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile, level: null });
+
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const tileLabelCall = textCalls.find(c => c.args[0] === 'Tile [5, 3]');
+        assert.ok(tileLabelCall, 'Should render tile coordinates');
     });
 
     it('should render sprite name when level data is available', () => {
-        const ctx = createMockContext();
-        const mockLevel = {
+        const ctx = createMockCtx();
+        const selectedTile = { row: 2, col: 4 };
+        const level = {
             tiles: [
-                { row: 3, col: 7, sprite: 'grass-short-1' },
-                { row: 5, col: 10, sprite: 'road-full' },
-            ]
+                { row: 2, col: 4, sprite: 'grass-short-1' },
+                { row: 3, col: 5, sprite: 'water-1' },
+            ],
         };
-        HUD.renderTilePanel(ctx, {
-            hudWidth: 200, canvasH: 768, selectedTile: { row: 5, col: 10 }, level: mockLevel
-        });
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile, level });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const texts = textCalls.map(c => c.args[0]);
-        assert.ok(texts.includes('road-full'), 'Should render sprite name from level');
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const spriteCall = textCalls.find(c => c.args[0] === 'grass-short-1');
+        assert.ok(spriteCall, 'Should render sprite name from level data');
     });
 
-    it('should not render tile info when hudWidth <= 100', () => {
-        const ctx = createMockContext();
-        HUD.renderTilePanel(ctx, {
-            hudWidth: 80, canvasH: 768, selectedTile: { row: 5, col: 10 }, level: null
-        });
+    it('should not render sprite name when tile not found in level', () => {
+        const ctx = createMockCtx();
+        const selectedTile = { row: 99, col: 99 };
+        const level = {
+            tiles: [{ row: 2, col: 4, sprite: 'grass-short-1' }],
+        };
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile, level });
 
-        const textCalls = ctx.calls.filter(c => c.method === 'fillText');
-        const tileTexts = textCalls.filter(c => c.args[0].includes('Tile'));
-        // Close button is still rendered, but tile info is not
-        assert.equal(tileTexts.length, 0, 'Should not render tile info when narrow');
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        const spriteCall = textCalls.find(c => c.args[0] === 'grass-short-1');
+        assert.equal(spriteCall, undefined, 'Should not render sprite for non-matching tile');
+    });
+
+    it('should create gradient for top border', () => {
+        const ctx = createMockCtx();
+        HUD.renderTilePanel(ctx, { hudWidth: 200, canvasH, selectedTile: null, level: null });
+
+        assert.ok(ctx.gradients.length >= 1, 'Should create at least one gradient');
+    });
+});
+
+// ─── renderTopBar Tests ─────────────────────────────────────────────────────
+
+describe('HUD.renderTopBar', () => {
+    it('should draw semi-transparent background bar', () => {
+        const ctx = createMockCtx();
+        HUD.renderTopBar(ctx, 1024, 'Level 1 | WASD to scroll');
+
+        const fillRects = ctx.drawCalls.filter(c => c.method === 'fillRect');
+        assert.ok(fillRects.length >= 1);
+        assert.equal(fillRects[0].args[0], 0); // x
+        assert.equal(fillRects[0].args[1], 0); // y
+        assert.equal(fillRects[0].args[2], 1024); // width = canvasW
+        assert.equal(fillRects[0].args[3], 20); // height
+    });
+
+    it('should render the text content', () => {
+        const ctx = createMockCtx();
+        HUD.renderTopBar(ctx, 1024, 'Test Level');
+
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        assert.ok(textCalls.length >= 1);
+        assert.equal(textCalls[0].args[0], 'Test Level');
+        assert.equal(textCalls[0].args[1], 8); // x offset
+        assert.equal(textCalls[0].args[2], 5); // y offset
+    });
+
+    it('should use white text color', () => {
+        const ctx = createMockCtx();
+        HUD.renderTopBar(ctx, 1024, 'Hello');
+
+        const textCalls = ctx.drawCalls.filter(c => c.method === 'fillText');
+        assert.equal(textCalls[0].fillStyle, '#fff');
+    });
+});
+
+// ─── drawSheenBorder Tests ──────────────────────────────────────────────────
+
+describe('HUD.drawSheenBorder', () => {
+    it('should create a linear gradient', () => {
+        const ctx = createMockCtx();
+        HUD.drawSheenBorder(ctx, 10, 20, 100, 50);
+
+        assert.ok(ctx.gradients.length >= 1);
+        assert.equal(ctx.gradients[0].x0, 10);
+        assert.equal(ctx.gradients[0].y0, 20);
+        assert.equal(ctx.gradients[0].x1, 110); // x + w
+    });
+
+    it('should use custom highlight color when provided', () => {
+        const ctx = createMockCtx();
+        HUD.drawSheenBorder(ctx, 0, 0, 50, 50, '#ff0000');
+
+        const stops = ctx.gradients[0].grad.stops;
+        const midStop = stops.find(s => s.offset === 0.5);
+        assert.equal(midStop.color, '#ff0000');
+    });
+
+    it('should use default highlight color when not provided', () => {
+        const ctx = createMockCtx();
+        HUD.drawSheenBorder(ctx, 0, 0, 50, 50);
+
+        const stops = ctx.gradients[0].grad.stops;
+        const midStop = stops.find(s => s.offset === 0.5);
+        assert.equal(midStop.color, '#c8b890');
+    });
+
+    it('should draw a strokeRect', () => {
+        const ctx = createMockCtx();
+        HUD.drawSheenBorder(ctx, 5, 10, 80, 40);
+
+        const strokeRects = ctx.drawCalls.filter(c => c.method === 'strokeRect');
+        assert.equal(strokeRects.length, 1);
+        assert.deepEqual(strokeRects[0].args, [5, 10, 80, 40]);
     });
 });

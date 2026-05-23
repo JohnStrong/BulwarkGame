@@ -1,9 +1,8 @@
 /**
- * Extended bl-tr viewpoint tests for IsoCamera.
+ * Extended tests for iso-camera.js bl-tr viewpoint path.
  *
- * Recommendation 2: Test the bl-tr viewpoint branch in IsoCamera.
- * Covers: centerOn, gridToScreen, screenToGrid with bl-tr viewpoint,
- * edge-of-map boundary cases, and zoom interactions.
+ * Recommendation 5: Test the bl-tr viewpoint path in IsoCamera more
+ * thoroughly, including edge cases and boundary conditions.
  *
  * Uses Node.js built-in test runner (node:test).
  * Run: node --test tests/game-logic/lib/iso-camera-bl-tr-extended.spec.js
@@ -92,153 +91,214 @@ function createCamera(viewpoint = 'bl-tr') {
             return null;
         },
 
-        scroll(dx, dy) {
-            const speed = this.scrollSpeed / this.zoom;
-            this.camX += dx * speed;
-            this.camY += dy * speed;
-        },
-
         applyZoom(delta) {
             this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom + delta));
+        },
+
+        applyTransform(ctx) {
+            ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+            ctx.scale(this.zoom, this.zoom);
+            ctx.translate(-this.canvas.width / 2, -this.canvas.height / 2);
         },
     };
 }
 
 const mockCanvas = { width: 1024, height: 768 };
 
-describe('IsoCamera bl-tr: screenToGrid edge-of-map boundary cases', () => {
-    it('should return null for row at exact boundary (row === levelHeight)', () => {
+describe('IsoCamera bl-tr: screenToGrid boundary conditions', () => {
+    it('should return null for coordinates at exact grid boundary (row = levelHeight)', () => {
         const cam = createCamera('bl-tr');
         cam.init(mockCanvas, { zoom: 1.0 });
-        cam.setMapSize(20, 15);
-        // Center on a corner tile to push screen coords toward boundary
-        cam.centerOn(14, 0);
-        // The center should map to (14, 0) which is valid
-        const center = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
+        cam.setMapSize(10, 10);
+        // Center on a tile near the boundary
+        cam.centerOn(9, 9);
+
+        // The center should map to (9,9) which is valid
+        const center = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 10, 10);
         assert.ok(center !== null);
-        assert.equal(center.row, 14);
+        assert.equal(center.row, 9);
+        assert.equal(center.col, 9);
     });
 
-    it('should return null for col at exact boundary (col === levelWidth)', () => {
-        const cam = createCamera('bl-tr');
-        cam.init(mockCanvas, { zoom: 1.0 });
-        cam.setMapSize(20, 15);
-        cam.centerOn(0, 19);
-        const center = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
-        assert.ok(center !== null);
-        assert.equal(center.col, 19);
-    });
-
-    it('should return null for row === -1 (just below zero)', () => {
+    it('should return null for negative row coordinates in bl-tr', () => {
         const cam = createCamera('bl-tr');
         cam.init(mockCanvas, { zoom: 1.0 });
         cam.setMapSize(20, 15);
         cam.centerOn(0, 0);
-        // Far top-left should produce negative row
+
+        // Far left/up should produce negative coordinates
         const result = cam.screenToGrid(-2000, -2000, 20, 15);
         assert.equal(result, null);
     });
 
-    it('should handle corner tile (0, 0) round-trip in bl-tr', () => {
+    it('should handle zoom at minimum boundary (zoomMin)', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 0.3 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(7, 7);
+
+        // At minimum zoom, center should still map correctly
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
+        assert.ok(result !== null);
+        assert.equal(result.row, 7);
+        assert.equal(result.col, 7);
+    });
+
+    it('should handle zoom at maximum boundary (zoomMax)', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 4.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(7, 7);
+
+        // At maximum zoom, center should still map correctly
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
+        assert.ok(result !== null);
+        assert.equal(result.row, 7);
+        assert.equal(result.col, 7);
+    });
+
+    it('should handle (0,0) grid position in bl-tr mode', () => {
         const cam = createCamera('bl-tr');
         cam.init(mockCanvas, { zoom: 1.0 });
         cam.setMapSize(20, 15);
         cam.centerOn(0, 0);
-        const screen = cam.gridToScreen(0, 0);
-        const grid = cam.screenToGrid(screen.x, screen.y, 20, 15);
-        assert.ok(grid !== null);
-        assert.equal(grid.row, 0);
-        assert.equal(grid.col, 0);
+
+        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
+        assert.ok(result !== null);
+        assert.equal(result.row, 0);
+        assert.equal(result.col, 0);
     });
 
-    it('should handle corner tile (levelHeight-1, levelWidth-1) round-trip', () => {
+    it('should produce mirrored x-coordinates compared to br-tl for asymmetric positions', () => {
+        const camBLTR = createCamera('bl-tr');
+        camBLTR.init(mockCanvas, { zoom: 1.0 });
+        camBLTR.setMapSize(20, 15);
+        camBLTR.camX = 0;
+        camBLTR.camY = 0;
+
+        const camBRTL = createCamera('br-tl');
+        camBRTL.init(mockCanvas, { zoom: 1.0 });
+        camBRTL.setMapSize(20, 15);
+        camBRTL.camX = 0;
+        camBRTL.camY = 0;
+
+        // For row=2, col=5 (asymmetric), x should be mirrored
+        const posBLTR = camBLTR.gridToScreen(2, 5);
+        const posBRTL = camBRTL.gridToScreen(2, 5);
+
+        // bl-tr: x = (row - col) * halfW = (2-5)*32 = -96 + offset
+        // br-tl: x = (col - row) * halfW = (5-2)*32 = 96 + offset
+        // They should be equidistant from mapOffsetX but on opposite sides
+        const bltrDelta = posBLTR.x - camBLTR.mapOffsetX;
+        const brtlDelta = posBRTL.x - camBRTL.mapOffsetX;
+        assert.equal(bltrDelta, -brtlDelta);
+    });
+});
+
+describe('IsoCamera bl-tr: centerOn edge cases', () => {
+    it('should handle centering on (0, 0) in bl-tr mode', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(0, 0);
+
+        // worldX = (0 - 0) * 32 + mapOffsetX = mapOffsetX
+        const expectedCamX = cam.mapOffsetX - mockCanvas.width / 2;
+        assert.equal(cam.camX, expectedCamX);
+    });
+
+    it('should handle centering on max row/col in bl-tr mode', () => {
         const cam = createCamera('bl-tr');
         cam.init(mockCanvas, { zoom: 1.0 });
         cam.setMapSize(20, 15);
         cam.centerOn(14, 19);
-        const screen = cam.gridToScreen(14, 19);
-        const grid = cam.screenToGrid(screen.x, screen.y, 20, 15);
-        assert.ok(grid !== null);
-        assert.equal(grid.row, 14);
-        assert.equal(grid.col, 19);
+
+        // worldX = (14 - 19) * 32 + mapOffsetX = -160 + mapOffsetX
+        const expectedWorldX = (14 - 19) * 32 + cam.mapOffsetX;
+        const expectedCamX = expectedWorldX - mockCanvas.width / 2;
+        assert.equal(cam.camX, expectedCamX);
+    });
+
+    it('should produce symmetric camX for row=col in bl-tr mode', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 1.0 });
+        cam.setMapSize(20, 15);
+        cam.centerOn(5, 5);
+
+        // When row === col, worldX = (5-5)*32 + mapOffsetX = mapOffsetX
+        const expectedCamX = cam.mapOffsetX - mockCanvas.width / 2;
+        assert.equal(cam.camX, expectedCamX);
     });
 });
 
-describe('IsoCamera bl-tr: centerOn with various zoom levels', () => {
-    it('should center correctly at zoom 0.5', () => {
-        const cam = createCamera('bl-tr');
-        cam.init(mockCanvas, { zoom: 0.5 });
-        cam.setMapSize(20, 15);
-        cam.centerOn(7, 7);
-        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
-        assert.ok(result !== null);
-        assert.equal(result.row, 7);
-        assert.equal(result.col, 7);
-    });
-
-    it('should center correctly at zoom 2.0', () => {
+describe('IsoCamera bl-tr: applyTransform', () => {
+    it('should call translate and scale on context', () => {
         const cam = createCamera('bl-tr');
         cam.init(mockCanvas, { zoom: 2.0 });
-        cam.setMapSize(20, 15);
-        cam.centerOn(7, 7);
-        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
-        assert.ok(result !== null);
-        assert.equal(result.row, 7);
-        assert.equal(result.col, 7);
+
+        const calls = [];
+        const mockCtx = {
+            translate(x, y) { calls.push({ method: 'translate', args: [x, y] }); },
+            scale(x, y) { calls.push({ method: 'scale', args: [x, y] }); },
+        };
+
+        cam.applyTransform(mockCtx);
+
+        assert.equal(calls.length, 3);
+        assert.equal(calls[0].method, 'translate');
+        assert.deepEqual(calls[0].args, [mockCanvas.width / 2, mockCanvas.height / 2]);
+        assert.equal(calls[1].method, 'scale');
+        assert.deepEqual(calls[1].args, [2.0, 2.0]);
+        assert.equal(calls[2].method, 'translate');
+        assert.deepEqual(calls[2].args, [-mockCanvas.width / 2, -mockCanvas.height / 2]);
     });
 
-    it('should center correctly at max zoom', () => {
+    it('should use current zoom value in scale call', () => {
         const cam = createCamera('bl-tr');
-        cam.init(mockCanvas, { zoom: 4.0 });
-        cam.setMapSize(20, 15);
-        cam.centerOn(10, 10);
-        const result = cam.screenToGrid(mockCanvas.width / 2, mockCanvas.height / 2, 20, 15);
-        assert.ok(result !== null);
-        assert.equal(result.row, 10);
-        assert.equal(result.col, 10);
+        cam.init(mockCanvas, { zoom: 0.5 });
+
+        const calls = [];
+        const mockCtx = {
+            translate() { calls.push('translate'); },
+            scale(x, y) { calls.push({ scale: [x, y] }); },
+        };
+
+        cam.applyTransform(mockCtx);
+        assert.deepEqual(calls[1], { scale: [0.5, 0.5] });
+    });
+
+    it('should clamp zoom at zoomMin boundary', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 0.5 });
+        cam.applyZoom(-1.0); // Try to go below min
+
+        assert.equal(cam.zoom, cam.zoomMin);
+    });
+
+    it('should clamp zoom at zoomMax boundary', () => {
+        const cam = createCamera('bl-tr');
+        cam.init(mockCanvas, { zoom: 3.5 });
+        cam.applyZoom(1.0); // Try to go above max
+
+        assert.equal(cam.zoom, cam.zoomMax);
     });
 });
 
-describe('IsoCamera bl-tr: gridToScreen symmetry with br-tl', () => {
-    it('should produce mirrored x for symmetric coordinates', () => {
-        const camBLTR = createCamera('bl-tr');
-        camBLTR.init(mockCanvas, { zoom: 1.0 });
-        camBLTR.setMapSize(20, 15);
-        camBLTR.camX = 0;
-        camBLTR.camY = 0;
+describe('IsoCamera bl-tr: round-trip with various zoom levels', () => {
+    const zoomLevels = [0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0];
 
-        const camBRTL = createCamera('br-tl');
-        camBRTL.init(mockCanvas, { zoom: 1.0 });
-        camBRTL.setMapSize(20, 15);
-        camBRTL.camX = 0;
-        camBRTL.camY = 0;
+    for (const zoom of zoomLevels) {
+        it(`should round-trip at zoom=${zoom}`, () => {
+            const cam = createCamera('bl-tr');
+            cam.init(mockCanvas, { zoom });
+            cam.setMapSize(20, 15);
+            cam.centerOn(7, 7);
 
-        // For row=col, both viewpoints should give same x (since row-col = col-row = 0)
-        const posBLTR = camBLTR.gridToScreen(5, 5);
-        const posBRTL = camBRTL.gridToScreen(5, 5);
-        assert.equal(posBLTR.x, posBRTL.x);
-        assert.equal(posBLTR.y, posBRTL.y);
-    });
-
-    it('should produce opposite x offset for asymmetric coordinates', () => {
-        const camBLTR = createCamera('bl-tr');
-        camBLTR.init(mockCanvas, { zoom: 1.0 });
-        camBLTR.setMapSize(20, 15);
-        camBLTR.camX = 0;
-        camBLTR.camY = 0;
-
-        const camBRTL = createCamera('br-tl');
-        camBRTL.init(mockCanvas, { zoom: 1.0 });
-        camBRTL.setMapSize(20, 15);
-        camBRTL.camX = 0;
-        camBRTL.camY = 0;
-
-        const posBLTR = camBLTR.gridToScreen(3, 7);
-        const posBRTL = camBRTL.gridToScreen(3, 7);
-
-        // bl-tr: x = (3-7)*32 + offset = -128 + offset
-        // br-tl: x = (7-3)*32 + offset = 128 + offset
-        // Difference should be 2 * (row-col) * halfW = 2 * (-4) * 32 = -256
-        assert.equal(posBLTR.x - posBRTL.x, 2 * (3 - 7) * 32);
-    });
+            const screen = cam.gridToScreen(7, 7);
+            const grid = cam.screenToGrid(screen.x, screen.y, 20, 15);
+            assert.ok(grid !== null, `Should resolve at zoom=${zoom}`);
+            assert.equal(grid.row, 7);
+            assert.equal(grid.col, 7);
+        });
+    }
 });

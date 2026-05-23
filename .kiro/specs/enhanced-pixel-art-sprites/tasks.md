@@ -177,12 +177,12 @@ This plan implements the enhanced pixel art sprite pipeline for BasicTowerDefens
     - Write to `property-tests/damaged-area.property.js`
     - **Property 17: Damaged Sprite Minimum Damage Area**
     - **Validates: Requirements 9.2**
-
-- [~] 9. Checkpoint - Ensure all build-time tests pass
+ 
+- [x] 9. Checkpoint - Ensure all build-time tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Wire atlas generation into build pipeline
-  - [~] 10.1 Integrate atlas packing into sprite generation script
+- [x] 10. Wire atlas generation into build pipeline
+  - [x] 10.1 Integrate atlas packing into sprite generation script
     - Update `npm run generate:sprites` script to call all generators then pack results into atlas
     - Add `generate-enemy-sprites.js` and `generate-damaged-castle-sprites.js` to the build script chain
     - Collect all generated sprite buffers and pass to `packAtlas()`
