@@ -78,6 +78,19 @@ const level = LevelLoader.getCurrentLevel();
 
 Each character in the text file becomes one tile. The loader maps characters to sprite names (e.g., `.` → `grass-short-1`, `~` → `water-1`).
 
+### Known limitation: tileHash bias
+
+The `tileHash(row, col)` function is used to pick which variant of a tile to show (e.g., `grass-short-1` vs `grass-short-2`, or `water-1` vs `water-2` vs `water-3`). Due to integer overflow in its multiplication steps, the hash output is stuck in the range [0, ~0.5) — it never reaches values above 0.5.
+
+In practice this means:
+- **Grass** always renders as `grass-short-1` (the `> 0.5` check for variant 2 never fires)
+- **Flowers** always render as `grass-flowers-1`
+- **Water** only shows variants 1 and 2 (variant 3 requires `hash ≥ 0.67`, which is unreachable)
+- **Oak trees** only show variants 1 and 2 out of 3
+- **Pine/shrub** only show one variant each
+
+The game still works fine — you just see fewer visual variants than the code intends. Fixing the hash would change the appearance of every existing level, so it's left as-is for now.
+
 ---
 
 ## unit-manager.js — UnitManager

@@ -153,6 +153,15 @@ const LevelLoader = {
         return this.parseLevelText('name=Default\n' + '.'.repeat(30) + '\n');
     },
 
+    /**
+     * Produces a deterministic hash in [0, 1) for a given tile position.
+     *
+     * NOTE: Due to integer overflow in the multiplication steps, the output
+     * is biased toward the lower half of the range — values never exceed ~0.5.
+     * This means variant selectors that check `hash > 0.5` (e.g. grass-short-2)
+     * will never trigger. This is a known limitation; fixing it would change
+     * every tile's visual appearance across all existing levels.
+     */
     tileHash(row, col) {
         let h = (row * 7919 + col * 104729 + 31) & 0xFFFFFFFF;
         h = ((h >> 16) ^ h) * 0x45d9f3b;
