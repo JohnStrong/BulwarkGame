@@ -1,4 +1,4 @@
-# Holdfast - A turn-based isometric tower defense browser game
+# Bulwark - A turn-based isometric tower defense browser game
 
 > ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the isometric map rendering, level generation, and camera systems are functional.
 
@@ -234,7 +234,7 @@ Open `http://localhost:8000` in your browser.
 ## Project Structure
 
 ```
-BasicTowerDefense/
+Bulwark/
 ├── index.html                  # Game entry (isometric 2.5D)
 ├── index-topdown.html          # Alternative top-down hex view
 ├── package.json
