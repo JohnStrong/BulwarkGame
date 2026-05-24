@@ -30,7 +30,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | File | What it does |
 |------|-------------|
 | `build-sprites.js` | Unified build pipeline — orchestrates all generators, collects PNGs, packs atlas, outputs to `generated/assets/atlas/` |
-| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) with enhanced pipeline (noise, shading, dithering, quantization) |
+| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) **and** 7 tree overlay sprites (64×48, transparent background) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
@@ -44,7 +44,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 
 | File | What it exports |
 |------|----------------|
-| `lib/sprite-constants.js` | Single source of truth: tile dimensions, output path, all color palettes (terrain, castle, unit), sprite name registries |
+| `lib/sprite-constants.js` | Single source of truth: tile dimensions, output path, all color palettes (terrain, castle, unit), sprite name registries (`TERRAIN_SPRITES`, `TREE_OVERLAY_SPRITES`) |
 | `lib/pixel-utils.js` | Core drawing primitives: `createBuffer()`, `setPixel()`, `isInsideDiamond()`, `seededRandom()`, `resetSeed()`, `drawEdgeBorder()` |
 | `lib/fill-patterns.js` | Shared diamond fill operations: `fillDiamond()`, `fillDiamondWithSpeckle()`, `drawStoneBlocks()` |
 | `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions — legacy, not used by enhanced unit generator |
@@ -111,6 +111,7 @@ This directory is created automatically if it doesn't exist. The `generated/` fo
 | Category | Count | Dimensions | Naming |
 |----------|-------|------------|--------|
 | Terrain | 17 | 64×32 | `grass-short-1`, `road-full`, `water-1`, etc. |
+| Tree overlays | 7 | 64×48 | `tree-oak-overlay-1`, `tree-pine-overlay-1`, `tree-shrub-overlay-1`, etc. |
 | Castle | 13 | 64×32 | `castle-wall`, `castle-tower`, etc. |
 | Units | 9 | 32×32 | `unit-knight`, `unit-archer`, etc. |
 | Enemy | 5 | 64×32 | `enemy-knight`, `enemy-archer`, etc. |
@@ -139,13 +140,15 @@ All generator failures propagate non-zero exit codes. On any failure, structured
 
 ## generate-iso-sprites-br-tl.js
 
-Generates 17 terrain sprites as 64×32 flat isometric diamonds. Viewpoint: bottom-right → top-left.
+Generates terrain sprites and tree overlay sprites. Viewpoint: bottom-right → top-left.
 
 ```bash
 node js/level-generators/generate-iso-sprites-br-tl.js
 ```
 
 ### What it produces
+
+#### Terrain sprites (64×32 flat isometric diamonds — 17 total)
 
 | Sprite | Description |
 |--------|-------------|
@@ -159,7 +162,21 @@ node js/level-generators/generate-iso-sprites-br-tl.js
 
 All terrain sprites receive face shading (lit top, darker side), a 1-pixel shadow edge (bottom-right), and a final palette quantization pass.
 
+#### Tree overlay sprites (64×48 transparent-background — 7 total)
+
+These are the second-layer sprites used by the tree-overlay-system. Unlike terrain sprites, they have a fully transparent background (alpha=0 outside the tree shape) and a taller canvas (48px instead of 32px) so the canopy can bleed upward into the tile above.
+
+| Sprite | Description |
+|--------|-------------|
+| `tree-oak-overlay-1/2/3` | Rounded ellipse canopy, 2 layers, canopy radius 11–13 px |
+| `tree-pine-overlay-1/2` | Pointed/conical stacked rings, radius 8–10 px |
+| `tree-shrub-overlay-1/2` | Low wide flat ellipse, radius 6–8 px |
+
+All overlay sprites use the same palette colors and layered-canopy technique as `generateTree`, adapted for a transparent background. A final `quantizeToPalette` pass is applied.
+
 ### How sprites are built (enhanced pipeline)
+
+#### Terrain sprites (64×32)
 
 Each sprite starts as an empty 64×32 buffer. The generator applies a multi-stage pipeline:
 
@@ -172,15 +189,53 @@ Each sprite starts as an empty 64×32 buffer. The generator applies a multi-stag
 7. **Palette quantization** — `quantizeToPalette()` maps every non-transparent pixel to the nearest color in the terrain palette (final pass, guarantees palette compliance)
 8. **PNG export** — Writes as PNG via `sharp`
 
+#### Tree overlay sprites (64×48)
+
+Each overlay sprite starts from `createOverlayBuffer()` — a 64×48 buffer initialized to all zeros (fully transparent). Only trunk and canopy pixels are written with alpha=255:
+
+1. **Transparent base** — `createOverlayBuffer()` allocates a `OVERLAY_WIDTH × OVERLAY_HEIGHT × 4` byte buffer (all zeros)
+2. **Trunk** — Drawn using `PRIMARY_PALETTE[7]` (wood color), positioned based on tree type
+3. **Canopy layers** — Type-specific shape (ellipse, conical rings, or flat ellipse) with inner shadow zone, mid-tone fill, and highlight rim
+4. **Palette quantization** — `quantizeToPalette()` final pass using the terrain palette
+
+### Overlay sprite constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `OVERLAY_WIDTH` | `64` | Width of tree overlay sprites in pixels (matches `TILE_WIDTH`) |
+| `OVERLAY_HEIGHT` | `48` | Height of tree overlay sprites in pixels (extends 16 px above the 32 px tile) |
+
 ### Key functions
 
-- `generateGrass(variant, noiseGen)` — noise-driven grass with 3 palette colors + full shading pipeline
-- `generateTree(variant, noiseGen)` — grass base → ground shadow → bark trunk → 2 overlapping canopy layers (inner shadow + outer highlight rim)
-- `generateFlowers(variant, noiseGen)` — noise grass base + cross-shaped flower clusters in palette colors
-- `generateRoad()` / `generateWater(variant)` / `generateBridge()` — each applies the full shading + quantization pipeline
-- `createTerrainNoiseGenerator(seed)` — creates a deterministic noise function from `lib/noise-texture.js`
-- `getPaletteForCategory('terrain')` — returns the 16-color primary palette for quantization
-- `isInsideDiamond(x, y)` — returns true if pixel is inside the diamond: `|x-32|/32 + |y-16|/16 <= 1`
+| Function | Description |
+|----------|-------------|
+| `generateGrass(variant, noiseGen)` | Noise-driven grass with 3 palette colors + full shading pipeline |
+| `generateTree(variant, noiseGen)` | Grass base → ground shadow → bark trunk → 2 overlapping canopy layers |
+| `generateFlowers(variant, noiseGen)` | Noise grass base + cross-shaped flower clusters in palette colors |
+| `generateRoad()` / `generateWater(variant)` / `generateBridge()` | Full shading + quantization pipeline |
+| `generateTreeOverlay(variant, treeType, noiseGen)` | Transparent-background tree overlay sprite (64×48); `treeType` is `'oak'`, `'pine'`, or `'shrub'` |
+| `createOverlayBuffer()` | Allocates a blank 64×48 RGBA buffer (all zeros = fully transparent); starting canvas for overlay generation |
+| `setOverlayPixel(buffer, x, y, r, g, b)` | Writes one opaque pixel into a 64×48 overlay buffer; bounds-checked, color-clamped |
+| `createTerrainNoiseGenerator(seed)` | Creates a deterministic noise function from `lib/noise-texture.js` |
+| `getPaletteForCategory('terrain')` | Returns the 16-color primary palette for quantization |
+| `isInsideDiamond(x, y)` | Returns true if pixel is inside the diamond: `\|x-32\|/32 + \|y-16\|/16 <= 1` |
+
+### Canopy shape differentiation (overlay sprites)
+
+| Type | Shape | Canopy radius | Trunk offset |
+|------|-------|---------------|--------------|
+| `oak` | Rounded ellipse, 2 layers | 11–13 px (varies by variant) | Center-right |
+| `pine` | Pointed/conical, 4 stacked rings (bottom widest) | 8–10 px (varies by variant) | Center |
+| `shrub` | Low wide flat ellipse (half-height) | 6–8 px wide, 3–4 px tall | Center |
+
+### Overlay vs. terrain tree comparison
+
+| Property | `tree-1` through `tree-7` | `tree-*-overlay-*` |
+|----------|--------------------------|---------------------|
+| Canvas size | 64×32 | 64×48 |
+| Background | Grass-filled diamond | Fully transparent (alpha=0) |
+| Purpose | Legacy single-pass rendering | Two-pass rendering (ground + overlay) |
+| Backward compat | Yes — unchanged | New; requires level loader `overlay` field |
 
 ---
 

@@ -23,39 +23,39 @@ Implement two-pass tree rendering by separating the grass base and tree canopy i
     - Assert `tree-1` through `tree-7` are still present
     - _Requirements: 2.2, 6.2_
 
-- [ ] 3. Implement tree overlay sprite generator
-  - [ ] 3.1 Add `OVERLAY_WIDTH` and `OVERLAY_HEIGHT` constants and `createOverlayBuffer()` helper to `js/level-generators/generate-iso-sprites-br-tl.js`
+- [x] 3. Implement tree overlay sprite generator
+  - [x] 3.1 Add `OVERLAY_WIDTH` and `OVERLAY_HEIGHT` constants and `createOverlayBuffer()` helper to `js/level-generators/generate-iso-sprites-br-tl.js`
     - `OVERLAY_WIDTH = 64`, `OVERLAY_HEIGHT = 48`
     - `createOverlayBuffer()` allocates a `64×48×4` byte buffer initialized to all zeros (fully transparent)
     - _Requirements: 1.3_
 
-  - [ ] 3.2 Implement `generateTreeOverlay(variant, treeType, noiseGen)` function
+  - [x] 3.2 Implement `generateTreeOverlay(variant, treeType, noiseGen)` function
     - Start from an all-transparent buffer (alpha=0 everywhere)
     - Draw trunk and canopy pixels with alpha=255 using the same palette colors and layered-canopy technique as `generateTree`
     - Differentiate canopy shapes: oak (rounded ellipse, canopy radius 11–13 px), pine (pointed/conical stacked rings, radius 8–10 px), shrub (low wide flat ellipse, radius 6–8 px)
     - Apply palette quantization as the final pass
     - _Requirements: 1.2, 1.4, 1.5_
 
-  - [ ] 3.3 Wire overlay generation into `generateAll()` in `generate-iso-sprites-br-tl.js`
+  - [x] 3.3 Wire overlay generation into `generateAll()` in `generate-iso-sprites-br-tl.js`
     - Add entries for all seven overlay sprites using `generateTreeOverlay` with the appropriate variant and treeType arguments
     - Write each as a 64×48 PNG to `OUTPUT_DIR`
     - _Requirements: 1.1, 1.3_
 
-  - [ ]* 3.4 Write property test for transparent background invariant
+  - [x] 3.4 Write property test for transparent background invariant
     - **Property 1: Transparent background invariant**
     - For each of the 7 generated overlay buffers, use fast-check to generate random (x, y) coordinates within the 64×48 canvas; for any coordinate outside the drawn tree region (alpha=0 in the reference buffer), assert alpha=0
     - Tag: `// Feature: tree-overlay-system, Property 1: Transparent background invariant`
     - File: `property-tests/tree-overlay-transparent.property.js`
     - **Validates: Requirements 1.2**
 
-  - [ ]* 3.5 Write property test for palette fidelity of overlay pixels
+  - [x] 3.5 Write property test for palette fidelity of overlay pixels
     - **Property 2: Palette fidelity of overlay pixels**
     - For each generated overlay buffer, use fast-check to generate random pixel indices; for any pixel with alpha=255, assert its RGB values are within ±15 per channel of at least one color in `PRIMARY_PALETTE`
     - Tag: `// Feature: tree-overlay-system, Property 2: Palette fidelity of overlay pixels`
     - File: `property-tests/tree-overlay-palette.property.js`
     - **Validates: Requirements 1.4**
 
-  - [ ]* 3.6 Write unit tests for overlay sprite generator
+  - [x] 3.6 Write unit tests for overlay sprite generator
     - Assert generated overlay buffers have dimensions 64×48
     - Assert oak, pine, and shrub buffers are not byte-for-byte identical
     - _Requirements: 1.1, 1.3, 1.5_
