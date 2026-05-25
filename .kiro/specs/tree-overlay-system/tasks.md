@@ -60,7 +60,7 @@ Implement two-pass tree rendering by separating the grass base and tree canopy i
     - Assert oak, pine, and shrub buffers are not byte-for-byte identical
     - _Requirements: 1.1, 1.3, 1.5_
 
-- [ ] 4. Checkpoint — Ensure all tests pass
+- [x] 4. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. Update level loader for O/P/S tile objects
