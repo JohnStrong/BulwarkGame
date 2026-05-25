@@ -44,6 +44,7 @@ tests/level-generators/
 ├── Terrain sprites
 │   ├── generate-iso-sprites-br-tl.spec.js          # Isometric terrain sprites
 │   ├── generate-iso-sprites-flowers-trees.spec.js  # Flower and tree variant sprites
+│   ├── generate-iso-sprites-overlay.spec.js        # Tree overlay sprite generation (64×48, transparent bg)
 │   └── determinism-regression.spec.js              # Regression guard for seeded determinism
 │
 ├── Smooth / hex sprites
@@ -80,6 +81,7 @@ tests/level-generators/
 ├── Build pipeline
 │   ├── build-sprites.spec.js                       # Build script unit tests
 │   ├── build-sprites-integration.spec.js           # Full build pipeline integration
+│   ├── build-sprites-overlay.spec.js               # Overlay PNG pre-pack check + packAtlas inclusion
 │   └── sprite-requirements-assertions.spec.js      # Requirements-level sprite assertions
 │
 ├── Snapshot / regression
@@ -227,6 +229,25 @@ Directly tests the five internal damage-application helpers that were previously
 | `applyMissingBlocks` | Modifies pixels on filled buffer; never increases opaque pixel count (some blocks become transparent); deterministic per seed; returns 0 on empty buffer |
 | `applyRubbleDebris` | Modifies pixels on filled buffer; deterministic per seed; different seeds produce different patterns; rubble concentrates in lower half of diamond; returns 0 on empty buffer |
 | Dispatcher default branch | Unknown type either throws or returns null/undefined; all 10 known types (`wall`, `tower`, `keep-tl`, `keep-bl`, `keep-br`, `keep-center`, `gatehouse`, `bailey-1`, `bailey-2`, `bailey-3`) do not throw |
+
+## Build Pipeline Overlay Tests (`build-sprites-overlay.spec.js`)
+
+Validates the pre-pack overlay existence check and atlas inclusion logic added in the tree overlay system (Task 8.2). The test file replicates the two key helpers from `build-sprites.js` inline — `logBuildError` and `checkOverlayPngsExist` — so the logic can be exercised without running the full build script.
+
+| Suite | What it validates |
+|-------|-------------------|
+| `missing PNG detection` | `checkOverlayPngsExist` throws when any overlay PNG is absent from `OUTPUT_DIR`; error message includes the missing sprite name(s) and count; passes when all PNGs are present; reports only the missing subset when some are present |
+| `structured error logging` | `logBuildError` output starts with `[SPRITE-BUILD-ERROR]`; includes `Sprite:` and `Stage: pre-pack` fields; produces one log entry per missing overlay sprite |
+| `non-zero exit on missing overlay PNG` | A minimal subprocess script that mirrors the build pipeline exits with code 1 and writes `[SPRITE-BUILD-ERROR]` + `Stage: pre-pack` to stderr when overlay PNGs are absent |
+| `TREE_OVERLAY_SPRITES included in packAtlas entries` | All 7 overlay sprite names from `TREE_OVERLAY_SPRITES` appear in the atlas metadata after `packAtlas()`; overlay frames are packed at native 64×48 dimensions; overlay sprites coexist with terrain sprites in the same atlas; no two overlay frames overlap |
+
+### Inline replication pattern
+
+`checkOverlayPngsExist` and `logBuildError` are replicated directly in the test file rather than exported from `build-sprites.js`. This keeps the production build script self-contained while still giving the test suite direct access to the logic. Any divergence between the replicated helpers and the production implementation will surface as a test failure when the build pipeline behavior changes.
+
+### Subprocess exit-code tests
+
+The non-zero exit tests write a minimal throwaway script to `__dirname`, execute it with `execFileSync`, and assert the child process exits with a non-zero status code and writes the expected structured error to stderr. The temp script is cleaned up in a `finally` block regardless of test outcome.
 
 ## Relationship to Property Tests
 

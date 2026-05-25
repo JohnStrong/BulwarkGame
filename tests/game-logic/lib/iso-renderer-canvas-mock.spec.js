@@ -55,6 +55,10 @@ const mockCamera = {
 // Replicated inline because the source file has no module.exports.
 // SpriteManager calls are routed to MockSpriteManager so tests can inspect them.
 
+const TREE_OVERLAY_OFFSET_Y = 0;
+const OVERLAY_WIDTH = 64;
+const OVERLAY_HEIGHT = 48;
+
 const IsoRenderer = {
     drawTerrain(ctx, camera, tiles, state) {
         for (const tile of tiles) {
@@ -66,6 +70,7 @@ const IsoRenderer = {
                 tile.col === state.selectedTile.col;
             if (isSelected) y -= state.selectedLift;
 
+            // Ground pass — always draw tile.sprite at standard tile dimensions
             MockSpriteManager.draw(
                 ctx, tile.sprite,
                 x - camera.tileW / 2,
@@ -74,6 +79,16 @@ const IsoRenderer = {
                 camera.tileH,
             );
 
+            // Overlay pass — draw tree overlay at native dimensions, offset upward
+            if (tile.overlay) {
+                const tileCenterX = x;
+                const tileTopY = y - camera.tileH / 2;
+                const overlayX = tileCenterX - OVERLAY_WIDTH / 2;
+                const overlayY = tileTopY - (OVERLAY_HEIGHT - camera.tileH) + TREE_OVERLAY_OFFSET_Y;
+                MockSpriteManager.draw(ctx, tile.overlay, overlayX, overlayY, OVERLAY_WIDTH, OVERLAY_HEIGHT);
+            }
+
+            // Hover/select diamond outlines drawn after both sprite draw calls
             const isHovered = state.hoveredTile &&
                 tile.row === state.hoveredTile.row &&
                 tile.col === state.hoveredTile.col;

@@ -41,9 +41,40 @@ function parseSingleChar(ch, row, col) {
     switch (ch) {
         case '.': return { row, col, x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` };
         case ',': return { row, col, x, y, sprite: `grass-flowers-${hash > 0.5 ? 2 : 1}` };
-        case 'O': return { row, col, x, y, sprite: `tree-${Math.floor(hash * 3) + 1}` };
-        case 'P': return { row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 4}` };
-        case 'S': return { row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 6}` };
+        case 'O': {
+            const oakOverlays = [
+                'tree-oak-overlay-1',
+                'tree-oak-overlay-2',
+                'tree-oak-overlay-3',
+            ];
+            return {
+                row, col, x, y,
+                sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                overlay: oakOverlays[Math.floor(hash * 3)],
+            };
+        }
+        case 'P': {
+            const pineOverlays = [
+                'tree-pine-overlay-1',
+                'tree-pine-overlay-2',
+            ];
+            return {
+                row, col, x, y,
+                sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                overlay: pineOverlays[Math.floor(hash * 2)],
+            };
+        }
+        case 'S': {
+            const shrubOverlays = [
+                'tree-shrub-overlay-1',
+                'tree-shrub-overlay-2',
+            ];
+            return {
+                row, col, x, y,
+                sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                overlay: shrubOverlays[Math.floor(hash * 2)],
+            };
+        }
         case 'R': return { row, col, x, y, sprite: 'rock' };
         case 'D': return { row, col, x, y, sprite: 'road-full' };
         case '~': return { row, col, x, y, sprite: `water-${Math.floor(hash * 3) + 1}` };
@@ -81,19 +112,22 @@ describe('level-loader: exhaustive character mapping', () => {
             assert.match(tile.sprite, /^grass-flowers-[12]$/);
         });
 
-        it('O → tree-1, tree-2, or tree-3 (oak)', () => {
+        it('O → grass-short-1 or grass-short-2 (ground) + tree-oak-overlay-N (overlay)', () => {
             const tile = parseSingleChar('O', ROW, COL);
-            assert.match(tile.sprite, /^tree-[123]$/);
+            assert.match(tile.sprite, /^grass-short-[12]$/);
+            assert.match(tile.overlay, /^tree-oak-overlay-[123]$/);
         });
 
-        it('P → tree-4 or tree-5 (pine)', () => {
+        it('P → grass-short-1 or grass-short-2 (ground) + tree-pine-overlay-N (overlay)', () => {
             const tile = parseSingleChar('P', ROW, COL);
-            assert.match(tile.sprite, /^tree-[45]$/);
+            assert.match(tile.sprite, /^grass-short-[12]$/);
+            assert.match(tile.overlay, /^tree-pine-overlay-[12]$/);
         });
 
-        it('S → tree-6 or tree-7 (shrub)', () => {
+        it('S → grass-short-1 or grass-short-2 (ground) + tree-shrub-overlay-N (overlay)', () => {
             const tile = parseSingleChar('S', ROW, COL);
-            assert.match(tile.sprite, /^tree-[67]$/);
+            assert.match(tile.sprite, /^grass-short-[12]$/);
+            assert.match(tile.overlay, /^tree-shrub-overlay-[12]$/);
         });
 
         it('R → rock', () => {
@@ -221,29 +255,32 @@ describe('level-loader: exhaustive character mapping', () => {
             assert.ok(variants.size >= 2, `Should produce multiple water variants, got ${variants.size}`);
         });
 
-        it('oak tree mapping should produce valid sprite names (tree-1 to tree-3)', () => {
+        it('oak tree mapping should produce valid sprite names (grass-short + tree-oak-overlay)', () => {
             for (let r = 0; r < 50; r++) {
                 for (let c = 0; c < 50; c++) {
                     const tile = parseSingleChar('O', r, c);
-                    assert.match(tile.sprite, /^tree-[123]$/);
+                    assert.match(tile.sprite, /^grass-short-[12]$/);
+                    assert.match(tile.overlay, /^tree-oak-overlay-[123]$/);
                 }
             }
         });
 
-        it('pine tree mapping should produce valid sprite names (tree-4 or tree-5)', () => {
+        it('pine tree mapping should produce valid sprite names (grass-short + tree-pine-overlay)', () => {
             for (let r = 0; r < 50; r++) {
                 for (let c = 0; c < 50; c++) {
                     const tile = parseSingleChar('P', r, c);
-                    assert.match(tile.sprite, /^tree-[45]$/);
+                    assert.match(tile.sprite, /^grass-short-[12]$/);
+                    assert.match(tile.overlay, /^tree-pine-overlay-[12]$/);
                 }
             }
         });
 
-        it('shrub mapping should produce valid sprite names (tree-6 or tree-7)', () => {
+        it('shrub mapping should produce valid sprite names (grass-short + tree-shrub-overlay)', () => {
             for (let r = 0; r < 50; r++) {
                 for (let c = 0; c < 50; c++) {
                     const tile = parseSingleChar('S', r, c);
-                    assert.match(tile.sprite, /^tree-[67]$/);
+                    assert.match(tile.sprite, /^grass-short-[12]$/);
+                    assert.match(tile.overlay, /^tree-shrub-overlay-[12]$/);
                 }
             }
         });
