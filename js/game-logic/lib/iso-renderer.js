@@ -9,6 +9,14 @@
  *   IsoRenderer.drawUnits(ctx, camera, units);
  */
 
+/** Pixels to shift the overlay sprite upward relative to the tile top-left corner.
+ *  Starting value of 0; visual tuning can adjust it without changing the formula. */
+const TREE_OVERLAY_OFFSET_Y = 0;
+
+/** Native overlay sprite dimensions (must match the generator output). */
+const OVERLAY_WIDTH = 64;
+const OVERLAY_HEIGHT = 48;
+
 const IsoRenderer = {
     /**
      * Draw all terrain tiles with hover/select effects.
@@ -26,10 +34,19 @@ const IsoRenderer = {
                 tile.row === state.selectedTile.row && tile.col === state.selectedTile.col;
             if (isSelected) y -= state.selectedLift;
 
-            // Draw sprite
+            // Ground pass — always draw tile.sprite at standard tile dimensions
             SpriteManager.draw(ctx, tile.sprite, x - camera.tileW/2, y - camera.tileH/2, camera.tileW, camera.tileH);
 
-            // Hover highlight
+            // Overlay pass — draw tree overlay at native dimensions, offset upward
+            if (tile.overlay) {
+                const tileCenterX = x;
+                const tileTopY = y - camera.tileH / 2;
+                const overlayX = tileCenterX - OVERLAY_WIDTH / 2;
+                const overlayY = tileTopY - (OVERLAY_HEIGHT - camera.tileH) + TREE_OVERLAY_OFFSET_Y;
+                SpriteManager.draw(ctx, tile.overlay, overlayX, overlayY, OVERLAY_WIDTH, OVERLAY_HEIGHT);
+            }
+
+            // Hover/select diamond outlines drawn after both sprite draw calls
             const isHovered = state.hoveredTile &&
                 tile.row === state.hoveredTile.row && tile.col === state.hoveredTile.col;
             if (isHovered && !isSelected) {

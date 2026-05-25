@@ -37,6 +37,7 @@ const {
     OUTPUT_DIR,
     TERRAIN_COLORS,
     TERRAIN_SPRITES,
+    TREE_OVERLAY_SPRITES,
 } = require('./lib/sprite-constants');
 
 const {
@@ -56,6 +57,268 @@ const { applyFaceShading, applyShadowEdge } = require('./lib/shading');
 const { applyOrderedDithering } = require('./lib/dithering');
 const { quantizeToPalette } = require('./lib/palette-quantizer');
 const { getPaletteForCategory, PRIMARY_PALETTE } = require('./lib/palette');
+
+// ─── Overlay sprite dimensions ──────────────────────────────────────────────
+/** Width of tree overlay sprites in pixels (matches TILE_WIDTH). */
+const OVERLAY_WIDTH = 64;
+/** Height of tree overlay sprites in pixels (extends 16 px above the 32 px tile). */
+const OVERLAY_HEIGHT = 48;
+
+/**
+ * Allocates a blank 64×48 RGBA buffer initialized to all zeros (fully transparent).
+ * Used as the starting canvas for tree overlay sprite generation.
+ *
+ * @returns {Buffer} A 64×48×4 byte buffer filled with zeros.
+ */
+function createOverlayBuffer() {
+    return Buffer.alloc(OVERLAY_WIDTH * OVERLAY_HEIGHT * 4, 0);
+}
+
+/**
+ * Writes one fully opaque pixel into a 64×48 overlay buffer.
+ * Coordinates outside the 64×48 bounds are silently ignored.
+ * Color values are clamped to 0–255.
+ *
+ * @param {Buffer} buffer - The 64×48 RGBA overlay buffer.
+ * @param {number} x - Horizontal position (0 = left edge).
+ * @param {number} y - Vertical position (0 = top edge).
+ * @param {number} red - Red channel value (0–255).
+ * @param {number} green - Green channel value (0–255).
+ * @param {number} blue - Blue channel value (0–255).
+ */
+function setOverlayPixel(buffer, x, y, red, green, blue) {
+    if (x < 0 || x >= OVERLAY_WIDTH || y < 0 || y >= OVERLAY_HEIGHT) return;
+    const index = (y * OVERLAY_WIDTH + x) * 4;
+    buffer[index]     = Math.max(0, Math.min(255, Math.round(red)));
+    buffer[index + 1] = Math.max(0, Math.min(255, Math.round(green)));
+    buffer[index + 2] = Math.max(0, Math.min(255, Math.round(blue)));
+    buffer[index + 3] = 255;
+}
+
+/**
+ * Generates a tree overlay sprite with a transparent background.
+ *
+ * The canvas is 64×48 pixels (OVERLAY_WIDTH × OVERLAY_HEIGHT). Every pixel
+ * outside the trunk and canopy shape has alpha=0. Every pixel inside has
+ * alpha=255. The same palette colors and layered-canopy technique as
+ * `generateTree` are used, adapted for a transparent background.
+ *
+ * Canopy shapes (Req 1.5):
+ *   - oak:   Rounded ellipse, 2 layers, canopy radius 11–13 px
+ *   - pine:  Pointed/conical stacked rings, radius 8–10 px
+ *   - shrub: Low wide flat ellipse, radius 6–8 px
+ *
+ * @param {number} variant - Variant index (0-based) selecting which variant.
+ * @param {'oak'|'pine'|'shrub'} treeType - Controls canopy shape.
+ * @param {function} noiseGen - Noise generator (x, y, scale) => [-1, 1]
+ * @returns {Buffer} A 64×48 RGBA pixel buffer (transparent background).
+ */
+function generateTreeOverlay(variant, treeType, noiseGen) {
+    // Start from an all-transparent buffer (alpha=0 everywhere) — Req 1.2
+    const buffer = createOverlayBuffer();
+
+    // The overlay canvas is 64×48. The bottom 32 rows correspond to the tile
+    // surface; the top 16 rows allow the canopy to bleed upward.
+    // Center the tree horizontally and position it so the trunk base sits at
+    // the tile surface (y=32 in overlay coords = y=0 in tile coords).
+    const centerX = 32;
+    // Place canopy center in the upper portion of the canvas so the tree
+    // appears to stand on the tile. The trunk base is near y=40 (overlay).
+    const centerY = 28;
+
+    resetSeed(8000 + variant * 100 + (treeType === 'oak' ? 0 : treeType === 'pine' ? 1000 : 2000));
+
+    if (treeType === 'oak') {
+        // ── Oak: rounded ellipse, 2 layers, canopy radius 11–13 px ──────────
+        const canopyRadius = 11 + (variant % 3); // 11, 12, or 13
+
+        // Trunk position: slightly to the bottom-right (BR→TL viewpoint)
+        const trunkX = centerX + 3;
+        const trunkY = centerY + canopyRadius - 2;
+
+        // ── Trunk ──
+        resetSeed(8010 + variant * 100);
+        for (let offsetY = -2; offsetY <= 6; offsetY++) {
+            for (let offsetX = -2; offsetX <= 2; offsetX++) {
+                setOverlayPixel(buffer,
+                    trunkX + offsetX, trunkY + offsetY,
+                    ...PRIMARY_PALETTE[7]); // wood color
+            }
+        }
+
+        // ── Canopy Layer 1 (inner/back — larger, darker, provides depth) ──
+        resetSeed(8020 + variant * 100);
+        const innerRadius = canopyRadius;
+        for (let offsetY = -innerRadius; offsetY <= innerRadius; offsetY++) {
+            for (let offsetX = -innerRadius; offsetX <= innerRadius; offsetX++) {
+                const dist = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+                const canopyX = centerX + offsetX;
+                const canopyY = centerY + offsetY - 2; // raised 2px
+
+                if (dist <= innerRadius) {
+                    const noise = (seededRandom() - 0.5) * 4;
+                    if (dist < innerRadius * 0.5) {
+                        // Inner shadow zone: darkest
+                        setOverlayPixel(buffer, canopyX, canopyY,
+                            GRASS_COLORS[2][0] + noise,
+                            GRASS_COLORS[2][1] + noise,
+                            GRASS_COLORS[2][2] + noise);
+                    } else {
+                        // Mid-tone fill
+                        setOverlayPixel(buffer, canopyX, canopyY,
+                            TERRAIN_COLORS.treeCanopy[0] + noise,
+                            TERRAIN_COLORS.treeCanopy[1] + noise,
+                            TERRAIN_COLORS.treeCanopy[2] + noise);
+                    }
+                }
+            }
+        }
+
+        // ── Canopy Layer 2 (outer/front — smaller, brighter, highlight rim) ──
+        resetSeed(8030 + variant * 100);
+        const outerRadius = canopyRadius - 3;
+        for (let offsetY = -outerRadius; offsetY <= outerRadius; offsetY++) {
+            for (let offsetX = -outerRadius; offsetX <= outerRadius; offsetX++) {
+                const dist = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+                const canopyX = centerX + offsetX - 1; // slight depth offset
+                const canopyY = centerY + offsetY - 3; // raised higher
+
+                if (dist <= outerRadius) {
+                    const noise = (seededRandom() - 0.5) * 5;
+                    let leafColor;
+                    if (dist < outerRadius * 0.4) {
+                        leafColor = GRASS_COLORS[2]; // inner shadow: deep green
+                    } else if (dist > outerRadius * 0.8) {
+                        leafColor = GRASS_COLORS[0]; // highlight rim: bright green
+                    } else {
+                        leafColor = TERRAIN_COLORS.treeCanopy; // mid-tone fill
+                    }
+                    setOverlayPixel(buffer, canopyX, canopyY,
+                        leafColor[0] + noise,
+                        leafColor[1] + noise,
+                        leafColor[2] + noise);
+                }
+            }
+        }
+
+    } else if (treeType === 'pine') {
+        // ── Pine: pointed/conical stacked rings, radius 8–10 px ─────────────
+        const baseRadius = 8 + (variant % 3); // 8, 9, or 10
+
+        // Trunk: centered, narrow
+        const trunkX = centerX;
+        const trunkY = centerY + baseRadius - 1;
+
+        resetSeed(8110 + variant * 100);
+        for (let offsetY = -1; offsetY <= 7; offsetY++) {
+            for (let offsetX = -1; offsetX <= 1; offsetX++) {
+                setOverlayPixel(buffer,
+                    trunkX + offsetX, trunkY + offsetY,
+                    ...PRIMARY_PALETTE[7]); // wood color
+            }
+        }
+
+        // ── Stacked conical rings (bottom to top, each ring narrower) ──
+        // 4 rings: bottom is widest, top is narrowest (pointed tip)
+        const ringCount = 4;
+        resetSeed(8120 + variant * 100);
+        for (let ring = 0; ring < ringCount; ring++) {
+            // Each ring is narrower and higher than the one below
+            const ringRadius = Math.round(baseRadius * (1 - ring * 0.22));
+            // Vertical scale: pine is taller than wide (conical shape)
+            const ringRadiusY = Math.round(ringRadius * 0.55);
+            const ringCenterY = centerY + Math.round(baseRadius * 0.5) - ring * Math.round(baseRadius * 0.55);
+
+            for (let offsetY = -ringRadiusY; offsetY <= ringRadiusY; offsetY++) {
+                for (let offsetX = -ringRadius; offsetX <= ringRadius; offsetX++) {
+                    // Ellipse test: (x/rx)^2 + (y/ry)^2 <= 1
+                    const rx = ringRadius > 0 ? ringRadius : 1;
+                    const ry = ringRadiusY > 0 ? ringRadiusY : 1;
+                    const inEllipse = (offsetX * offsetX) / (rx * rx) +
+                                      (offsetY * offsetY) / (ry * ry) <= 1;
+
+                    if (inEllipse) {
+                        const canopyX = centerX + offsetX;
+                        const canopyY = ringCenterY + offsetY;
+                        const dist = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+                        const outerR = Math.sqrt(rx * rx + ry * ry) * 0.5;
+                        const noise = (seededRandom() - 0.5) * 4;
+
+                        let leafColor;
+                        if (dist < outerR * 0.4) {
+                            leafColor = GRASS_COLORS[2]; // inner shadow
+                        } else if (dist > outerR * 0.75) {
+                            leafColor = GRASS_COLORS[0]; // highlight rim
+                        } else {
+                            leafColor = TERRAIN_COLORS.treeCanopy; // mid-tone
+                        }
+                        setOverlayPixel(buffer, canopyX, canopyY,
+                            leafColor[0] + noise,
+                            leafColor[1] + noise,
+                            leafColor[2] + noise);
+                    }
+                }
+            }
+        }
+
+    } else {
+        // ── Shrub: low wide flat ellipse, radius 6–8 px ──────────────────────
+        const canopyRadiusX = 6 + (variant % 3); // 6, 7, or 8 (wide)
+        const canopyRadiusY = Math.round(canopyRadiusX * 0.5); // flat (half height)
+
+        // Trunk: very short, centered
+        const trunkX = centerX;
+        const trunkY = centerY + canopyRadiusY + 1;
+
+        resetSeed(8210 + variant * 100);
+        for (let offsetY = 0; offsetY <= 4; offsetY++) {
+            for (let offsetX = -1; offsetX <= 1; offsetX++) {
+                setOverlayPixel(buffer,
+                    trunkX + offsetX, trunkY + offsetY,
+                    ...PRIMARY_PALETTE[7]); // wood color
+            }
+        }
+
+        // ── Single flat ellipse canopy (low and wide) ──
+        resetSeed(8220 + variant * 100);
+        const rx = canopyRadiusX;
+        const ry = canopyRadiusY > 0 ? canopyRadiusY : 1;
+
+        for (let offsetY = -ry; offsetY <= ry; offsetY++) {
+            for (let offsetX = -rx; offsetX <= rx; offsetX++) {
+                const inEllipse = (offsetX * offsetX) / (rx * rx) +
+                                  (offsetY * offsetY) / (ry * ry) <= 1;
+
+                if (inEllipse) {
+                    const canopyX = centerX + offsetX;
+                    const canopyY = centerY + offsetY;
+                    const dist = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+                    const outerR = Math.sqrt(rx * rx + ry * ry) * 0.5;
+                    const noise = (seededRandom() - 0.5) * 4;
+
+                    let leafColor;
+                    if (dist < outerR * 0.4) {
+                        leafColor = GRASS_COLORS[2]; // inner shadow: deep green
+                    } else if (dist > outerR * 0.75) {
+                        leafColor = GRASS_COLORS[0]; // highlight rim: bright green
+                    } else {
+                        leafColor = TERRAIN_COLORS.treeCanopy; // mid-tone fill
+                    }
+                    setOverlayPixel(buffer, canopyX, canopyY,
+                        leafColor[0] + noise,
+                        leafColor[1] + noise,
+                        leafColor[2] + noise);
+                }
+            }
+        }
+    }
+
+    // Final pass: quantize to terrain palette (same as generateTree) — Req 1.4
+    const palette = getPaletteForCategory('terrain');
+    quantizeToPalette(buffer, palette);
+
+    return buffer;
+}
 
 // ─── Palette colors for terrain shading ─────────────────────────────────────
 // Top face (lit): grass green from palette
@@ -627,7 +890,36 @@ async function generateAll() {
         console.log(`  ✓ ${sprite.name}.png`);
     }
 
-    console.log(`\nDone! ${sprites.length} enhanced flat diamond sprites (64×32, BR→TL).`);
+    // ── Tree overlay sprites (64×48, transparent background) ────────────────
+    const overlayNoiseGen = await createTerrainNoiseGenerator(168);
+
+    const overlaySprites = [
+        { name: TREE_OVERLAY_SPRITES.treeOakOverlay1,   buffer: generateTreeOverlay(0, 'oak',   overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treeOakOverlay2,   buffer: generateTreeOverlay(1, 'oak',   overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treeOakOverlay3,   buffer: generateTreeOverlay(2, 'oak',   overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treePineOverlay1,  buffer: generateTreeOverlay(0, 'pine',  overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treePineOverlay2,  buffer: generateTreeOverlay(1, 'pine',  overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treeShrubOverlay1, buffer: generateTreeOverlay(0, 'shrub', overlayNoiseGen) },
+        { name: TREE_OVERLAY_SPRITES.treeShrubOverlay2, buffer: generateTreeOverlay(1, 'shrub', overlayNoiseGen) },
+    ];
+
+    for (const sprite of overlaySprites) {
+        await sharp(sprite.buffer, { raw: { width: OVERLAY_WIDTH, height: OVERLAY_HEIGHT, channels: 4 } })
+            .png()
+            .toFile(path.join(OUTPUT_DIR, `${sprite.name}.png`));
+        console.log(`  ✓ ${sprite.name}.png`);
+    }
+
+    console.log(`\nDone! ${sprites.length} enhanced flat diamond sprites (64×32, BR→TL) + ${overlaySprites.length} tree overlay sprites (64×48).`);
 }
 
-generateAll().catch(error => { console.error(error); process.exit(1); });
+if (require.main === module) {
+    generateAll().catch(error => { console.error(error); process.exit(1); });
+}
+
+module.exports = {
+    generateTreeOverlay,
+    createOverlayBuffer,
+    OVERLAY_WIDTH,
+    OVERLAY_HEIGHT,
+};

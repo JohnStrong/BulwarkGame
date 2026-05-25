@@ -62,6 +62,10 @@ function createMockCamera(overrides = {}) {
 
 // ─── IsoRenderer replica ────────────────────────────────────────────────────
 
+const TREE_OVERLAY_OFFSET_Y = 0;
+const OVERLAY_WIDTH = 64;
+const OVERLAY_HEIGHT = 48;
+
 const IsoRenderer = {
     drawTerrain(ctx, camera, tiles, state) {
         for (const tile of tiles) {
@@ -72,8 +76,19 @@ const IsoRenderer = {
                 tile.row === state.selectedTile.row && tile.col === state.selectedTile.col;
             if (isSelected) y -= state.selectedLift;
 
+            // Ground pass — always draw tile.sprite at standard tile dimensions
             MockSpriteManager.draw(ctx, tile.sprite, x - camera.tileW / 2, y - camera.tileH / 2, camera.tileW, camera.tileH);
 
+            // Overlay pass — draw tree overlay at native dimensions, offset upward
+            if (tile.overlay) {
+                const tileCenterX = x;
+                const tileTopY = y - camera.tileH / 2;
+                const overlayX = tileCenterX - OVERLAY_WIDTH / 2;
+                const overlayY = tileTopY - (OVERLAY_HEIGHT - camera.tileH) + TREE_OVERLAY_OFFSET_Y;
+                MockSpriteManager.draw(ctx, tile.overlay, overlayX, overlayY, OVERLAY_WIDTH, OVERLAY_HEIGHT);
+            }
+
+            // Hover/select diamond outlines drawn after both sprite draw calls
             const isHovered = state.hoveredTile &&
                 tile.row === state.hoveredTile.row && tile.col === state.hoveredTile.col;
             if (isHovered && !isSelected) {
@@ -233,6 +248,85 @@ describe('IsoRenderer.drawTerrain', () => {
 
         assert.equal(spriteDrawCalls.length, 0);
         assert.equal(ctx.calls.length, 0);
+    });
+
+    it('should draw ground sprite then overlay sprite for tiles with overlay field', () => {
+        const ctx = createMockCtx();
+        const camera = createMockCamera();
+        const tiles = [
+            { row: 0, col: 0, sprite: 'grass-short-1', overlay: 'tree-oak-overlay-1' },
+        ];
+        const state = { hoveredTile: null, selectedTile: null, selectedLift: 0 };
+
+        IsoRenderer.drawTerrain(ctx, camera, tiles, state);
+
+        assert.equal(spriteDrawCalls.length, 2, 'Two draw calls: ground + overlay');
+        assert.equal(spriteDrawCalls[0].name, 'grass-short-1', 'First call is ground sprite');
+        assert.equal(spriteDrawCalls[1].name, 'tree-oak-overlay-1', 'Second call is overlay sprite');
+    });
+
+    it('should draw overlay at native OVERLAY_WIDTH × OVERLAY_HEIGHT dimensions', () => {
+        const ctx = createMockCtx();
+        const camera = createMockCamera();
+        const tiles = [
+            { row: 0, col: 0, sprite: 'grass-short-1', overlay: 'tree-pine-overlay-2' },
+        ];
+        const state = { hoveredTile: null, selectedTile: null, selectedLift: 0 };
+
+        IsoRenderer.drawTerrain(ctx, camera, tiles, state);
+
+        assert.equal(spriteDrawCalls[1].w, OVERLAY_WIDTH,  'Overlay width is OVERLAY_WIDTH (64)');
+        assert.equal(spriteDrawCalls[1].h, OVERLAY_HEIGHT, 'Overlay height is OVERLAY_HEIGHT (48)');
+    });
+
+    it('should position overlay using the correct formula', () => {
+        const ctx = createMockCtx();
+        const camera = createMockCamera();
+        const tiles = [
+            { row: 1, col: 2, sprite: 'grass-short-2', overlay: 'tree-shrub-overlay-1' },
+        ];
+        const state = { hoveredTile: null, selectedTile: null, selectedLift: 0 };
+
+        IsoRenderer.drawTerrain(ctx, camera, tiles, state);
+
+        const { x, y } = camera.gridToScreen(1, 2);
+        const tileCenterX = x;
+        const tileTopY = y - camera.tileH / 2;
+        const expectedOverlayX = tileCenterX - OVERLAY_WIDTH / 2;
+        const expectedOverlayY = tileTopY - (OVERLAY_HEIGHT - camera.tileH) + TREE_OVERLAY_OFFSET_Y;
+
+        assert.equal(spriteDrawCalls[1].x, expectedOverlayX, 'Overlay x = tileCenterX - OVERLAY_WIDTH/2');
+        assert.equal(spriteDrawCalls[1].y, expectedOverlayY, 'Overlay y = tileTopY - (OVERLAY_HEIGHT - tileH) + TREE_OVERLAY_OFFSET_Y');
+    });
+
+    it('should draw only one sprite for tiles without overlay field', () => {
+        const ctx = createMockCtx();
+        const camera = createMockCamera();
+        const tiles = [
+            { row: 0, col: 0, sprite: 'road-full' },
+        ];
+        const state = { hoveredTile: null, selectedTile: null, selectedLift: 0 };
+
+        IsoRenderer.drawTerrain(ctx, camera, tiles, state);
+
+        assert.equal(spriteDrawCalls.length, 1, 'Only one draw call for non-overlay tile');
+        assert.equal(spriteDrawCalls[0].name, 'road-full');
+    });
+
+    it('should draw diamond outline after both sprites for hovered overlay tile', () => {
+        const ctx = createMockCtx();
+        const camera = createMockCamera();
+        const tiles = [
+            { row: 0, col: 0, sprite: 'grass-short-1', overlay: 'tree-oak-overlay-2' },
+        ];
+        const state = { hoveredTile: { row: 0, col: 0 }, selectedTile: null, selectedLift: 0 };
+
+        IsoRenderer.drawTerrain(ctx, camera, tiles, state);
+
+        // Both sprites drawn before any outline
+        assert.equal(spriteDrawCalls.length, 2, 'Both sprites drawn');
+        const strokeCalls = ctx.calls.filter(c => c.method === 'stroke');
+        assert.equal(strokeCalls.length, 1, 'One diamond outline for hover');
     });
 });
 

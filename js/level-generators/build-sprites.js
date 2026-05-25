@@ -38,6 +38,7 @@ const {
     TERRAIN_SPRITES,
     CASTLE_SPRITES,
     UNIT_SPRITES,
+    TREE_OVERLAY_SPRITES,
 } = require('./lib/sprite-constants');
 
 const { packAtlas } = require('./lib/atlas-packer');
@@ -70,6 +71,7 @@ const GENERATOR_SCRIPTS = [
 const TERRAIN_SPRITE_NAMES = Object.values(TERRAIN_SPRITES);
 const CASTLE_SPRITE_NAMES = Object.values(CASTLE_SPRITES);
 const UNIT_SPRITE_NAMES = Object.values(UNIT_SPRITES);
+const TREE_OVERLAY_SPRITE_NAMES = Object.values(TREE_OVERLAY_SPRITES);
 
 const ENEMY_SPRITE_NAMES = [
     'enemy-knight',
@@ -222,6 +224,13 @@ async function main() {
     }
     console.log(`  ✓ ${DAMAGED_SPRITE_NAMES.length} damaged castle sprites`);
 
+    // Tree overlay sprites (64×48, transparent background)
+    for (const name of TREE_OVERLAY_SPRITE_NAMES) {
+        const { buffer, width, height } = await readSpriteBuffer(name);
+        spriteEntries.push({ name, buffer, width, height });
+    }
+    console.log(`  ✓ ${TREE_OVERLAY_SPRITE_NAMES.length} tree overlay sprites`);
+
     // ── Step 3: Generate water animation frames ────────────────────────────
     console.log('\nStep 3: Generating water animation frames...\n');
 
@@ -239,6 +248,28 @@ async function main() {
         frames: waterFrameCount,
     });
     console.log(`  ✓ ${waterFrameCount} water animation frames`);
+
+    // ── Pre-pack check: Verify all overlay PNGs exist ─────────────────────
+    console.log('\nPre-pack check: Verifying overlay sprite PNGs...\n');
+
+    const missingOverlays = TREE_OVERLAY_SPRITE_NAMES.filter(
+        name => !fs.existsSync(path.join(OUTPUT_DIR, `${name}.png`))
+    );
+
+    if (missingOverlays.length > 0) {
+        for (const name of missingOverlays) {
+            logBuildError('build-sprites', `Overlay sprite PNG missing before atlas pack: ${name}`, {
+                sprite: name,
+                stage: 'pre-pack',
+                details: `Expected file at: ${path.join(OUTPUT_DIR, `${name}.png`)}`,
+            });
+        }
+        throw new Error(
+            `Pre-pack check failed: ${missingOverlays.length} overlay PNG(s) missing: ${missingOverlays.join(', ')}`
+        );
+    }
+
+    console.log(`  ✓ All ${TREE_OVERLAY_SPRITE_NAMES.length} overlay PNGs verified present`);
 
     // ── Step 4: Pack into atlas ───────────────────────────────────────────
     console.log('\nStep 4: Packing sprites into atlas...\n');

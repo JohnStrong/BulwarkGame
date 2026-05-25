@@ -150,3 +150,109 @@ describe('sprite-constants: UNIT_SPRITES registry', () => {
         }
     });
 });
+
+// ─── TREE_OVERLAY_SPRITES tests (added for tree-overlay-system feature) ──────
+
+const { TREE_OVERLAY_SPRITES } = require('../../../js/level-generators/lib/sprite-constants');
+
+describe('sprite-constants: TREE_OVERLAY_SPRITES registry', () => {
+    it('should be exported from sprite-constants', () => {
+        assert.ok(TREE_OVERLAY_SPRITES !== undefined, 'TREE_OVERLAY_SPRITES should be exported');
+        assert.ok(typeof TREE_OVERLAY_SPRITES === 'object' && TREE_OVERLAY_SPRITES !== null);
+    });
+
+    it('should have exactly 7 entries', () => {
+        assert.equal(Object.keys(TREE_OVERLAY_SPRITES).length, 7);
+    });
+
+    it('should contain all seven canonical overlay sprite keys', () => {
+        const expectedKeys = [
+            'treeOakOverlay1',
+            'treeOakOverlay2',
+            'treeOakOverlay3',
+            'treePineOverlay1',
+            'treePineOverlay2',
+            'treeShrubOverlay1',
+            'treeShrubOverlay2',
+        ];
+        for (const key of expectedKeys) {
+            assert.ok(key in TREE_OVERLAY_SPRITES, `Missing key: ${key}`);
+        }
+    });
+
+    it('should map to the correct canonical sprite name strings', () => {
+        assert.equal(TREE_OVERLAY_SPRITES.treeOakOverlay1,   'tree-oak-overlay-1');
+        assert.equal(TREE_OVERLAY_SPRITES.treeOakOverlay2,   'tree-oak-overlay-2');
+        assert.equal(TREE_OVERLAY_SPRITES.treeOakOverlay3,   'tree-oak-overlay-3');
+        assert.equal(TREE_OVERLAY_SPRITES.treePineOverlay1,  'tree-pine-overlay-1');
+        assert.equal(TREE_OVERLAY_SPRITES.treePineOverlay2,  'tree-pine-overlay-2');
+        assert.equal(TREE_OVERLAY_SPRITES.treeShrubOverlay1, 'tree-shrub-overlay-1');
+        assert.equal(TREE_OVERLAY_SPRITES.treeShrubOverlay2, 'tree-shrub-overlay-2');
+    });
+
+    it('all sprite name values should be non-empty strings', () => {
+        for (const [key, name] of Object.entries(TREE_OVERLAY_SPRITES)) {
+            assert.ok(typeof name === 'string' && name.length > 0,
+                `${key} should map to a non-empty string, got: ${JSON.stringify(name)}`);
+        }
+    });
+
+    it('oak overlay names should start with "tree-oak-overlay-"', () => {
+        const oakKeys = ['treeOakOverlay1', 'treeOakOverlay2', 'treeOakOverlay3'];
+        for (const key of oakKeys) {
+            assert.ok(
+                TREE_OVERLAY_SPRITES[key].startsWith('tree-oak-overlay-'),
+                `${key} value "${TREE_OVERLAY_SPRITES[key]}" should start with "tree-oak-overlay-"`
+            );
+        }
+    });
+
+    it('pine overlay names should start with "tree-pine-overlay-"', () => {
+        const pineKeys = ['treePineOverlay1', 'treePineOverlay2'];
+        for (const key of pineKeys) {
+            assert.ok(
+                TREE_OVERLAY_SPRITES[key].startsWith('tree-pine-overlay-'),
+                `${key} value "${TREE_OVERLAY_SPRITES[key]}" should start with "tree-pine-overlay-"`
+            );
+        }
+    });
+
+    it('shrub overlay names should start with "tree-shrub-overlay-"', () => {
+        const shrubKeys = ['treeShrubOverlay1', 'treeShrubOverlay2'];
+        for (const key of shrubKeys) {
+            assert.ok(
+                TREE_OVERLAY_SPRITES[key].startsWith('tree-shrub-overlay-'),
+                `${key} value "${TREE_OVERLAY_SPRITES[key]}" should start with "tree-shrub-overlay-"`
+            );
+        }
+    });
+
+    it('all sprite name values should be unique (no duplicates)', () => {
+        const values = Object.values(TREE_OVERLAY_SPRITES);
+        const unique = new Set(values);
+        assert.equal(unique.size, values.length, 'All overlay sprite names should be unique');
+    });
+
+    it('overlay sprite names should not collide with TERRAIN_SPRITES values', () => {
+        const {
+            TERRAIN_SPRITES: terrain,
+        } = require('../../../js/level-generators/lib/sprite-constants');
+        const terrainValues = new Set(Object.values(terrain));
+        for (const [key, name] of Object.entries(TREE_OVERLAY_SPRITES)) {
+            assert.ok(
+                !terrainValues.has(name),
+                `Overlay sprite "${name}" (${key}) collides with a TERRAIN_SPRITES value`
+            );
+        }
+    });
+
+    it('should have 3 oak variants, 2 pine variants, and 2 shrub variants', () => {
+        const values = Object.values(TREE_OVERLAY_SPRITES);
+        const oakCount   = values.filter(v => v.startsWith('tree-oak-overlay-')).length;
+        const pineCount  = values.filter(v => v.startsWith('tree-pine-overlay-')).length;
+        const shrubCount = values.filter(v => v.startsWith('tree-shrub-overlay-')).length;
+        assert.equal(oakCount,   3, 'Should have 3 oak overlay variants');
+        assert.equal(pineCount,  2, 'Should have 2 pine overlay variants');
+        assert.equal(shrubCount, 2, 'Should have 2 shrub overlay variants');
+    });
+});

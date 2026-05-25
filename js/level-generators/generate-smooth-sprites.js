@@ -612,6 +612,48 @@ function genRock() {
     return buf;
 }
 
+// ============ EXPORTS (for testing) ============
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        genGrass,
+        genFlowers,
+        genRoadFull,
+        genRoadEdgeLeft,
+        genRoadEdgeRight,
+        genRoadEdgeTop,
+        genRoadEdgeBottom,
+        genRoadCorner,
+        genBridgeTL,
+        genBridgeTM,
+        genBridgeTR,
+        genBridgeML,
+        genBridgeMM,
+        genBridgeMR,
+        genBridgeBL,
+        genBridgeBM,
+        genBridgeBR,
+        genWaterV,
+        genWaterH,
+        genWaterEdgeRight,
+        genWaterEdgeLeft,
+        genTree,
+        genPine,
+        genShrub,
+        genRock,
+        drawBridgeWall,
+        drawBridgeRoad,
+        drawGrassEdgeVertical,
+        drawGrassEdgeHorizontal,
+        pointInHex,
+        createBuf,
+        px,
+        fill,
+        resetSeed,
+        seededRandom,
+        SIZE,
+    };
+}
+
 // ============ MAIN ============
 async function generateAll() {
     const sprites = [
@@ -640,4 +682,7 @@ async function generateAll() {
     }
     console.log(`\nDone! ${sprites.length} sprites.`);
 }
-generateAll().catch(e=>{console.error(e);process.exit(1);});
+// Run only when executed directly (not when required by tests)
+if (require.main === module) {
+    generateAll().catch(e => { console.error(e); process.exit(1); });
+}

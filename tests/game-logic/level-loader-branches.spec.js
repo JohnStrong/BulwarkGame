@@ -50,9 +50,43 @@ const LevelLoader = {
                 switch (ch) {
                     case '.': level.tiles.push({ row, col, x, y, sprite: `grass-short-${hash > 0.5 ? 2 : 1}` }); break;
                     case ',': level.tiles.push({ row, col, x, y, sprite: `grass-flowers-${hash > 0.5 ? 2 : 1}` }); break;
-                    case 'O': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 3) + 1}` }); break;
-                    case 'P': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 4}` }); break;
-                    case 'S': level.tiles.push({ row, col, x, y, sprite: `tree-${Math.floor(hash * 2) + 6}` }); break;
+                    case 'O': {
+                        const oakOverlays = [
+                            'tree-oak-overlay-1',
+                            'tree-oak-overlay-2',
+                            'tree-oak-overlay-3',
+                        ];
+                        level.tiles.push({
+                            row, col, x, y,
+                            sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                            overlay: oakOverlays[Math.floor(hash * 3)],
+                        });
+                        break;
+                    }
+                    case 'P': {
+                        const pineOverlays = [
+                            'tree-pine-overlay-1',
+                            'tree-pine-overlay-2',
+                        ];
+                        level.tiles.push({
+                            row, col, x, y,
+                            sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                            overlay: pineOverlays[Math.floor(hash * 2)],
+                        });
+                        break;
+                    }
+                    case 'S': {
+                        const shrubOverlays = [
+                            'tree-shrub-overlay-1',
+                            'tree-shrub-overlay-2',
+                        ];
+                        level.tiles.push({
+                            row, col, x, y,
+                            sprite: `grass-short-${hash > 0.5 ? 2 : 1}`,
+                            overlay: shrubOverlays[Math.floor(hash * 2)],
+                        });
+                        break;
+                    }
                     case 'R': level.tiles.push({ row, col, x, y, sprite: 'rock' }); break;
                     case 'D': level.tiles.push({ row, col, x, y, sprite: 'road-full' }); break;
                     case '~': level.tiles.push({ row, col, x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
@@ -158,9 +192,9 @@ describe('parseLevelText: all tile characters systematically', () => {
     const testCases = [
         { char: '.', prefix: 'grass-short-' },
         { char: ',', prefix: 'grass-flowers-' },
-        { char: 'O', prefix: 'tree-' },
-        { char: 'P', prefix: 'tree-' },
-        { char: 'S', prefix: 'tree-' },
+        { char: 'O', prefix: 'grass-short-', overlayPrefix: 'tree-oak-overlay-' },
+        { char: 'P', prefix: 'grass-short-', overlayPrefix: 'tree-pine-overlay-' },
+        { char: 'S', prefix: 'grass-short-', overlayPrefix: 'tree-shrub-overlay-' },
         { char: 'R', exact: 'rock' },
         { char: 'D', exact: 'road-full' },
         { char: '~', prefix: 'water-' },
@@ -178,7 +212,7 @@ describe('parseLevelText: all tile characters systematically', () => {
         { char: 'C', prefix: 'castle-bailey-' },
     ];
 
-    for (const { char, prefix, exact } of testCases) {
+    for (const { char, prefix, exact, overlayPrefix } of testCases) {
         it(`should correctly parse character "${char}"`, () => {
             const level = LevelLoader.parseLevelText(`name=X\n${char}`);
             assert.equal(level.tiles.length, 1);
@@ -189,6 +223,15 @@ describe('parseLevelText: all tile characters systematically', () => {
                     level.tiles[0].sprite.startsWith(prefix),
                     `Expected "${level.tiles[0].sprite}" to start with "${prefix}"`
                 );
+            }
+            if (overlayPrefix) {
+                assert.ok(
+                    level.tiles[0].overlay && level.tiles[0].overlay.startsWith(overlayPrefix),
+                    `Expected overlay "${level.tiles[0].overlay}" to start with "${overlayPrefix}"`
+                );
+            } else {
+                assert.equal(level.tiles[0].overlay, undefined,
+                    `Expected no overlay for char "${char}"`);
             }
         });
     }
