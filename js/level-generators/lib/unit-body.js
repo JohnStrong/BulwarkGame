@@ -40,6 +40,9 @@ function drawUnit(buffer, palette, weaponType, seedValue) {
     // ─── 1. Drop shadow ─────────────────────────────────────────────────
     // A semi-transparent dark ellipse beneath the figure's feet.
     // Makes the unit look grounded on the terrain tile.
+    // Drawn before the legs/boots; boot pixels at (CX±1/±2, CY+9) will
+    // overwrite the shadow at those positions, which is the correct visual
+    // layering (boots appear on top of the shadow).
     for (let offsetX = -5; offsetX <= 5; offsetX++)
         for (let offsetY = -1; offsetY <= 2; offsetY++)
             if ((offsetX * offsetX) / 25 + (offsetY * offsetY) / 4 < 1) {

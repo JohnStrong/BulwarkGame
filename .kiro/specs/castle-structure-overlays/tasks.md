@@ -12,13 +12,13 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
   - Export `CASTLE_OVERLAY_SPRITES` alongside the existing exports
   - _Requirements: 2.1, 7.2, 8.1_
 
-- [ ] 2. Register overlay sprites in SpriteManager
-  - [ ] 2.1 Append the 18 castle overlay sprite names to `SpriteManager.spriteList` in `js/game-logic/sprites.js`
+- [x] 2. Register overlay sprites in SpriteManager
+  - [x] 2.1 Append the 18 castle overlay sprite names to `SpriteManager.spriteList` in `js/game-logic/sprites.js`
     - Add them in a clearly commented block after the existing damaged castle entries (walls/bridges 64×48, towers/keeps 64×64, gatehouse 64×80)
     - Retain all existing flat castle sprite names in the list
     - _Requirements: 2.2, 7.3, 8.2_
 
-  - [ ] 2.2 Write unit tests for SpriteManager castle overlay registration
+  - [x] 2.2 Write unit tests for SpriteManager castle overlay registration
     - Depends on: task 2.1
     - Assert `SpriteManager.spriteList` contains all 18 castle overlay sprite names
     - Assert all existing flat castle sprite names are still present

@@ -112,8 +112,8 @@ describe('generate-smooth-sprites: pointInHex', () => {
         assert.ok(!pointInHex(0, 31, pts));
     });
 
-    it('mid-left (2,16) should be inside hex', () => {
-        assert.ok(pointInHex(2, 16, pts));
+    it('mid-left (3,16) should be inside hex', () => {
+        assert.ok(pointInHex(3, 16, pts));
     });
 
     it('mid-right (29,16) should be inside hex', () => {

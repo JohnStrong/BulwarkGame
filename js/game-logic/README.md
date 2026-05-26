@@ -51,7 +51,17 @@ hexToPixel(row, col) // Converts grid position to pixel (hex view only)
 
 ## sprites.js — SpriteManager
 
-Loads game sprites and delegates rendering to PixiJS when available. Each sprite is a 64×32 isometric diamond PNG (terrain/castle) or 32×32 PNG (units).
+Loads game sprites and delegates rendering to PixiJS when available. Sprite dimensions vary by category:
+
+| Category | Dimensions | Examples |
+|----------|-----------|---------|
+| Terrain / castle (flat) | 64×32 | `grass-short-1`, `castle-wall`, `bridge-mm` |
+| Units | 32×32 | `unit-knight`, `unit-archer` |
+| Enemy units | 64×32 | `enemy-knight`, `enemy-siege` |
+| Tree overlays | 64×48 | `tree-oak-overlay-1`, `tree-shrub-overlay-2` |
+| Castle wall / bridge overlays | 64×48 | `castle-wall-overlay`, `bridge-mm-overlay` |
+| Castle tower / keep overlays | 64×64 | `castle-tower-overlay`, `castle-keep-tl-overlay` |
+| Castle gatehouse overlay | 64×80 | `castle-gatehouse-overlay` |
 
 ```js
 // Preferred startup path — atlas + PixiJS (see game-iso.js init):
@@ -63,11 +73,34 @@ await SpriteManager.loadAll();
 
 // During rendering (API unchanged):
 SpriteManager.draw(ctx, 'grass-short-1', x, y, 64, 32);
+
+// Drawing a castle overlay at its native dimensions:
+SpriteManager.draw(ctx, 'castle-tower-overlay', x, y, 64, 64);
 ```
 
 `draw()` floors `x` and `y` to integers before rendering to prevent sub-pixel blur on pixel art. When a PixiJS renderer is wired in and the atlas is loaded, the call is delegated to `PixiRenderer.drawSprite()`; otherwise it falls back to Canvas 2D.
 
 If a sprite file is missing, it creates a grey placeholder with the name printed on it so the game still runs.
+
+### Registered sprite categories
+
+`SpriteManager.spriteList` contains all sprites loaded at startup, grouped by category:
+
+| Category | Count | Notes |
+|----------|-------|-------|
+| Terrain (grass, road, water, bridge, trees, rock) | 17 | Flat 64×32 diamonds |
+| Tree overlay sprites | 7 | 64×48, transparent background; oak (3), pine (2), shrub (2) |
+| Units | 9 | 32×32, transparent background |
+| Castle structures (flat) | 11 | 64×32; includes `castle-bridge-mid` |
+| Enemy sprites | 5 | 64×32, `enemy-` prefix |
+| Damaged castle sprites | 10 | 64×32, `-damaged` suffix |
+| Castle overlay sprites | 18 | Transparent background, variable height (48 / 64 / 80 px) |
+
+**Castle overlay sprites** (18 total) are drawn on top of their corresponding flat ground tile to achieve 2.5D depth. Canvas height varies by structure category:
+
+- **Walls and bridges** (64×48): `castle-wall-overlay`, `castle-wall-damaged-overlay`, `bridge-mm-overlay`, `castle-bridge-start-overlay`, `castle-bridge-mid-overlay`, `castle-bridge-gate-overlay`
+- **Towers and keeps** (64×64): `castle-tower-overlay`, `castle-tower-damaged-overlay`, `castle-keep-tl-overlay`, `castle-keep-tl-damaged-overlay`, `castle-keep-bl-overlay`, `castle-keep-bl-damaged-overlay`, `castle-keep-br-overlay`, `castle-keep-br-damaged-overlay`, `castle-keep-center-overlay`, `castle-keep-center-damaged-overlay`
+- **Gatehouse** (64×80): `castle-gatehouse-overlay`, `castle-gatehouse-damaged-overlay`
 
 ---
 
@@ -87,6 +120,17 @@ const level = LevelLoader.getCurrentLevel();
 ```
 
 Each character in the text file becomes one tile. The loader maps characters to sprite names (e.g., `.` → `grass-short-1`, `~` → `water-1`).
+
+Castle and bridge tiles carry both a `sprite` (the flat 64×32 ground diamond) and an `overlay` (the transparent-background structure sprite drawn on top). Tree tiles (`O`, `P`, `S`) also carry an `overlay` pointing to the appropriate tree overlay sprite. All other tiles have no `overlay` field.
+
+```js
+// Example tile objects:
+{ row, col, x, y, sprite: 'castle-wall',    overlay: 'castle-wall-overlay' }
+{ row, col, x, y, sprite: 'castle-tower',   overlay: 'castle-tower-overlay' }
+{ row, col, x, y, sprite: 'bridge-mm',      overlay: 'bridge-mm-overlay' }
+{ row, col, x, y, sprite: 'grass-short-1',  overlay: 'tree-oak-overlay-1' }  // O tile
+{ row, col, x, y, sprite: 'grass-short-2' }                                   // . tile — no overlay
+```
 
 ### Known limitation: tileHash bias
 

@@ -103,6 +103,11 @@ tests/level-generators/
     ├── shading-edge-cases.spec.js     # Shading boundary conditions
     ├── sprite-constants.spec.js       # Shared constants validation
     ├── unit-body.spec.js              # Unit figure drawing
+    ├── unit-body-pixel.spec.js        # Pixel-level assertions for unit-body.js:
+    │                                  #   drop shadow placement (CX, CY+9 — not CX+1 which
+    │                                  #   is a boot pixel), cape wind-wobble sine formula,
+    │                                  #   torso/legs/head/helmet/pauldron pixel positions,
+    │                                  #   and all unit palette × weapon type combinations
     ├── weapons.spec.js                # Weapon drawing functions
     └── weapons-per-weapon.spec.js     # Per-weapon-type validation
 ```
@@ -248,6 +253,31 @@ Validates the pre-pack overlay existence check and atlas inclusion logic added i
 ### Subprocess exit-code tests
 
 The non-zero exit tests write a minimal throwaway script to `__dirname`, execute it with `execFileSync`, and assert the child process exits with a non-zero status code and writes the expected structured error to stderr. The temp script is cleaned up in a `finally` block regardless of test outcome.
+
+## Unit Body Pixel Tests (`lib/unit-body-pixel.spec.js`)
+
+Pixel-level assertions for `js/level-generators/lib/unit-body.js`, verifying that `drawUnit` places each body part at the correct pixel coordinates in the 64×32 RGBA buffer.
+
+### Drop shadow coordinate
+
+The drop shadow ellipse is drawn at `(centerX + offsetX + 1, centerY + 9 + offsetY)` for `offsetX` in `[-5, +5]` and `offsetY` in `[-1, +2]`. The test suite checks the shadow at `(CX, CY+9)` — which corresponds to `offsetX = -1, offsetY = 0` in the ellipse loop — rather than `(CX+1, CY+9)`.
+
+The reason: `CX+1` is one of the four boot pixel positions (`CX±1`, `CX±2` at `CY+9`). Boots are drawn with `alpha=255` after the shadow loop, so the shadow's `alpha=100` at that coordinate is overwritten. `CX` is not a boot position, so the shadow pixel survives and can be asserted.
+
+| Suite | What it validates |
+|-------|-------------------|
+| `drop shadow pixel assertions` | Shadow at `(CX, CY+9)` is semi-transparent (`alpha=100`), near-black (`R≤25, G≤25, B≤20`), spans ≥3 pixels across the ellipse width, and does not appear above `y = CY+8` |
+| `torso pixel assertions` | Torso region `(CX-3..CX+2, CY-1..CY+4)` has ≥20 opaque pixels; center pixel is opaque with non-zero RGB |
+| `legs pixel assertions` | Left leg at `(CX-2, CY+5)` and right leg at `(CX+1, CY+5)` are opaque; boots at `(CX-2, CY+9)` and `(CX+1, CY+9)` are opaque and dark brown (`R<80, R>G>B`) |
+| `head pixel assertions` | Head region `(CX-1..CX+2, CY-6..CY-3)` has ≥8 opaque pixels; center pixel is opaque |
+| `helmet pixel assertions` | Exactly 6 helmet pixels at the expected positions; top at `(CX, CY-6)` and brim at `(CX-1, CY-5)` are opaque |
+| `cape wind-wobble sine calculation` | Cape pixels appear in column range `[CX-5, CX-3]`; wobble formula `round(sin(row * 0.8) * 0.5)` always yields `{-1, 0, 1}`; cape spans ≥4 rows; cape pixel is opaque |
+| `shoulder pauldron pixel assertions` | Left pauldron at `(CX-3, CY-1)` and right at `(CX+2, CY-1)` are opaque; exactly 4 pauldron pixels total |
+| `all unit types produce valid figures` | For every palette in `UNIT_PALETTES` × weapon type: drop shadow at `(CX, CY+9)` is semi-transparent and torso center at `(CX, CY+1)` is opaque |
+
+### Boot vs. shadow pixel overlap
+
+The shadow loop condition `buffer[pixelIndex + 3] === 0` means the shadow only writes to pixels that are still transparent at the time the shadow is drawn. Boots are drawn in step 2 (legs), which runs before the deferred shadow draw. The four boot positions (`CX±1`, `CX±2` at `CY+9`) are therefore opaque when the shadow loop runs, so the shadow is skipped at those coordinates. Any test asserting `alpha=100` must use a coordinate that is not a boot position.
 
 ## Relationship to Property Tests
 
