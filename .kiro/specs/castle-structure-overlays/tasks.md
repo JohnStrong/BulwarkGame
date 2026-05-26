@@ -6,7 +6,7 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
 
 ## Tasks
 
-- [ ] 1. Add `CASTLE_OVERLAY_SPRITES` registry to sprite constants
+- [x] 1. Add `CASTLE_OVERLAY_SPRITES` registry to sprite constants
   - Add a `CASTLE_OVERLAY_SPRITES` export to `js/level-generators/lib/sprite-constants.js` with all 18 canonical overlay sprite names (see design.md §2 for the full key→value table)
   - Retain all existing `CASTLE_SPRITES` and `TERRAIN_SPRITES` entries unchanged
   - Export `CASTLE_OVERLAY_SPRITES` alongside the existing exports

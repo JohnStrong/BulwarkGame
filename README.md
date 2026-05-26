@@ -345,7 +345,7 @@ Bulwark/
         ├── generate-random-level.js       # Seeded random level generator
         ├── render-level-preview.js        # Level → PNG renderer
         └── lib/
-            ├── sprite-constants.js  # Tile dims, output path, color palettes, sprite names
+            ├── sprite-constants.js  # Tile dims, output path, color palettes, sprite names (TERRAIN_SPRITES, CASTLE_SPRITES, CASTLE_OVERLAY_SPRITES, TREE_OVERLAY_SPRITES, UNIT_SPRITES)
             ├── pixel-utils.js       # createBuffer, setPixel, isInsideDiamond, seededRandom
             ├── fill-patterns.js     # fillDiamond, fillDiamondWithSpeckle, drawStoneBlocks
             ├── palette.js           # Enhanced palette definitions & category lookup

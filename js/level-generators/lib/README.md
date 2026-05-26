@@ -48,12 +48,13 @@ These objects map camelCase keys to the canonical PNG filename stem (without
 `.png`). The level loader uses these names to map level-text characters to
 sprites at runtime.
 
-| Export                | Contents                                                                 |
-|-----------------------|--------------------------------------------------------------------------|
-| `TERRAIN_SPRITES`     | Grass, flowers, road, water, bridge, `tree-1`–`tree-7`, rock            |
-| `CASTLE_SPRITES`      | Bridge, tower, keep sections, gatehouse, wall, bailey variants           |
-| `UNIT_SPRITES`        | All 9 player unit types                                                  |
-| `TREE_OVERLAY_SPRITES`| 7 transparent-background tree overlay sprites (see below)               |
+| Export                   | Contents                                                                 |
+|--------------------------|--------------------------------------------------------------------------|
+| `TERRAIN_SPRITES`        | Grass, flowers, road, water, bridge, `tree-1`–`tree-7`, rock            |
+| `CASTLE_SPRITES`         | Bridge, tower, keep sections, gatehouse, wall, bailey variants           |
+| `UNIT_SPRITES`           | All 9 player unit types                                                  |
+| `TREE_OVERLAY_SPRITES`   | 7 transparent-background tree overlay sprites (see below)               |
+| `CASTLE_OVERLAY_SPRITES` | 18 transparent-background castle structure overlay sprites (see below)  |
 
 #### TREE_OVERLAY_SPRITES
 
@@ -74,6 +75,53 @@ shape.
 
 The existing `tree-1` through `tree-7` entries in `TERRAIN_SPRITES` are
 retained for backward compatibility.
+
+#### CASTLE_OVERLAY_SPRITES
+
+Added as part of the **castle-structure-overlays** feature. These sprites are
+drawn as a second layer on top of a castle ground tile, giving structures
+visual height and 2.5D depth. Canvas dimensions vary by structure category —
+taller structures use taller canvases so they bleed correctly into the tile
+above. All sprites have `alpha=0` outside the structure's vertical body (walls,
+battlements, arch, portcullis, planks); the isometric ground diamond is excluded.
+
+**Canvas dimensions by category:**
+
+| Category  | Width | Height | Structures                                                    |
+|-----------|-------|--------|---------------------------------------------------------------|
+| wall      | 64    | 48     | `castle-wall`, `castle-wall-damaged`                          |
+| bridge    | 64    | 48     | `bridge-mm`, `castle-bridge-start`, `castle-bridge-mid`, `castle-bridge-gate` |
+| tower     | 64    | 64     | `castle-tower`, `castle-tower-damaged`                        |
+| keep      | 64    | 64     | all 4 keep quadrants (tl/bl/br/center), damaged too           |
+| gatehouse | 64    | 80     | `castle-gatehouse`, `castle-gatehouse-damaged`                |
+
+**Full registry (18 entries — 11 undamaged + 7 damaged):**
+
+| Key                    | Sprite name                        | Level char |
+|------------------------|------------------------------------|------------|
+| `wall`                 | `castle-wall-overlay`              | `W`        |
+| `wallDamaged`          | `castle-wall-damaged-overlay`      | —          |
+| `tower`                | `castle-tower-overlay`             | `T`        |
+| `towerDamaged`         | `castle-tower-damaged-overlay`     | —          |
+| `keepTopLeft`          | `castle-keep-tl-overlay`           | `K`        |
+| `keepTopLeftDamaged`   | `castle-keep-tl-damaged-overlay`   | —          |
+| `keepBotLeft`          | `castle-keep-bl-overlay`           | `j`        |
+| `keepBotLeftDamaged`   | `castle-keep-bl-damaged-overlay`   | —          |
+| `keepBotRight`         | `castle-keep-br-overlay`           | `J`        |
+| `keepBotRightDamaged`  | `castle-keep-br-damaged-overlay`   | —          |
+| `keepCenter`           | `castle-keep-center-overlay`       | `F`        |
+| `keepCenterDamaged`    | `castle-keep-center-damaged-overlay` | —        |
+| `gatehouse`            | `castle-gatehouse-overlay`         | `G`        |
+| `gatehouseDamaged`     | `castle-gatehouse-damaged-overlay` | —          |
+| `bridgeMm`             | `bridge-mm-overlay`                | `=`        |
+| `bridgeStart`          | `castle-bridge-start-overlay`      | `b`        |
+| `bridgeMid`            | `castle-bridge-mid-overlay`        | `m`        |
+| `bridgeGate`           | `castle-bridge-gate-overlay`       | `g`        |
+
+Bridge types (`=`, `b`, `m`, `g`) have no damaged variants. The bailey tile
+(`C`) has no overlay — it is a ground-level surface with no vertical structure.
+The existing `CASTLE_SPRITES` entries are retained unchanged for backward
+compatibility.
 
 ---
 

@@ -35,6 +35,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
 | `generate-damaged-castle-sprites.js` | Generates 10 damaged castle variants (64×32, cracks/missing blocks/rubble, ≥15% damage area, CASTLE_PALETTE quantization) |
+| `generate-castle-overlay-sprites.js` | Generates 18 castle structure overlay sprites (transparent background, variable height: 64×48 walls/bridges, 64×64 towers/keeps, 64×80 gatehouse) — produced by the castle-structure-overlays spec |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
 | `generate-smooth-sprites.js` | Legacy hex sprites (kept for top-down view) |
@@ -44,7 +45,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 
 | File | What it exports |
 |------|----------------|
-| `lib/sprite-constants.js` | Single source of truth: tile dimensions, output path, all color palettes (terrain, castle, unit), sprite name registries (`TERRAIN_SPRITES`, `TREE_OVERLAY_SPRITES`) |
+| `lib/sprite-constants.js` | Single source of truth: tile dimensions, output path, all color palettes (terrain, castle, unit), sprite name registries (`TERRAIN_SPRITES`, `CASTLE_SPRITES`, `UNIT_SPRITES`, `TREE_OVERLAY_SPRITES`, `CASTLE_OVERLAY_SPRITES`) |
 | `lib/pixel-utils.js` | Core drawing primitives: `createBuffer()`, `setPixel()`, `isInsideDiamond()`, `seededRandom()`, `resetSeed()`, `drawEdgeBorder()` |
 | `lib/fill-patterns.js` | Shared diamond fill operations: `fillDiamond()`, `fillDiamondWithSpeckle()`, `drawStoneBlocks()` |
 | `lib/weapons.js` | `drawWeapon()` dispatcher + individual weapon drawing functions — legacy, not used by enhanced unit generator |
@@ -59,6 +60,39 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 
 To add a new sprite, change a texture tone, or rename a sprite file — edit `lib/sprite-constants.js`.
 All generators import their colors and names from there.
+
+#### Sprite name registries in `lib/sprite-constants.js`
+
+| Registry | Count | Description |
+|----------|-------|-------------|
+| `TERRAIN_SPRITES` | 17 | Flat 64×32 terrain tiles (grass, road, water, trees, rock, bridge) |
+| `CASTLE_SPRITES` | 13 | Flat 64×32 castle structure tiles (wall, tower, keep, gatehouse, bailey, bridge segments) |
+| `UNIT_SPRITES` | 9 | 32×32 player army unit sprites |
+| `TREE_OVERLAY_SPRITES` | 7 | 64×48 transparent-background tree overlay sprites (oak, pine, shrub variants) |
+| `CASTLE_OVERLAY_SPRITES` | 18 | Transparent-background castle structure overlay sprites (variable height: 48, 64, or 80 px) |
+
+`CASTLE_OVERLAY_SPRITES` keys and their canvas dimensions:
+
+| Key | Sprite name | Canvas |
+|-----|-------------|--------|
+| `wall` | `castle-wall-overlay` | 64×48 |
+| `wallDamaged` | `castle-wall-damaged-overlay` | 64×48 |
+| `tower` | `castle-tower-overlay` | 64×64 |
+| `towerDamaged` | `castle-tower-damaged-overlay` | 64×64 |
+| `keepTopLeft` | `castle-keep-tl-overlay` | 64×64 |
+| `keepTopLeftDamaged` | `castle-keep-tl-damaged-overlay` | 64×64 |
+| `keepBotLeft` | `castle-keep-bl-overlay` | 64×64 |
+| `keepBotLeftDamaged` | `castle-keep-bl-damaged-overlay` | 64×64 |
+| `keepBotRight` | `castle-keep-br-overlay` | 64×64 |
+| `keepBotRightDamaged` | `castle-keep-br-damaged-overlay` | 64×64 |
+| `keepCenter` | `castle-keep-center-overlay` | 64×64 |
+| `keepCenterDamaged` | `castle-keep-center-damaged-overlay` | 64×64 |
+| `gatehouse` | `castle-gatehouse-overlay` | 64×80 |
+| `gatehouseDamaged` | `castle-gatehouse-damaged-overlay` | 64×80 |
+| `bridgeMm` | `bridge-mm-overlay` | 64×48 |
+| `bridgeStart` | `castle-bridge-start-overlay` | 64×48 |
+| `bridgeMid` | `castle-bridge-mid-overlay` | 64×48 |
+| `bridgeGate` | `castle-bridge-gate-overlay` | 64×48 |
 
 For the enhanced sprite pipeline's palette quantization and color enforcement, use `lib/palette.js`.
 
@@ -113,10 +147,13 @@ This directory is created automatically if it doesn't exist. The `generated/` fo
 | Terrain | 17 | 64×32 | `grass-short-1`, `road-full`, `water-1`, etc. |
 | Tree overlays | 7 | 64×48 | `tree-oak-overlay-1`, `tree-pine-overlay-1`, `tree-shrub-overlay-1`, etc. |
 | Castle | 13 | 64×32 | `castle-wall`, `castle-tower`, etc. |
+| Castle overlays | 18 | 64×48 / 64×64 / 64×80 | `castle-wall-overlay`, `castle-tower-overlay`, `castle-gatehouse-overlay`, etc. |
 | Units | 9 | 32×32 | `unit-knight`, `unit-archer`, etc. |
 | Enemy | 5 | 64×32 | `enemy-knight`, `enemy-archer`, etc. |
 | Damaged castle | 10 | 64×32 | `castle-wall-damaged`, `castle-tower-damaged`, etc. |
 | Water animation | 1 entry (multi-frame) | 64×32 per frame | `water-anim` → individual frame entries |
+
+Castle overlay canvas heights vary by structure category: walls and bridges are 64×48, towers and keeps are 64×64, and the gatehouse is 64×80.
 
 ### Error handling
 

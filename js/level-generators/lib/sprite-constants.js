@@ -128,6 +128,39 @@ const UNIT_SPRITES = {
     artillery:     'unit-artillery',
 };
 
+// ─── Castle Overlay Sprite Registry ─────────────────────────────────────────
+// Transparent-background castle structure sprites drawn on top of ground tiles.
+// Canvas dimensions vary by structure category (see design.md):
+//   Walls and bridges: 64×48 px
+//   Towers and keeps:  64×64 px
+//   Gatehouse:         64×80 px
+
+const CASTLE_OVERLAY_SPRITES = {
+    // Walls (64×48)
+    wall:                   'castle-wall-overlay',
+    wallDamaged:            'castle-wall-damaged-overlay',
+    // Towers (64×64)
+    tower:                  'castle-tower-overlay',
+    towerDamaged:           'castle-tower-damaged-overlay',
+    // Keep quadrants (64×64)
+    keepTopLeft:            'castle-keep-tl-overlay',
+    keepTopLeftDamaged:     'castle-keep-tl-damaged-overlay',
+    keepBotLeft:            'castle-keep-bl-overlay',
+    keepBotLeftDamaged:     'castle-keep-bl-damaged-overlay',
+    keepBotRight:           'castle-keep-br-overlay',
+    keepBotRightDamaged:    'castle-keep-br-damaged-overlay',
+    keepCenter:             'castle-keep-center-overlay',
+    keepCenterDamaged:      'castle-keep-center-damaged-overlay',
+    // Gatehouse (64×80)
+    gatehouse:              'castle-gatehouse-overlay',
+    gatehouseDamaged:       'castle-gatehouse-damaged-overlay',
+    // Bridge surfaces (64×48) — no damaged variants
+    bridgeMm:               'bridge-mm-overlay',
+    bridgeStart:            'castle-bridge-start-overlay',
+    bridgeMid:              'castle-bridge-mid-overlay',
+    bridgeGate:             'castle-bridge-gate-overlay',
+};
+
 // ─── Tree Overlay Sprite Registry ───────────────────────────────────────────
 // Transparent-background tree sprites drawn on top of grass ground tiles.
 // Each sprite is 64×48 px with alpha=0 outside the trunk+canopy shape.
@@ -154,4 +187,5 @@ module.exports = {
     CASTLE_SPRITES,
     UNIT_SPRITES,
     TREE_OVERLAY_SPRITES,
+    CASTLE_OVERLAY_SPRITES,
 };
