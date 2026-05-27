@@ -251,8 +251,10 @@ Each overlay sprite starts from `createOverlayBuffer()` — a 64×48 buffer init
 | `generateFlowers(variant, noiseGen)` | Noise grass base + cross-shaped flower clusters in palette colors |
 | `generateRoad()` / `generateWater(variant)` / `generateBridge()` | Full shading + quantization pipeline |
 | `generateTreeOverlay(variant, treeType, noiseGen)` | Transparent-background tree overlay sprite (64×48); `treeType` is `'oak'`, `'pine'`, or `'shrub'` |
-| `createOverlayBuffer()` | Allocates a blank 64×48 RGBA buffer (all zeros = fully transparent); starting canvas for overlay generation |
+| `createOverlayBuffer()` | Allocates a blank 64×48 RGBA buffer (all zeros = fully transparent); starting canvas for tree overlay generation |
 | `setOverlayPixel(buffer, x, y, r, g, b)` | Writes one opaque pixel into a 64×48 overlay buffer; bounds-checked, color-clamped |
+| `createCastleOverlayBuffer(width, height)` | Allocates a blank `width×height×4` RGBA buffer (all zeros = fully transparent); starting canvas for castle structure overlay generation; `height` is 48, 64, or 80 depending on structure category |
+| `setCastleOverlayPixel(buffer, width, x, y, r, g, b)` | Writes one fully opaque pixel into a castle overlay buffer at `(x, y)`; silently ignores out-of-bounds coordinates; derives canvas height from `buffer.length / (width * 4)` |
 | `createTerrainNoiseGenerator(seed)` | Creates a deterministic noise function from `lib/noise-texture.js` |
 | `getPaletteForCategory('terrain')` | Returns the 16-color primary palette for quantization |
 | `isInsideDiamond(x, y)` | Returns true if pixel is inside the diamond: `\|x-32\|/32 + \|y-16\|/16 <= 1` |

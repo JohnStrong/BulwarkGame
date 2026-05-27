@@ -24,13 +24,13 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert all existing flat castle sprite names are still present
     - _Requirements: 2.2, 7.3, 8.2_
 
-- [ ] 3. Add generator buffer helpers to sprite generator
-  - [ ] 3.1 Add `createCastleOverlayBuffer(width, height)` and `setCastleOverlayPixel(buffer, width, x, y, r, g, b)` helpers to `js/level-generators/generate-iso-sprites-br-tl.js`
+- [x] 3. Add generator buffer helpers to sprite generator
+  - [x] 3.1 Add `createCastleOverlayBuffer(width, height)` and `setCastleOverlayPixel(buffer, width, x, y, r, g, b)` helpers to `js/level-generators/generate-iso-sprites-br-tl.js`
     - `createCastleOverlayBuffer` returns a `width×height×4` byte buffer initialized to all zeros (fully transparent)
     - `setCastleOverlayPixel` writes one fully opaque pixel; silently ignores out-of-bounds coordinates
     - _Requirements: 1.2, 1.8_
 
-  - [ ] 3.2 Write unit tests for generator buffer helpers
+  - [x] 3.2 Write unit tests for generator buffer helpers
     - Depends on: task 3.1
     - Assert `createCastleOverlayBuffer(64, 48)` returns a buffer of length `64×48×4` filled with zeros
     - Assert `setCastleOverlayPixel` writes the correct RGBA bytes at the given (x, y) position

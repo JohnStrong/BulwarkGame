@@ -917,9 +917,48 @@ if (require.main === module) {
     generateAll().catch(error => { console.error(error); process.exit(1); });
 }
 
+// ─── Castle Overlay Buffer Helpers ──────────────────────────────────────────
+
+/**
+ * Allocates a blank RGBA buffer of the given dimensions, initialized to all
+ * zeros (fully transparent). Used as the starting canvas for castle overlay
+ * sprite generation.
+ *
+ * @param {number} width  - Canvas width in pixels (always 64)
+ * @param {number} height - Canvas height in pixels (48, 64, or 80)
+ * @returns {Buffer} A width×height×4 byte buffer filled with zeros.
+ */
+function createCastleOverlayBuffer(width, height) {
+    return Buffer.alloc(width * height * 4, 0);
+}
+
+/**
+ * Writes one fully opaque pixel into a castle overlay buffer.
+ * Coordinates outside the canvas bounds are silently ignored.
+ *
+ * @param {Buffer} buffer - The RGBA overlay buffer.
+ * @param {number} width  - Canvas width (for stride calculation).
+ * @param {number} x - Horizontal position (0 = left edge).
+ * @param {number} y - Vertical position (0 = top edge).
+ * @param {number} r - Red channel value (0–255).
+ * @param {number} g - Green channel value (0–255).
+ * @param {number} b - Blue channel value (0–255).
+ */
+function setCastleOverlayPixel(buffer, width, x, y, r, g, b) {
+    const height = buffer.length / (width * 4);
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = (y * width + x) * 4;
+    buffer[idx]     = r;
+    buffer[idx + 1] = g;
+    buffer[idx + 2] = b;
+    buffer[idx + 3] = 255;
+}
+
 module.exports = {
     generateTreeOverlay,
     createOverlayBuffer,
     OVERLAY_WIDTH,
     OVERLAY_HEIGHT,
+    createCastleOverlayBuffer,
+    setCastleOverlayPixel,
 };
