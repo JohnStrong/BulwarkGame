@@ -30,7 +30,7 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | File | What it does |
 |------|-------------|
 | `build-sprites.js` | Unified build pipeline — orchestrates all generators, collects PNGs, packs atlas, outputs to `generated/assets/atlas/` |
-| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) **and** 7 tree overlay sprites (64×48, transparent background) with enhanced pipeline (noise, shading, dithering, quantization) |
+| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) **and** 7 tree overlay sprites (64×48, transparent background) **and** 18 castle structure overlay sprites (variable height: 64×48 walls/bridges, 64×64 towers/keeps, 64×80 gatehouse) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
@@ -177,11 +177,23 @@ All generator failures propagate non-zero exit codes. On any failure, structured
 
 ## generate-iso-sprites-br-tl.js
 
-Generates terrain sprites and tree overlay sprites. Viewpoint: bottom-right → top-left.
+Generates terrain sprites, tree overlay sprites, and castle structure overlay sprites. Viewpoint: bottom-right → top-left.
 
 ```bash
 node js/level-generators/generate-iso-sprites-br-tl.js
 ```
+
+### Imports from `lib/sprite-constants.js`
+
+| Import | Purpose |
+|--------|---------|
+| `TERRAIN_COLORS` | Color palette for terrain sprites (grass, road, water, etc.) |
+| `CASTLE_COLORS` | Color palette for castle structure overlay sprites (walls, towers, keeps, gatehouse, bridges) |
+| `TERRAIN_SPRITES` | Canonical sprite name registry for flat terrain tiles |
+| `TREE_OVERLAY_SPRITES` | Canonical sprite name registry for tree overlay sprites |
+| `CASTLE_OVERLAY_SPRITES` | Canonical sprite name registry for castle structure overlay sprites |
+
+`CASTLE_COLORS` and `CASTLE_OVERLAY_SPRITES` are used by `generateCastleOverlay()` and `createCastleOverlayBuffer()` / `setCastleOverlayPixel()` to produce the 18 castle structure overlay sprites defined in the castle-structure-overlays spec.
 
 ### What it produces
 

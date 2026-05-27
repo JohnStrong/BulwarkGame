@@ -37,8 +37,8 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert `setCastleOverlayPixel` silently ignores coordinates outside the canvas bounds
     - _Requirements: 1.2, 1.8_
 
-- [ ] 4. Implement `generateCastleOverlay` sprite generator
-  - [ ] 4.1 Implement `generateCastleOverlay(structureType, damaged)` in `js/level-generators/generate-iso-sprites-br-tl.js`
+- [x] 4. Implement `generateCastleOverlay` sprite generator
+  - [x] 4.1 Implement `generateCastleOverlay(structureType, damaged)` in `js/level-generators/generate-iso-sprites-br-tl.js`
     - Depends on: task 3.1
     - Allocate a buffer via `createCastleOverlayBuffer` at the correct canvas height for the structure category (wall/bridge: 48 px, tower/keep: 64 px, gatehouse: 80 px)
     - Draw only the structure's vertical body (walls, battlements, arch, portcullis, planks) using `CASTLE_COLORS` palette values; leave all ground-diamond pixels at alpha=0
@@ -46,7 +46,7 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Damaged variants use increased `CASTLE_COLORS.wallDark`/`towerDark` coverage and reduced highlight pixels
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 7.1_
 
-  - [ ] 4.2 Write unit tests for generator buffer dimensions and variant distinctness
+  - [x] 4.2 Write unit tests for generator buffer dimensions and variant distinctness
     - Depends on: task 4.1
     - Assert each generated buffer has the correct byte length for its canvas dimensions (wall/bridge: 64×48×4, tower/keep: 64×64×4, gatehouse: 64×80×4)
     - Assert undamaged and damaged variants of the same structure type are not byte-for-byte identical

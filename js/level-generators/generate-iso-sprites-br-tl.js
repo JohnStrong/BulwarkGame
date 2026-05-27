@@ -36,8 +36,10 @@ const {
     TILE_HEIGHT,
     OUTPUT_DIR,
     TERRAIN_COLORS,
+    CASTLE_COLORS,
     TERRAIN_SPRITES,
     TREE_OVERLAY_SPRITES,
+    CASTLE_OVERLAY_SPRITES,
 } = require('./lib/sprite-constants');
 
 const {
@@ -954,6 +956,484 @@ function setCastleOverlayPixel(buffer, width, x, y, r, g, b) {
     buffer[idx + 3] = 255;
 }
 
+// ─── Castle Overlay Sprite Generator ────────────────────────────────────────
+
+/**
+ * Canvas height constants for each structure category.
+ * The bottom TILE_HEIGHT (32) rows of each canvas correspond to the ground
+ * diamond surface and must remain alpha=0. Only the rows above that are drawn.
+ */
+const CASTLE_OVERLAY_CANVAS_HEIGHTS = {
+    wall:       48,  // 16 px above ground
+    bridge:     48,  // 16 px above ground
+    tower:      64,  // 32 px above ground
+    keep:       64,  // 32 px above ground
+    gatehouse:  80,  // 48 px above ground
+};
+
+/**
+ * Returns the canvas height for a given structure type.
+ * @param {string} structureType
+ * @returns {number}
+ */
+function getCastleOverlayHeight(structureType) {
+    if (structureType === 'wall') return CASTLE_OVERLAY_CANVAS_HEIGHTS.wall;
+    if (structureType === 'bridge-mm' || structureType === 'bridge-start' ||
+        structureType === 'bridge-mid' || structureType === 'bridge-gate') {
+        return CASTLE_OVERLAY_CANVAS_HEIGHTS.bridge;
+    }
+    if (structureType === 'tower') return CASTLE_OVERLAY_CANVAS_HEIGHTS.tower;
+    if (structureType === 'keep-tl' || structureType === 'keep-bl' ||
+        structureType === 'keep-br' || structureType === 'keep-center') {
+        return CASTLE_OVERLAY_CANVAS_HEIGHTS.keep;
+    }
+    if (structureType === 'gatehouse') return CASTLE_OVERLAY_CANVAS_HEIGHTS.gatehouse;
+    throw new Error(`Unknown castle structure type: "${structureType}"`);
+}
+
+/**
+ * Draws a horizontal stone course row into the overlay buffer.
+ * Rows are drawn in the "above ground" area only (y < height - TILE_HEIGHT).
+ *
+ * @param {Buffer} buffer
+ * @param {number} width
+ * @param {number} height
+ * @param {number} y - Row index in the overlay canvas
+ * @param {number} xStart - Left edge of the wall face
+ * @param {number} xEnd - Right edge of the wall face (exclusive)
+ * @param {number[]} color - [r, g, b]
+ * @param {boolean} isMortar - Whether this row is a mortar line
+ */
+function drawStoneRow(buffer, width, height, y, xStart, xEnd, color, isMortar) {
+    const groundStart = height - TILE_HEIGHT; // rows below this are ground diamond (alpha=0)
+    if (y < 0 || y >= groundStart) return;
+    const [r, g, b] = color;
+    for (let x = xStart; x < xEnd; x++) {
+        if (x < 0 || x >= width) continue;
+        setCastleOverlayPixel(buffer, width, x, y, r, g, b);
+    }
+}
+
+/**
+ * Draws a filled rectangle into the overlay buffer, respecting the ground boundary.
+ *
+ * @param {Buffer} buffer
+ * @param {number} width
+ * @param {number} height
+ * @param {number} x0 - Left edge (inclusive)
+ * @param {number} y0 - Top edge (inclusive)
+ * @param {number} x1 - Right edge (exclusive)
+ * @param {number} y1 - Bottom edge (exclusive)
+ * @param {number[]} color - [r, g, b]
+ */
+function fillRect(buffer, width, height, x0, y0, x1, y1, color) {
+    const groundStart = height - TILE_HEIGHT;
+    const [r, g, b] = color;
+    for (let y = y0; y < y1; y++) {
+        if (y < 0 || y >= groundStart) continue;
+        for (let x = x0; x < x1; x++) {
+            if (x < 0 || x >= width) continue;
+            setCastleOverlayPixel(buffer, width, x, y, r, g, b);
+        }
+    }
+}
+
+/**
+ * Draws a stone wall face with horizontal block courses and mortar lines.
+ * The wall face spans from x0 to x1 and from y0 to the ground boundary.
+ *
+ * @param {Buffer} buffer
+ * @param {number} width
+ * @param {number} height
+ * @param {number} x0 - Left edge of wall face
+ * @param {number} x1 - Right edge of wall face (exclusive)
+ * @param {number} y0 - Top of wall face
+ * @param {number[]} wallColor - Main stone color
+ * @param {number[]} wallLightColor - Lighter stone variant
+ * @param {number[]} mortarColor - Mortar line color
+ * @param {boolean} damaged - Whether to use more dark pixels
+ * @param {number} seedOffset - Seed offset for reproducibility
+ */
+function drawWallFace(buffer, width, height, x0, x1, y0, wallColor, wallLightColor, mortarColor, damaged, seedOffset) {
+    const groundStart = height - TILE_HEIGHT;
+    const courseHeight = 5; // 4 stone + 1 mortar
+    const blockMinWidth = 6;
+    const blockMaxWidth = 10;
+
+    resetSeed(20000 + seedOffset);
+
+    for (let courseIndex = 0; courseIndex * courseHeight + y0 < groundStart; courseIndex++) {
+        const courseY = y0 + courseIndex * courseHeight;
+        const rowOffset = (courseIndex % 2 === 0) ? 0 : 4;
+
+        // Mortar line at bottom of each course
+        const mortarY = courseY + courseHeight - 1;
+        drawStoneRow(buffer, width, height, mortarY, x0, x1, mortarColor, true);
+
+        // Stone blocks within the course
+        let blockX = x0 + rowOffset;
+        while (blockX < x1) {
+            const blockWidth = blockMinWidth + Math.floor(seededRandom() * (blockMaxWidth - blockMinWidth + 1));
+            const useLight = !damaged && seededRandom() > 0.5;
+            const baseColor = useLight ? wallLightColor : wallColor;
+
+            for (let py = 0; py < courseHeight - 1; py++) {
+                const y = courseY + py;
+                if (y < 0 || y >= groundStart) continue;
+                for (let px = 0; px < blockWidth - 1; px++) {
+                    const x = blockX + px;
+                    if (x < x0 || x >= x1 || x < 0 || x >= width) continue;
+                    const variation = damaged
+                        ? (seededRandom() - 0.7) * 14  // bias toward darker
+                        : (seededRandom() - 0.5) * 10;
+                    const nr = Math.max(0, Math.min(255, baseColor[0] + variation));
+                    const ng = Math.max(0, Math.min(255, baseColor[1] + variation));
+                    const nb = Math.max(0, Math.min(255, baseColor[2] + variation));
+                    setCastleOverlayPixel(buffer, width, x, y, nr, ng, nb);
+                }
+            }
+            blockX += blockWidth;
+        }
+    }
+}
+
+/**
+ * Draws battlements (merlons and crenels) along the top of a wall.
+ * Merlons are raised stone blocks; crenels are gaps (alpha=0).
+ *
+ * @param {Buffer} buffer
+ * @param {number} width
+ * @param {number} height
+ * @param {number} x0 - Left edge of battlement row
+ * @param {number} x1 - Right edge of battlement row (exclusive)
+ * @param {number} topY - Y position of the top of the battlements
+ * @param {number[]} merlonColor - Color for merlon blocks
+ * @param {boolean} damaged - Damaged merlons are shorter/broken
+ */
+function drawBattlements(buffer, width, height, x0, x1, topY, merlonColor, damaged) {
+    const merlonWidth = 5;
+    const crenelWidth = 4;
+    const merlonHeight = damaged ? 3 : 5;
+    const period = merlonWidth + crenelWidth;
+
+    for (let x = x0; x < x1; x++) {
+        const posInPeriod = (x - x0) % period;
+        const isMerlon = posInPeriod < merlonWidth;
+
+        if (isMerlon) {
+            // Draw merlon block
+            for (let dy = 0; dy < merlonHeight; dy++) {
+                const y = topY + dy;
+                if (x >= 0 && x < width) {
+                    setCastleOverlayPixel(buffer, width, x, y, ...merlonColor);
+                }
+            }
+        }
+        // Crenels are gaps — leave alpha=0 (already transparent)
+    }
+}
+
+/**
+ * Generates a castle structure overlay sprite with a transparent background.
+ * Only the structure's vertical body (walls, battlements, arch, portcullis,
+ * planks) is drawn with alpha=255. The isometric ground diamond surface is
+ * excluded (alpha=0).
+ *
+ * Canvas dimensions by structure category:
+ *   - wall / bridge-*: 64×48 (16 px above the 32 px ground diamond)
+ *   - tower / keep-*:  64×64 (32 px above the 32 px ground diamond)
+ *   - gatehouse:       64×80 (48 px above the 32 px ground diamond)
+ *
+ * @param {'wall'|'tower'|'keep-tl'|'keep-bl'|'keep-br'|'keep-center'|
+ *          'gatehouse'|'bridge-mm'|'bridge-start'|'bridge-mid'|'bridge-gate'} structureType
+ * @param {boolean} damaged - Whether to draw the damaged variant appearance.
+ * @returns {Buffer} RGBA pixel buffer at the correct canvas dimensions.
+ */
+function generateCastleOverlay(structureType, damaged) {
+    const W = 64;
+    const H = getCastleOverlayHeight(structureType);
+    const buffer = createCastleOverlayBuffer(W, H);
+
+    // groundStart: the first row that belongs to the ground diamond (alpha=0)
+    // Everything above this row (y < groundStart) is the structure's vertical body.
+    const groundStart = H - TILE_HEIGHT; // e.g. 48-32=16, 64-32=32, 80-32=48
+
+    const castlePalette = getPaletteForCategory('castle');
+
+    // ── Wall ──────────────────────────────────────────────────────────────────
+    if (structureType === 'wall') {
+        // Wall face: full width, from top to ground boundary
+        // Left face (darker, shadow side) — left 16 px
+        // Front face (main face) — center 32 px
+        // Right face (lighter, lit side) — right 16 px
+        const wallColor      = damaged ? CASTLE_COLORS.wallDark  : CASTLE_COLORS.wall;
+        const wallLightColor = damaged ? CASTLE_COLORS.wall       : CASTLE_COLORS.wallLight;
+        const mortarColor    = CASTLE_COLORS.wallMortar;
+
+        // Main front face (center)
+        drawWallFace(buffer, W, H, 16, 48, 0, wallColor, wallLightColor, mortarColor, damaged, 100);
+
+        // Left shadow face
+        fillRect(buffer, W, H, 0, 0, 16, groundStart,
+            damaged ? CASTLE_COLORS.wallDark : CASTLE_COLORS.wallMortar);
+
+        // Right lit face
+        fillRect(buffer, W, H, 48, 0, W, groundStart,
+            damaged ? CASTLE_COLORS.wallMortar : CASTLE_COLORS.wallLight);
+
+        // Battlements along the top
+        drawBattlements(buffer, W, H, 0, W, 0, wallColor, damaged);
+
+    // ── Tower ─────────────────────────────────────────────────────────────────
+    } else if (structureType === 'tower') {
+        // Tower: circular cross-section, drawn as a rounded front face
+        const towerColor      = damaged ? CASTLE_COLORS.towerDark  : CASTLE_COLORS.tower;
+        const towerLightColor = damaged ? CASTLE_COLORS.tower       : CASTLE_COLORS.towerLight;
+        const mortarColor     = CASTLE_COLORS.wallMortar;
+
+        // Draw the tower body as a rounded rectangle (wider in the middle)
+        // The tower is centered horizontally
+        const towerCenterX = 32;
+        const towerRadius  = 20; // half-width of the tower face
+
+        for (let y = 0; y < groundStart; y++) {
+            // Taper the tower slightly toward the top (isometric perspective)
+            const taper = Math.round((y / groundStart) * 4); // 0 at top, 4 at bottom
+            const xLeft  = Math.max(0, towerCenterX - towerRadius + taper);
+            const xRight = Math.min(W, towerCenterX + towerRadius - taper);
+
+            for (let x = xLeft; x < xRight; x++) {
+                // Left edge: shadow
+                if (x < xLeft + 4) {
+                    setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.towerDark);
+                // Right edge: highlight
+                } else if (x >= xRight - 4) {
+                    setCastleOverlayPixel(buffer, W, x, y,
+                        ...(damaged ? CASTLE_COLORS.towerDark : CASTLE_COLORS.towerLight));
+                // Mortar lines every 5 rows
+                } else if (y % 5 === 4) {
+                    setCastleOverlayPixel(buffer, W, x, y, ...mortarColor);
+                } else {
+                    // Stone blocks with variation
+                    const blockPhase = Math.floor((x - xLeft) / 8) + (Math.floor(y / 5) % 2 === 0 ? 0 : 1);
+                    const useLight = !damaged && (blockPhase % 2 === 0);
+                    const baseColor = useLight ? towerLightColor : towerColor;
+                    const variation = damaged
+                        ? (seededRandom() - 0.7) * 12
+                        : (seededRandom() - 0.5) * 8;
+                    const nr = Math.max(0, Math.min(255, baseColor[0] + variation));
+                    const ng = Math.max(0, Math.min(255, baseColor[1] + variation));
+                    const nb = Math.max(0, Math.min(255, baseColor[2] + variation));
+                    setCastleOverlayPixel(buffer, W, x, y, nr, ng, nb);
+                }
+            }
+        }
+
+        // Battlements at the top of the tower
+        const topTaper = 4;
+        const battleX0 = towerCenterX - towerRadius + topTaper;
+        const battleX1 = towerCenterX + towerRadius - topTaper;
+        drawBattlements(buffer, W, H, battleX0, battleX1, 0, towerColor, damaged);
+
+    // ── Keep quadrants ────────────────────────────────────────────────────────
+    } else if (structureType === 'keep-tl' || structureType === 'keep-bl' ||
+               structureType === 'keep-br' || structureType === 'keep-center') {
+
+        const keepColor      = damaged ? CASTLE_COLORS.towerDark  : CASTLE_COLORS.tower;
+        const keepLightColor = damaged ? CASTLE_COLORS.tower       : CASTLE_COLORS.towerLight;
+        const mortarColor    = CASTLE_COLORS.wallMortar;
+
+        // Full-width keep face
+        drawWallFace(buffer, W, H, 0, W, 0, keepColor, keepLightColor, mortarColor, damaged,
+            structureType === 'keep-tl' ? 200 :
+            structureType === 'keep-bl' ? 300 :
+            structureType === 'keep-br' ? 400 : 500);
+
+        // Window slit (1×3 dark rectangle) — only on undamaged or partially damaged
+        if (!damaged || structureType === 'keep-center') {
+            const slitX = structureType === 'keep-tl' ? 30 :
+                          structureType === 'keep-bl' ? 34 :
+                          structureType === 'keep-br' ? 28 : 32;
+            const slitY = Math.floor(groundStart * 0.4);
+            for (let dy = 0; dy < 3; dy++) {
+                const sy = slitY + dy;
+                if (sy >= 0 && sy < groundStart) {
+                    setCastleOverlayPixel(buffer, W, slitX, sy, 25, 25, 22);
+                }
+            }
+        }
+
+        // Keep center: flag pole and flag
+        if (structureType === 'keep-center') {
+            // Flag pole
+            for (let y = 0; y < groundStart - 4; y++) {
+                if (y >= 0 && y < groundStart) {
+                    setCastleOverlayPixel(buffer, W, 32, y, 55, 35, 18);
+                    setCastleOverlayPixel(buffer, W, 33, y, 65, 42, 22);
+                }
+            }
+            // Flag (5×4 pixels)
+            resetSeed(25000);
+            const flagH = damaged ? 3 : 5;
+            for (let fy = 0; fy < flagH; fy++) {
+                for (let fx = 0; fx < 7; fx++) {
+                    const flagY = 2 + fy;
+                    const flagX = 34 + fx;
+                    if (flagY >= 0 && flagY < groundStart && flagX >= 0 && flagX < W) {
+                        const noise = (seededRandom() - 0.5) * 6;
+                        setCastleOverlayPixel(buffer, W, flagX, flagY,
+                            Math.max(0, Math.min(255, 200 + noise)),
+                            30, 25);
+                    }
+                }
+            }
+        }
+
+        // Battlements on top
+        drawBattlements(buffer, W, H, 0, W, 0, keepColor, damaged);
+
+    // ── Gatehouse ─────────────────────────────────────────────────────────────
+    } else if (structureType === 'gatehouse') {
+        const wallColor      = damaged ? CASTLE_COLORS.wallDark  : CASTLE_COLORS.wall;
+        const wallLightColor = damaged ? CASTLE_COLORS.wall       : CASTLE_COLORS.wallLight;
+        const mortarColor    = CASTLE_COLORS.wallMortar;
+
+        // Stone wall face — full width
+        drawWallFace(buffer, W, H, 0, W, 0, wallColor, wallLightColor, mortarColor, damaged, 600);
+
+        // Arch opening (dark rectangle in the center-lower portion)
+        // The arch spans the lower half of the above-ground area
+        const archTop    = Math.floor(groundStart * 0.35);
+        const archBottom = groundStart; // arch goes to the ground boundary
+        const archLeft   = 20;
+        const archRight  = 44;
+
+        // Dark arch interior
+        fillRect(buffer, W, H, archLeft, archTop, archRight, archBottom, [25, 22, 20]);
+
+        // Arch curve at the top (rounded arch)
+        const archCenterX = (archLeft + archRight) / 2;
+        const archRadius  = (archRight - archLeft) / 2;
+        for (let x = archLeft; x < archRight; x++) {
+            const dx = x - archCenterX;
+            const archY = archTop - Math.round(Math.sqrt(Math.max(0, archRadius * archRadius - dx * dx)) * 0.4);
+            if (archY >= 0 && archY < groundStart) {
+                // Fill from archY down to archTop with dark color
+                for (let y = archY; y < archTop; y++) {
+                    if (y >= 0 && y < groundStart) {
+                        setCastleOverlayPixel(buffer, W, x, y, 25, 22, 20);
+                    }
+                }
+            }
+        }
+
+        // Portcullis bars (vertical iron bars)
+        if (!damaged) {
+            for (let x = archLeft + 1; x < archRight; x += 3) {
+                for (let y = archTop; y < archBottom; y++) {
+                    if (y >= 0 && y < groundStart) {
+                        setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
+                    }
+                }
+            }
+            // Horizontal crossbars
+            for (let y = archTop + 3; y < archBottom; y += 4) {
+                for (let x = archLeft; x < archRight; x++) {
+                    if (y >= 0 && y < groundStart) {
+                        setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.ironLight);
+                    }
+                }
+            }
+        } else {
+            // Damaged: broken portcullis — only partial bars
+            for (let x = archLeft + 1; x < archRight; x += 3) {
+                const barHeight = Math.floor(groundStart * 0.3) + Math.floor(seededRandom() * Math.floor(groundStart * 0.2));
+                for (let y = archTop; y < archTop + barHeight && y < groundStart; y++) {
+                    setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
+                }
+            }
+        }
+
+        // Battlements at the top
+        drawBattlements(buffer, W, H, 0, W, 0, wallColor, damaged);
+
+    // ── Bridge-mm (cobblestone bridge surface) ────────────────────────────────
+    } else if (structureType === 'bridge-mm') {
+        // Bridge-mm: cobblestone parapet walls on the sides, open center
+        // The overlay shows the low stone parapets above the ground level
+        const stoneColor  = CASTLE_COLORS.wall;
+        const mortarColor = CASTLE_COLORS.wallMortar;
+
+        // Left parapet (x: 0-10)
+        drawWallFace(buffer, W, H, 0, 10, 0, stoneColor, CASTLE_COLORS.wallLight, mortarColor, damaged, 700);
+        // Right parapet (x: 54-64)
+        drawWallFace(buffer, W, H, 54, W, 0, stoneColor, CASTLE_COLORS.wallLight, mortarColor, damaged, 710);
+
+        // Low crenels on parapets
+        drawBattlements(buffer, W, H, 0, 10, 0, stoneColor, damaged);
+        drawBattlements(buffer, W, H, 54, W, 0, stoneColor, damaged);
+
+    // ── Bridge-start (road → wooden planks transition) ────────────────────────
+    } else if (structureType === 'bridge-start') {
+        // Left half: low stone abutment
+        drawWallFace(buffer, W, H, 0, 32, 0, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight,
+            CASTLE_COLORS.wallMortar, damaged, 720);
+        // Right half: wooden plank edge (low railing)
+        fillRect(buffer, W, H, 32, 0, W, groundStart, CASTLE_COLORS.wood);
+        // Plank grain lines
+        for (let y = 2; y < groundStart; y += 5) {
+            for (let x = 32; x < W; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.woodDark);
+            }
+        }
+
+    // ── Bridge-mid (wooden plank drawbridge) ──────────────────────────────────
+    } else if (structureType === 'bridge-mid') {
+        // Wooden plank railing on both sides
+        // Left railing (x: 0-8)
+        fillRect(buffer, W, H, 0, 0, 8, groundStart, CASTLE_COLORS.wood);
+        // Right railing (x: 56-64)
+        fillRect(buffer, W, H, 56, 0, W, groundStart, CASTLE_COLORS.wood);
+
+        // Plank grain lines on railings
+        for (let y = 2; y < groundStart; y += 5) {
+            for (let x = 0; x < 8; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.woodDark);
+            }
+            for (let x = 56; x < W; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.woodDark);
+            }
+        }
+
+        if (damaged) {
+            // Damaged: broken planks — some gaps
+            for (let x = 8; x < 56; x += 7) {
+                for (let y = 0; y < groundStart; y++) {
+                    setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.woodDark);
+                }
+            }
+        }
+
+    // ── Bridge-gate (wooden planks → stone wall transition) ───────────────────
+    } else if (structureType === 'bridge-gate') {
+        // Left half: wooden plank railing
+        fillRect(buffer, W, H, 0, 0, 8, groundStart, CASTLE_COLORS.wood);
+        for (let y = 2; y < groundStart; y += 5) {
+            for (let x = 0; x < 8; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.woodDark);
+            }
+        }
+        // Right half: stone wall abutment
+        drawWallFace(buffer, W, H, 32, W, 0, CASTLE_COLORS.wall, CASTLE_COLORS.wallLight,
+            CASTLE_COLORS.wallMortar, damaged, 730);
+    }
+
+    // Final pass: quantize to castle palette
+    quantizeToPalette(buffer, castlePalette);
+
+    return buffer;
+}
+
 module.exports = {
     generateTreeOverlay,
     createOverlayBuffer,
@@ -961,4 +1441,6 @@ module.exports = {
     OVERLAY_HEIGHT,
     createCastleOverlayBuffer,
     setCastleOverlayPixel,
+    generateCastleOverlay,
+    CASTLE_OVERLAY_SPRITES,
 };
