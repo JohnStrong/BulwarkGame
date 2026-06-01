@@ -52,14 +52,14 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert undamaged and damaged variants of the same structure type are not byte-for-byte identical
     - _Requirements: 1.3, 1.4, 1.5, 1.6, 1.7_
 
-- [ ] 5. Create `generate-castle-overlay-sprites.js` generator script
+- [x] 5. Create `generate-castle-overlay-sprites.js` generator script
   - Depends on: task 4.1
   - Create `js/level-generators/generate-castle-overlay-sprites.js` as a standalone script
   - Call `generateCastleOverlay(structureType, damaged)` for each of the 18 sprites and write PNGs to `OUTPUT_DIR`
   - Follow the same pattern as the existing generator scripts in that directory
   - _Requirements: 1.9, 9.1_
 
-- [ ] 6. Checkpoint — Ensure all tests pass
+- [x] 6. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Create `overlay-utils.js` utility module
