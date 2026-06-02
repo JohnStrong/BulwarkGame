@@ -42,18 +42,21 @@ const sharp = require('sharp');
 const path = require('path');
 
 const { OUTPUT_DIR, CASTLE_OVERLAY_SPRITES } = require('./lib/sprite-constants');
-const { generateCastleOverlay } = require('./generate-iso-sprites-br-tl');
+const { generateCastleOverlay, generateIsoWallOverlay } = require('./generate-iso-sprites-br-tl');
 
 // ─── Sprite Definitions ──────────────────────────────────────────────────────
 
 /**
- * All 18 castle/bridge overlay sprites to generate.
+ * All 20 castle/bridge overlay sprites to generate.
  * Each entry maps a sprite name to its structureType and damaged flag.
  *
  * Canvas dimensions are determined by structureType inside generateCastleOverlay:
  *   - wall / bridge-*: 64×48 px
  *   - tower / keep-*:  64×64 px
  *   - gatehouse:       64×80 px
+ *
+ * The two 'iso-wall' entries use generateIsoWallOverlay (64×48) and are the
+ * sprites actually used at runtime by all castle structure tiles (T, K, j, J, F, G, W).
  */
 const CASTLE_OVERLAY_SPRITE_DEFS = [
     // Walls (64×48)
@@ -79,6 +82,9 @@ const CASTLE_OVERLAY_SPRITE_DEFS = [
     { name: CASTLE_OVERLAY_SPRITES.bridgeStart,         structureType: 'bridge-start', damaged: false },
     { name: CASTLE_OVERLAY_SPRITES.bridgeMid,           structureType: 'bridge-mid',   damaged: false },
     { name: CASTLE_OVERLAY_SPRITES.bridgeGate,          structureType: 'bridge-gate',  damaged: false },
+    // Isometric wall face (64×48) — single sprite used by all castle tiles at runtime
+    { name: CASTLE_OVERLAY_SPRITES.isoWall,             structureType: 'iso-wall',     damaged: false },
+    { name: CASTLE_OVERLAY_SPRITES.isoWallDamaged,      structureType: 'iso-wall',     damaged: true  },
 ];
 
 // ─── Canvas Width ────────────────────────────────────────────────────────────
@@ -92,7 +98,13 @@ async function generateAll() {
     console.log('Generating castle structure overlay sprites (transparent background)...\n');
 
     for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-        const buffer = generateCastleOverlay(def.structureType, def.damaged);
+        let buffer;
+        if (def.structureType === 'iso-wall') {
+            // Isometric wall face — uses dedicated generator, always 64×48
+            buffer = generateIsoWallOverlay(def.damaged);
+        } else {
+            buffer = generateCastleOverlay(def.structureType, def.damaged);
+        }
         // Canvas height is encoded in the buffer length: buffer.length / (OVERLAY_WIDTH * 4)
         const height = buffer.length / (OVERLAY_WIDTH * 4);
 

@@ -55,7 +55,7 @@ function loadFreshSpriteManager() {
     return require(SPRITES_PATH);
 }
 
-// ─── Expected castle overlay sprite names (18 total) ─────────────────────────
+// ─── Expected castle overlay sprite names (20 total) ─────────────────────────
 
 const EXPECTED_CASTLE_OVERLAY_NAMES = [
     // Walls and bridges: 64×48 px
@@ -79,12 +79,17 @@ const EXPECTED_CASTLE_OVERLAY_NAMES = [
     // Gatehouse: 64×80 px
     'castle-gatehouse-overlay',
     'castle-gatehouse-damaged-overlay',
+    // Isometric wall face: 64×48 px — used by all castle structure tiles at runtime
+    'castle-iso-wall-overlay',
+    'castle-iso-wall-damaged-overlay',
 ];
 
 // ─── Existing flat castle sprite names (backward compatibility) ───────────────
 
 const EXISTING_FLAT_CASTLE_NAMES = [
+    'castle-bridge-start',
     'castle-bridge-mid',
+    'castle-bridge-gate',
     'castle-tower',
     'castle-keep-tl',
     'castle-keep-bl',
@@ -122,7 +127,7 @@ describe('SpriteManager.spriteList — castle overlay sprites (task 2.2)', () =>
 
     // ── All 18 castle overlay names are present ───────────────────────────────
 
-    it('should contain all 18 castle overlay sprite names', () => {
+    it('should contain all 20 castle overlay sprite names', () => {
         for (const name of EXPECTED_CASTLE_OVERLAY_NAMES) {
             assert.ok(
                 SpriteManager.spriteList.includes(name),
@@ -131,14 +136,14 @@ describe('SpriteManager.spriteList — castle overlay sprites (task 2.2)', () =>
         }
     });
 
-    it('should contain exactly 18 castle overlay sprite names (no extras, no duplicates)', () => {
+    it('should contain exactly 20 castle overlay sprite names (no extras, no duplicates)', () => {
         const overlayEntries = SpriteManager.spriteList.filter(n =>
             (n.startsWith('castle-') || n.startsWith('bridge-')) && n.endsWith('-overlay')
         );
         assert.equal(
             overlayEntries.length,
-            18,
-            `Expected 18 castle overlay entries, got ${overlayEntries.length}: ${overlayEntries.join(', ')}`
+            20,
+            `Expected 20 castle overlay entries, got ${overlayEntries.length}: ${overlayEntries.join(', ')}`
         );
     });
 

@@ -267,8 +267,8 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
         assert.ok(typeof CASTLE_OVERLAY_SPRITES === 'object' && CASTLE_OVERLAY_SPRITES !== null);
     });
 
-    it('should have exactly 18 entries', () => {
-        assert.equal(Object.keys(CASTLE_OVERLAY_SPRITES).length, 18);
+    it('should have exactly 20 entries', () => {
+        assert.equal(Object.keys(CASTLE_OVERLAY_SPRITES).length, 20);
     });
 
     it('should contain all expected undamaged overlay keys', () => {
@@ -277,6 +277,7 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
             'keepTopLeft', 'keepBotLeft', 'keepBotRight', 'keepCenter',
             'gatehouse',
             'bridgeMm', 'bridgeStart', 'bridgeMid', 'bridgeGate',
+            'isoWall',
         ];
         for (const key of expectedUndamaged) {
             assert.ok(key in CASTLE_OVERLAY_SPRITES, `Missing undamaged key: ${key}`);
@@ -288,6 +289,7 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
             'wallDamaged', 'towerDamaged',
             'keepTopLeftDamaged', 'keepBotLeftDamaged', 'keepBotRightDamaged', 'keepCenterDamaged',
             'gatehouseDamaged',
+            'isoWallDamaged',
         ];
         for (const key of expectedDamaged) {
             assert.ok(key in CASTLE_OVERLAY_SPRITES, `Missing damaged key: ${key}`);
@@ -313,6 +315,8 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
         assert.equal(CASTLE_OVERLAY_SPRITES.bridgeStart,            'castle-bridge-start-overlay');
         assert.equal(CASTLE_OVERLAY_SPRITES.bridgeMid,              'castle-bridge-mid-overlay');
         assert.equal(CASTLE_OVERLAY_SPRITES.bridgeGate,             'castle-bridge-gate-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.isoWall,                'castle-iso-wall-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.isoWallDamaged,         'castle-iso-wall-damaged-overlay');
     });
 
     it('all sprite name values should be non-empty strings', () => {
@@ -368,12 +372,12 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
         assert.equal(damagedBridgeKeys.length, 0, 'Bridge overlays should have no damaged variant keys');
     });
 
-    it('should have 7 damaged variants and 11 undamaged variants', () => {
+    it('should have 8 damaged variants and 12 undamaged variants', () => {
         const values = Object.values(CASTLE_OVERLAY_SPRITES);
         const damagedCount   = values.filter(v => v.includes('-damaged-overlay')).length;
         const undamagedCount = values.filter(v => v.endsWith('-overlay') && !v.includes('-damaged-')).length;
-        assert.equal(damagedCount,   7,  'Should have 7 damaged overlay variants');
-        assert.equal(undamagedCount, 11, 'Should have 11 undamaged overlay variants');
+        assert.equal(damagedCount,   8,  'Should have 8 damaged overlay variants');
+        assert.equal(undamagedCount, 12, 'Should have 12 undamaged overlay variants');
     });
 
     it('should not collide with CASTLE_SPRITES values', () => {

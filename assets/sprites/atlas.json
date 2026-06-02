@@ -9,358 +9,358 @@
     "format": "RGBA8888"
   },
   "frames": {
-    "grass-short-1": {
+    "castle-gatehouse-overlay": {
       "frame": {
         "x": 0,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 80
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 80
       },
       "atlasIndex": 0
     },
-    "grass-short-2": {
+    "castle-gatehouse-damaged-overlay": {
       "frame": {
         "x": 65,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 80
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 80
       },
       "atlasIndex": 0
     },
-    "grass-flowers-1": {
+    "castle-tower-overlay": {
       "frame": {
         "x": 130,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "grass-flowers-2": {
+    "castle-tower-damaged-overlay": {
       "frame": {
         "x": 195,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "road-full": {
+    "castle-keep-tl-overlay": {
       "frame": {
         "x": 260,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "water-1": {
+    "castle-keep-tl-damaged-overlay": {
       "frame": {
         "x": 325,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "water-2": {
+    "castle-keep-bl-overlay": {
       "frame": {
         "x": 390,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "water-3": {
+    "castle-keep-bl-damaged-overlay": {
       "frame": {
         "x": 455,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "bridge-mm": {
+    "castle-keep-br-overlay": {
       "frame": {
         "x": 520,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "tree-1": {
+    "castle-keep-br-damaged-overlay": {
       "frame": {
         "x": 585,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "tree-2": {
+    "castle-keep-center-overlay": {
       "frame": {
         "x": 650,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "tree-3": {
+    "castle-keep-center-damaged-overlay": {
       "frame": {
         "x": 715,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 64
       },
       "atlasIndex": 0
     },
-    "tree-4": {
+    "castle-wall-overlay": {
       "frame": {
         "x": 780,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "tree-5": {
+    "castle-wall-damaged-overlay": {
       "frame": {
         "x": 845,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "tree-6": {
+    "bridge-mm-overlay": {
       "frame": {
         "x": 910,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "tree-7": {
+    "castle-bridge-start-overlay": {
       "frame": {
         "x": 975,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "rock": {
+    "castle-bridge-mid-overlay": {
       "frame": {
         "x": 1040,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-bridge-start": {
+    "castle-bridge-gate-overlay": {
       "frame": {
         "x": 1105,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-bridge-mid": {
+    "castle-iso-wall-overlay": {
       "frame": {
         "x": 1170,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-bridge-gate": {
+    "castle-iso-wall-damaged-overlay": {
       "frame": {
         "x": 1235,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-tower": {
+    "tree-oak-overlay-1": {
       "frame": {
         "x": 1300,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-keep-tl": {
+    "tree-oak-overlay-2": {
       "frame": {
         "x": 1365,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-keep-bl": {
+    "tree-oak-overlay-3": {
       "frame": {
         "x": 1430,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-keep-br": {
+    "tree-pine-overlay-1": {
       "frame": {
         "x": 1495,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-keep-center": {
+    "tree-pine-overlay-2": {
       "frame": {
         "x": 1560,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-gatehouse": {
+    "tree-shrub-overlay-1": {
       "frame": {
         "x": 1625,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-wall": {
+    "tree-shrub-overlay-2": {
       "frame": {
         "x": 1690,
         "y": 0,
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "sourceSize": {
         "w": 64,
-        "h": 32
+        "h": 48
       },
       "atlasIndex": 0
     },
-    "castle-bailey-1": {
+    "grass-short-1": {
       "frame": {
         "x": 1755,
         "y": 0,
@@ -373,7 +373,7 @@
       },
       "atlasIndex": 0
     },
-    "castle-bailey-2": {
+    "grass-short-2": {
       "frame": {
         "x": 1820,
         "y": 0,
@@ -386,7 +386,7 @@
       },
       "atlasIndex": 0
     },
-    "castle-bailey-3": {
+    "grass-flowers-1": {
       "frame": {
         "x": 1885,
         "y": 0,
@@ -399,10 +399,361 @@
       },
       "atlasIndex": 0
     },
-    "unit-knight": {
+    "grass-flowers-2": {
       "frame": {
         "x": 1950,
         "y": 0,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "road-full": {
+      "frame": {
+        "x": 0,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "water-1": {
+      "frame": {
+        "x": 65,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "water-2": {
+      "frame": {
+        "x": 130,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "water-3": {
+      "frame": {
+        "x": 195,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "bridge-mm": {
+      "frame": {
+        "x": 260,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-1": {
+      "frame": {
+        "x": 325,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-2": {
+      "frame": {
+        "x": 390,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-3": {
+      "frame": {
+        "x": 455,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-4": {
+      "frame": {
+        "x": 520,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-5": {
+      "frame": {
+        "x": 585,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-6": {
+      "frame": {
+        "x": 650,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "tree-7": {
+      "frame": {
+        "x": 715,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "rock": {
+      "frame": {
+        "x": 780,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bridge-start": {
+      "frame": {
+        "x": 845,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bridge-mid": {
+      "frame": {
+        "x": 910,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bridge-gate": {
+      "frame": {
+        "x": 975,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-tower": {
+      "frame": {
+        "x": 1040,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-keep-tl": {
+      "frame": {
+        "x": 1105,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-keep-bl": {
+      "frame": {
+        "x": 1170,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-keep-br": {
+      "frame": {
+        "x": 1235,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-keep-center": {
+      "frame": {
+        "x": 1300,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-gatehouse": {
+      "frame": {
+        "x": 1365,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-wall": {
+      "frame": {
+        "x": 1430,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bailey-1": {
+      "frame": {
+        "x": 1495,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bailey-2": {
+      "frame": {
+        "x": 1560,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "castle-bailey-3": {
+      "frame": {
+        "x": 1625,
+        "y": 81,
+        "w": 64,
+        "h": 32
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 32
+      },
+      "atlasIndex": 0
+    },
+    "unit-knight": {
+      "frame": {
+        "x": 1690,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -414,8 +765,8 @@
     },
     "unit-heavy-infantry": {
       "frame": {
-        "x": 1983,
-        "y": 0,
+        "x": 1723,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -427,8 +778,8 @@
     },
     "unit-spearman": {
       "frame": {
-        "x": 0,
-        "y": 33,
+        "x": 1756,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -440,8 +791,8 @@
     },
     "unit-archer": {
       "frame": {
-        "x": 33,
-        "y": 33,
+        "x": 1789,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -453,8 +804,8 @@
     },
     "unit-crossbowman": {
       "frame": {
-        "x": 66,
-        "y": 33,
+        "x": 1822,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -466,8 +817,8 @@
     },
     "unit-skirmisher": {
       "frame": {
-        "x": 99,
-        "y": 33,
+        "x": 1855,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -479,8 +830,8 @@
     },
     "unit-engineer": {
       "frame": {
-        "x": 132,
-        "y": 33,
+        "x": 1888,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -492,8 +843,8 @@
     },
     "unit-militia": {
       "frame": {
-        "x": 165,
-        "y": 33,
+        "x": 1921,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -505,8 +856,8 @@
     },
     "unit-artillery": {
       "frame": {
-        "x": 198,
-        "y": 33,
+        "x": 1954,
+        "y": 81,
         "w": 32,
         "h": 32
       },
@@ -518,8 +869,8 @@
     },
     "enemy-knight": {
       "frame": {
-        "x": 231,
-        "y": 33,
+        "x": 0,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -531,8 +882,8 @@
     },
     "enemy-archer": {
       "frame": {
-        "x": 296,
-        "y": 33,
+        "x": 65,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -544,8 +895,8 @@
     },
     "enemy-spearman": {
       "frame": {
-        "x": 361,
-        "y": 33,
+        "x": 130,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -557,8 +908,8 @@
     },
     "enemy-militia": {
       "frame": {
-        "x": 426,
-        "y": 33,
+        "x": 195,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -570,8 +921,8 @@
     },
     "enemy-siege": {
       "frame": {
-        "x": 491,
-        "y": 33,
+        "x": 260,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -583,8 +934,8 @@
     },
     "castle-wall-damaged": {
       "frame": {
-        "x": 556,
-        "y": 33,
+        "x": 325,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -596,8 +947,8 @@
     },
     "castle-tower-damaged": {
       "frame": {
-        "x": 621,
-        "y": 33,
+        "x": 390,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -609,8 +960,8 @@
     },
     "castle-keep-tl-damaged": {
       "frame": {
-        "x": 686,
-        "y": 33,
+        "x": 455,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -622,8 +973,8 @@
     },
     "castle-keep-bl-damaged": {
       "frame": {
-        "x": 751,
-        "y": 33,
+        "x": 520,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -635,8 +986,8 @@
     },
     "castle-keep-br-damaged": {
       "frame": {
-        "x": 816,
-        "y": 33,
+        "x": 585,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -648,8 +999,8 @@
     },
     "castle-keep-center-damaged": {
       "frame": {
-        "x": 881,
-        "y": 33,
+        "x": 650,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -661,8 +1012,8 @@
     },
     "castle-gatehouse-damaged": {
       "frame": {
-        "x": 946,
-        "y": 33,
+        "x": 715,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -674,8 +1025,8 @@
     },
     "castle-bailey-1-damaged": {
       "frame": {
-        "x": 1011,
-        "y": 33,
+        "x": 780,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -687,8 +1038,8 @@
     },
     "castle-bailey-2-damaged": {
       "frame": {
-        "x": 1076,
-        "y": 33,
+        "x": 845,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -700,8 +1051,8 @@
     },
     "castle-bailey-3-damaged": {
       "frame": {
-        "x": 1141,
-        "y": 33,
+        "x": 910,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -713,8 +1064,8 @@
     },
     "water-anim-frame-0": {
       "frame": {
-        "x": 1206,
-        "y": 33,
+        "x": 975,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -726,8 +1077,8 @@
     },
     "water-anim-frame-1": {
       "frame": {
-        "x": 1271,
-        "y": 33,
+        "x": 1040,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -739,8 +1090,8 @@
     },
     "water-anim-frame-2": {
       "frame": {
-        "x": 1336,
-        "y": 33,
+        "x": 1105,
+        "y": 114,
         "w": 64,
         "h": 32
       },
@@ -752,8 +1103,8 @@
     },
     "water-anim-frame-3": {
       "frame": {
-        "x": 1401,
-        "y": 33,
+        "x": 1170,
+        "y": 114,
         "w": 64,
         "h": 32
       },

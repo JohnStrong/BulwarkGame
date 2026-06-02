@@ -39,6 +39,7 @@ const {
     CASTLE_SPRITES,
     UNIT_SPRITES,
     TREE_OVERLAY_SPRITES,
+    CASTLE_OVERLAY_SPRITES,
 } = require('./lib/sprite-constants');
 
 const { packAtlas } = require('./lib/atlas-packer');
@@ -49,6 +50,9 @@ const { ANIMATION_CONFIG } = require('./lib/palette');
 
 /** Directory where atlas PNG and JSON files are written. */
 const ATLAS_OUTPUT_DIR = path.join(__dirname, '..', '..', 'generated', 'assets', 'atlas');
+
+/** Directory where the game reads atlas files from at runtime. */
+const ASSETS_SPRITES_DIR = path.join(__dirname, '..', '..', 'assets', 'sprites');
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -65,6 +69,7 @@ const GENERATOR_SCRIPTS = [
     'generate-unit-sprites.js',
     'generate-enemy-sprites.js',
     'generate-damaged-castle-sprites.js',
+    'generate-castle-overlay-sprites.js',
 ];
 
 /** All sprite names that should be packed into the atlas */
@@ -72,6 +77,7 @@ const TERRAIN_SPRITE_NAMES = Object.values(TERRAIN_SPRITES);
 const CASTLE_SPRITE_NAMES = Object.values(CASTLE_SPRITES);
 const UNIT_SPRITE_NAMES = Object.values(UNIT_SPRITES);
 const TREE_OVERLAY_SPRITE_NAMES = Object.values(TREE_OVERLAY_SPRITES);
+const CASTLE_OVERLAY_SPRITE_NAMES = Object.values(CASTLE_OVERLAY_SPRITES);
 
 const ENEMY_SPRITE_NAMES = [
     'enemy-knight',
@@ -174,6 +180,15 @@ async function main() {
     console.log('║  Sprite Build Pipeline                       ║');
     console.log('╚══════════════════════════════════════════════╝\n');
 
+    // ── Guard: validate CASTLE_OVERLAY_SPRITES ────────────────────────────
+    if (!CASTLE_OVERLAY_SPRITES || Object.keys(CASTLE_OVERLAY_SPRITES).length === 0) {
+        logBuildError('build-sprites', 'CASTLE_OVERLAY_SPRITES is undefined or has zero entries', {
+            stage: 'validation',
+            details: 'Check sprite-constants.js',
+        });
+        process.exit(1);
+    }
+
     // ── Step 1: Run all generator scripts ─────────────────────────────────
     console.log('Step 1: Running sprite generators...\n');
 
@@ -224,6 +239,13 @@ async function main() {
     }
     console.log(`  ✓ ${DAMAGED_SPRITE_NAMES.length} damaged castle sprites`);
 
+    // Castle overlay sprites (variable height: 48, 64, or 80 px)
+    for (const name of CASTLE_OVERLAY_SPRITE_NAMES) {
+        const { buffer, width, height } = await readSpriteBuffer(name);
+        spriteEntries.push({ name, buffer, width, height });
+    }
+    console.log(`  ✓ ${CASTLE_OVERLAY_SPRITE_NAMES.length} castle overlay sprites`);
+
     // Tree overlay sprites (64×48, transparent background)
     for (const name of TREE_OVERLAY_SPRITE_NAMES) {
         const { buffer, width, height } = await readSpriteBuffer(name);
@@ -270,6 +292,24 @@ async function main() {
     }
 
     console.log(`  ✓ All ${TREE_OVERLAY_SPRITE_NAMES.length} overlay PNGs verified present`);
+
+    // Pre-pack check: Verify all castle overlay PNGs exist
+    const missingCastleOverlays = CASTLE_OVERLAY_SPRITE_NAMES.filter(
+        name => !fs.existsSync(path.join(OUTPUT_DIR, `${name}.png`))
+    );
+
+    if (missingCastleOverlays.length > 0) {
+        for (const name of missingCastleOverlays) {
+            logBuildError('build-sprites', `Castle overlay PNG missing before atlas pack: ${name}`, {
+                sprite: name,
+                stage: 'pre-pack',
+                details: `Expected file at: ${path.join(OUTPUT_DIR, `${name}.png`)}`,
+            });
+        }
+        throw new Error(`Pre-pack check failed: ${missingCastleOverlays.length} castle overlay PNG(s) missing`);
+    }
+
+    console.log(`  ✓ All ${CASTLE_OVERLAY_SPRITE_NAMES.length} castle overlay PNGs verified present`);
 
     // ── Step 4: Pack into atlas ───────────────────────────────────────────
     console.log('\nStep 4: Packing sprites into atlas...\n');
@@ -355,6 +395,24 @@ async function main() {
     const jsonSizeKB = (jsonStats.size / 1024).toFixed(1);
     console.log(`  ✓ atlas.json (${jsonSizeKB} KB)`);
 
+    // ── Step 7: Copy atlas files to assets/sprites/ for runtime use ─────────
+    console.log('\nStep 7: Copying atlas to assets/sprites/...\n');
+
+    fs.mkdirSync(ASSETS_SPRITES_DIR, { recursive: true });
+    for (let i = 0; i < atlases.length; i++) {
+        const atlasFileName = `atlas-${i}.png`;
+        fs.copyFileSync(
+            path.join(ATLAS_OUTPUT_DIR, atlasFileName),
+            path.join(ASSETS_SPRITES_DIR, atlasFileName)
+        );
+        console.log(`  ✓ assets/sprites/${atlasFileName}`);
+    }
+    fs.copyFileSync(
+        path.join(ATLAS_OUTPUT_DIR, 'atlas.json'),
+        path.join(ASSETS_SPRITES_DIR, 'atlas.json')
+    );
+    console.log(`  ✓ assets/sprites/atlas.json`);
+
     // ── Summary ───────────────────────────────────────────────────────────
     console.log('\n╔══════════════════════════════════════════════╗');
     console.log('║  Build Complete                              ║');
@@ -362,7 +420,8 @@ async function main() {
     console.log(`\n  Sprites packed: ${Object.keys(metadata.frames).length}`);
     console.log(`  Atlas files: ${atlases.length}`);
     console.log(`  Animations: ${Object.keys(metadata.animations).length}`);
-    console.log(`  Output: ${ATLAS_OUTPUT_DIR}/\n`);
+    console.log(`  Output: ${ATLAS_OUTPUT_DIR}/`);
+    console.log(`  Runtime: ${ASSETS_SPRITES_DIR}/\n`);
 }
 
 // ─── Entry Point ────────────────────────────────────────────────────────────

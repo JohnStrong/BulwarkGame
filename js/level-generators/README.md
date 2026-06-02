@@ -30,12 +30,12 @@ Node.js scripts that produce the game's PNG sprites and level text files. Run th
 | File | What it does |
 |------|-------------|
 | `build-sprites.js` | Unified build pipeline — orchestrates all generators, collects PNGs, packs atlas, outputs to `generated/assets/atlas/` |
-| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) **and** 7 tree overlay sprites (64×48, transparent background) **and** 18 castle structure overlay sprites (variable height: 64×48 walls/bridges, 64×64 towers/keeps, 64×80 gatehouse) with enhanced pipeline (noise, shading, dithering, quantization) |
+| `generate-iso-sprites-br-tl.js` | Generates all terrain sprites (grass, road, water, trees, rock) **and** 7 tree overlay sprites (64×48, transparent background) **and** 20 castle structure overlay sprites (variable height: 64×48 walls/bridges/iso-wall, 64×64 towers/keeps, 64×80 gatehouse) with enhanced pipeline (noise, shading, dithering, quantization) |
 | `generate-castle-sprites.js` | Generates castle structure sprites (walls, tower, keep, bailey) with enhanced pipeline (stone courses, crenellations, shading, quantization) |
 | `generate-unit-sprites.js` | Generates army unit sprites (32×32, enhanced pipeline: unique silhouettes, weapons, directional shading, palette quantization) |
 | `generate-enemy-sprites.js` | Generates 5 enemy unit sprites (64×32, ENEMY_PALETTE, unique silhouette modifiers, directional shading, palette quantization) |
 | `generate-damaged-castle-sprites.js` | Generates 10 damaged castle variants (64×32, cracks/missing blocks/rubble, ≥15% damage area, CASTLE_PALETTE quantization) |
-| `generate-castle-overlay-sprites.js` | Generates 18 castle structure overlay sprites (transparent background, variable height: 64×48 walls/bridges, 64×64 towers/keeps, 64×80 gatehouse) — produced by the castle-structure-overlays spec |
+| `generate-castle-overlay-sprites.js` | Generates 20 castle structure overlay sprites (transparent background, variable height: 64×48 walls/bridges/iso-wall, 64×64 towers/keeps, 64×80 gatehouse) — produced by the castle-structure-overlays spec |
 | `generate-tutorial-level.js` | Generates the tutorial level map (level1.txt) |
 | `generate-random-level.js` | Generates random levels from a seed (Needs work) |
 | `generate-smooth-sprites.js` | Legacy hex sprites (kept for top-down view) |
@@ -69,7 +69,7 @@ All generators import their colors and names from there.
 | `CASTLE_SPRITES` | 13 | Flat 64×32 castle structure tiles (wall, tower, keep, gatehouse, bailey, bridge segments) |
 | `UNIT_SPRITES` | 9 | 32×32 player army unit sprites |
 | `TREE_OVERLAY_SPRITES` | 7 | 64×48 transparent-background tree overlay sprites (oak, pine, shrub variants) |
-| `CASTLE_OVERLAY_SPRITES` | 18 | Transparent-background castle structure overlay sprites (variable height: 48, 64, or 80 px) |
+| `CASTLE_OVERLAY_SPRITES` | 20 | Transparent-background castle structure overlay sprites (variable height: 48, 64, or 80 px) |
 
 `CASTLE_OVERLAY_SPRITES` keys and their canvas dimensions:
 
@@ -93,6 +93,10 @@ All generators import their colors and names from there.
 | `bridgeStart` | `castle-bridge-start-overlay` | 64×48 |
 | `bridgeMid` | `castle-bridge-mid-overlay` | 64×48 |
 | `bridgeGate` | `castle-bridge-gate-overlay` | 64×48 |
+| `isoWall` | `castle-iso-wall-overlay` | 64×48 |
+| `isoWallDamaged` | `castle-iso-wall-damaged-overlay` | 64×48 |
+
+`isoWall` and `isoWallDamaged` draw the stone wall face along the isometric diamond's bottom-left and bottom-right edges. A single sprite covers all castle structure tiles that need a visible side wall, avoiding per-structure wall-face variants.
 
 For the enhanced sprite pipeline's palette quantization and color enforcement, use `lib/palette.js`.
 
@@ -147,7 +151,7 @@ This directory is created automatically if it doesn't exist. The `generated/` fo
 | Terrain | 17 | 64×32 | `grass-short-1`, `road-full`, `water-1`, etc. |
 | Tree overlays | 7 | 64×48 | `tree-oak-overlay-1`, `tree-pine-overlay-1`, `tree-shrub-overlay-1`, etc. |
 | Castle | 13 | 64×32 | `castle-wall`, `castle-tower`, etc. |
-| Castle overlays | 18 | 64×48 / 64×64 / 64×80 | `castle-wall-overlay`, `castle-tower-overlay`, `castle-gatehouse-overlay`, etc. |
+| Castle overlays | 20 | 64×48 / 64×64 / 64×80 | `castle-wall-overlay`, `castle-tower-overlay`, `castle-gatehouse-overlay`, `castle-iso-wall-overlay`, etc. |
 | Units | 9 | 32×32 | `unit-knight`, `unit-archer`, etc. |
 | Enemy | 5 | 64×32 | `enemy-knight`, `enemy-archer`, etc. |
 | Damaged castle | 10 | 64×32 | `castle-wall-damaged`, `castle-tower-damaged`, etc. |

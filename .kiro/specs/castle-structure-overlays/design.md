@@ -575,7 +575,7 @@ All `offsetY` values start at 0, matching the `TREE_OVERLAY_OFFSET_Y = 0` patter
 
 ### Property 2: Palette fidelity of overlay pixels
 
-*For any* generated castle structure overlay sprite buffer, every pixel with alpha > 0 SHALL have RGB values within ±15 per channel of at least one color defined in `CASTLE_COLORS` in `sprite-constants.js`.
+*For any* generated castle structure overlay sprite buffer, every pixel with alpha > 0 SHALL have RGB values within ±15 per channel of at least one color in `getPaletteForCategory('castle')` (i.e. `PRIMARY_PALETTE + CASTLE_ACCENT_COLORS`, which includes `BORDER_COLOR`). This matches the quantization pass that the generator applies. Pixels with alpha 1–254 SHALL also satisfy this palette constraint (palette fidelity invariant).
 
 **Validates: Requirements 10.2**
 
@@ -673,7 +673,7 @@ Each property test is tagged with a comment referencing the design property:
 Generate each of the 18 castle overlay buffers. For each buffer, use fast-check to generate random (x, y) coordinates within the canvas bounds (64 × overlayHeight). For any coordinate where the reference buffer has alpha=0, assert alpha=0. This verifies that no stray pixels are written outside the structure shape.
 
 **Property 2 test** — Palette fidelity:
-For each generated castle overlay buffer, use fast-check to generate random pixel indices. For any pixel with alpha > 0, assert its RGB values are within ±15 per channel of at least one color in `CASTLE_COLORS`. This verifies the `quantizeToPalette` pass is applied correctly.
+For each generated castle overlay buffer, use fast-check to generate random pixel indices. For any pixel with alpha > 0, assert its RGB values are within ±15 per channel of at least one color in `getPaletteForCategory('castle')` (which includes `BORDER_COLOR` via `PRIMARY_PALETTE`). This verifies the `quantizeToPalette` pass is applied correctly.
 
 **Property 3 test** — Castle tile ground+overlay fields:
 Use fast-check to generate arbitrary non-negative integer (row, col) pairs and arbitrary castle/bridge characters from `{=, b, m, g, T, K, j, J, F, G, W}`. For each combination, parse a single-tile level string and assert the resulting tile has `sprite` ∈ `Object.values(CASTLE_SPRITES)` and `overlay` ∈ `Object.values(CASTLE_OVERLAY_SPRITES)`.

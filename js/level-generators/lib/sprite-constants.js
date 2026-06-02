@@ -159,6 +159,10 @@ const CASTLE_OVERLAY_SPRITES = {
     bridgeStart:            'castle-bridge-start-overlay',
     bridgeMid:              'castle-bridge-mid-overlay',
     bridgeGate:             'castle-bridge-gate-overlay',
+    // Isometric wall face overlay (64×48) — single sprite used by all castle structure tiles
+    // Draws the stone wall face along the diamond's bottom-left and bottom-right edges.
+    isoWall:                'castle-iso-wall-overlay',
+    isoWallDamaged:         'castle-iso-wall-damaged-overlay',
 };
 
 // ─── Tree Overlay Sprite Registry ───────────────────────────────────────────

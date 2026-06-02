@@ -49,9 +49,9 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: basic shape', () => {
         assert.ok(Array.isArray(CASTLE_OVERLAY_SPRITE_DEFS));
     });
 
-    it('should contain exactly 18 entries', () => {
-        assert.equal(CASTLE_OVERLAY_SPRITE_DEFS.length, 18,
-            `Expected 18 sprite definitions, got ${CASTLE_OVERLAY_SPRITE_DEFS.length}`);
+    it('should contain exactly 20 entries', () => {
+        assert.equal(CASTLE_OVERLAY_SPRITE_DEFS.length, 20,
+            `Expected 20 sprite definitions, got ${CASTLE_OVERLAY_SPRITE_DEFS.length}`);
     });
 
     it('every entry should have a non-empty string name', () => {
@@ -90,15 +90,15 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: no duplicate sprite names', () => {
     });
 });
 
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: all 18 expected names present ───────────────
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: all 20 expected names present ───────────────
 
-describe('CASTLE_OVERLAY_SPRITE_DEFS: all 18 expected sprite names are present', () => {
+describe('CASTLE_OVERLAY_SPRITE_DEFS: all 20 expected sprite names are present', () => {
     const expectedNames = Object.values(CASTLE_OVERLAY_SPRITES);
     const definedNames = new Set(CASTLE_OVERLAY_SPRITE_DEFS.map(d => d.name));
 
     it(`should contain all ${expectedNames.length} names from CASTLE_OVERLAY_SPRITES`, () => {
-        assert.equal(expectedNames.length, 18,
-            `CASTLE_OVERLAY_SPRITES should have 18 entries, got ${expectedNames.length}`);
+        assert.equal(expectedNames.length, 20,
+            `CASTLE_OVERLAY_SPRITES should have 20 entries, got ${expectedNames.length}`);
         for (const name of expectedNames) {
             assert.ok(definedNames.has(name),
                 `Missing sprite definition for "${name}"`);
@@ -122,6 +122,7 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: structureType values are valid', () => {
         'keep-tl', 'keep-bl', 'keep-br', 'keep-center',
         'gatehouse',
         'bridge-mm', 'bridge-start', 'bridge-mid', 'bridge-gate',
+        'iso-wall',
     ]);
 
     it('every structureType should be one of the known valid types', () => {

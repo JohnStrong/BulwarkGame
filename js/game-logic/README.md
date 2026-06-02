@@ -91,7 +91,7 @@ If a sprite file is missing, it creates a grey placeholder with the name printed
 | Terrain (grass, road, water, bridge, trees, rock) | 17 | Flat 64×32 diamonds |
 | Tree overlay sprites | 7 | 64×48, transparent background; oak (3), pine (2), shrub (2) |
 | Units | 9 | 32×32, transparent background |
-| Castle structures (flat) | 11 | 64×32; includes `castle-bridge-mid` |
+| Castle structures (flat) | 13 | 64×32; includes `castle-bridge-start`, `castle-bridge-mid`, `castle-bridge-gate`, towers, keeps (4 quadrants), gatehouse, wall, bailey (3 variants) |
 | Enemy sprites | 5 | 64×32, `enemy-` prefix |
 | Damaged castle sprites | 10 | 64×32, `-damaged` suffix |
 | Castle overlay sprites | 18 | Transparent background, variable height (48 / 64 / 80 px) |
@@ -125,12 +125,17 @@ Castle and bridge tiles carry both a `sprite` (the flat 64×32 ground diamond) a
 
 ```js
 // Example tile objects:
-{ row, col, x, y, sprite: 'castle-wall',    overlay: 'castle-wall-overlay' }
-{ row, col, x, y, sprite: 'castle-tower',   overlay: 'castle-tower-overlay' }
-{ row, col, x, y, sprite: 'bridge-mm',      overlay: 'bridge-mm-overlay' }
-{ row, col, x, y, sprite: 'grass-short-1',  overlay: 'tree-oak-overlay-1' }  // O tile
-{ row, col, x, y, sprite: 'grass-short-2' }                                   // . tile — no overlay
+{ row, col, x, y, sprite: 'castle-wall',         overlay: 'castle-wall-overlay' }
+{ row, col, x, y, sprite: 'castle-tower',        overlay: 'castle-tower-overlay' }
+{ row, col, x, y, sprite: 'bridge-mm',           overlay: 'bridge-mm-overlay' }        // = tile
+{ row, col, x, y, sprite: 'castle-bridge-start', overlay: 'castle-bridge-start-overlay' } // b tile
+{ row, col, x, y, sprite: 'castle-bridge-mid',   overlay: 'castle-bridge-mid-overlay' }   // m tile
+{ row, col, x, y, sprite: 'castle-bridge-gate',  overlay: 'castle-bridge-gate-overlay' }  // g tile
+{ row, col, x, y, sprite: 'grass-short-1',       overlay: 'tree-oak-overlay-1' }       // O tile
+{ row, col, x, y, sprite: 'grass-short-2' }                                             // . tile — no overlay
 ```
+
+> **Note:** Prior to the castle-structure-overlays feature, `b`, `m`, and `g` all incorrectly mapped to `castle-bridge-mid`. They now map to their distinct sprites: `castle-bridge-start` (`b`), `castle-bridge-mid` (`m`), and `castle-bridge-gate` (`g`).
 
 ### Known limitation: tileHash bias
 

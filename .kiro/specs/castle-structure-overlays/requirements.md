@@ -194,7 +194,7 @@ Existing flat castle sprites (`castle-wall.png`, `castle-tower.png`, etc.) are k
 #### Acceptance Criteria
 
 1. THE castle overlay sprite buffers SHALL have alpha=0 for every pixel not belonging to the structure's vertical body (transparent background invariant).
-2. THE castle overlay sprite buffers SHALL have every opaque pixel (alpha=255) with RGB values within ±15 per channel of at least one color in `CASTLE_COLORS`. Pixels with alpha 1–254 SHALL also satisfy this palette constraint (palette fidelity invariant).
+2. THE castle overlay sprite buffers SHALL have every opaque pixel (alpha=255) with RGB values within ±15 per channel of at least one color in `getPaletteForCategory('castle')` (i.e. `PRIMARY_PALETTE + CASTLE_ACCENT_COLORS`, which includes `BORDER_COLOR`). Pixels with alpha 1–254 SHALL also satisfy this palette constraint (palette fidelity invariant).
 3. WHEN the Level_Loader parses any castle or bridge tile character (`=`, `b`, `m`, `g`, `T`, `K`, `j`, `J`, `F`, `G`, `W`) at any non-negative integer (row, col) position, THE Level_Loader SHALL produce a tile with `sprite` ∈ `Object.values(CASTLE_SPRITES)` and `overlay` ∈ `Object.values(CASTLE_OVERLAY_SPRITES)`.
 4. WHEN the Level_Loader parses any non-overlay character (`.`, `,`, `R`, `D`, `~`, `C`, `O`, `P`, `S`) at any non-negative integer (row, col) position, THE Level_Loader SHALL produce a tile object that does NOT have an `overlay` field.
 5. WHEN IsoRenderer.drawTerrain processes a tile with an `overlay` field and any camera configuration with `tileW` and `tileH` in the range [1, 256] px, THE IsoRenderer SHALL call SpriteManager.draw for `tile.sprite` before calling SpriteManager.draw for `tile.overlay` (overlay draw sequence invariant).

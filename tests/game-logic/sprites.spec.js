@@ -31,7 +31,8 @@ const SpriteManager = {
         'unit-knight', 'unit-heavy-infantry', 'unit-spearman',
         'unit-archer', 'unit-crossbowman', 'unit-skirmisher',
         'unit-engineer', 'unit-militia', 'unit-artillery',
-        'castle-bridge-mid', 'castle-tower',
+        'castle-bridge-start', 'castle-bridge-mid', 'castle-bridge-gate',
+        'castle-tower',
         'castle-keep-tl', 'castle-keep-bl', 'castle-keep-br',
         'castle-keep-center', 'castle-gatehouse', 'castle-wall',
         'castle-bailey-1', 'castle-bailey-2', 'castle-bailey-3'
@@ -82,7 +83,8 @@ describe('SpriteManager.spriteList', () => {
 
     it('should contain all castle sprites', () => {
         const castleSprites = [
-            'castle-bridge-mid', 'castle-tower',
+            'castle-bridge-start', 'castle-bridge-mid', 'castle-bridge-gate',
+            'castle-tower',
             'castle-keep-tl', 'castle-keep-bl', 'castle-keep-br',
             'castle-keep-center', 'castle-gatehouse', 'castle-wall',
             'castle-bailey-1', 'castle-bailey-2', 'castle-bailey-3'
@@ -184,7 +186,8 @@ function makeExtendedSpriteManager() {
             'unit-archer', 'unit-crossbowman', 'unit-skirmisher',
             'unit-engineer', 'unit-militia', 'unit-artillery',
             // Castle structures
-            'castle-bridge-mid', 'castle-tower',
+            'castle-bridge-start', 'castle-bridge-mid', 'castle-bridge-gate',
+            'castle-tower',
             'castle-keep-tl', 'castle-keep-bl', 'castle-keep-br',
             'castle-keep-center', 'castle-gatehouse', 'castle-wall',
             'castle-bailey-1', 'castle-bailey-2', 'castle-bailey-3',

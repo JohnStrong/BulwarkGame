@@ -912,7 +912,21 @@ async function generateAll() {
         console.log(`  ✓ ${sprite.name}.png`);
     }
 
-    console.log(`\nDone! ${sprites.length} enhanced flat diamond sprites (64×32, BR→TL) + ${overlaySprites.length} tree overlay sprites (64×48).`);
+    // ── Isometric wall overlay sprites (64×48, transparent background) ───────
+    // A single sprite drawn along the diamond's bottom edges — used by all castle tiles.
+    const isoWallSprites = [
+        { name: CASTLE_OVERLAY_SPRITES.isoWall,        buffer: generateIsoWallOverlay(false) },
+        { name: CASTLE_OVERLAY_SPRITES.isoWallDamaged, buffer: generateIsoWallOverlay(true)  },
+    ];
+
+    for (const sprite of isoWallSprites) {
+        await sharp(sprite.buffer, { raw: { width: OVERLAY_WIDTH, height: OVERLAY_HEIGHT, channels: 4 } })
+            .png()
+            .toFile(path.join(OUTPUT_DIR, `${sprite.name}.png`));
+        console.log(`  ✓ ${sprite.name}.png`);
+    }
+
+    console.log(`\nDone! ${sprites.length} enhanced flat diamond sprites (64×32, BR→TL) + ${overlaySprites.length} tree overlay sprites (64×48) + ${isoWallSprites.length} isometric wall overlay sprites (64×48).`);
 }
 
 if (require.main === module) {
@@ -962,13 +976,17 @@ function setCastleOverlayPixel(buffer, width, x, y, r, g, b) {
  * Canvas height constants for each structure category.
  * The bottom TILE_HEIGHT (32) rows of each canvas correspond to the ground
  * diamond surface and must remain alpha=0. Only the rows above that are drawn.
+ *
+ * Heights are chosen to give epic castle scale (reference: isometric castle
+ * artwork where walls are ~2 tile-heights and towers are ~3-4 tile-heights).
+ * Units standing on top of walls/towers will appear above the ground plane.
  */
 const CASTLE_OVERLAY_CANVAS_HEIGHTS = {
-    wall:       48,  // 16 px above ground
-    bridge:     48,  // 16 px above ground
-    tower:      64,  // 32 px above ground
-    keep:       64,  // 32 px above ground
-    gatehouse:  80,  // 48 px above ground
+    wall:       96,  // 64 px above ground = 2 full tile heights of wall
+    bridge:     48,  // 16 px above ground (low parapets on bridge)
+    tower:      128, // 96 px above ground = 3 tile heights — round tower with battlements
+    keep:       128, // 96 px above ground — imposing keep walls
+    gatehouse:  144, // 112 px above ground — tallest structure with arch and flanking turrets
 };
 
 /**
@@ -1162,77 +1180,135 @@ function generateCastleOverlay(structureType, damaged) {
 
     // ── Wall ──────────────────────────────────────────────────────────────────
     if (structureType === 'wall') {
-        // Wall face: full width, from top to ground boundary
-        // Left face (darker, shadow side) — left 16 px
-        // Front face (main face) — center 32 px
-        // Right face (lighter, lit side) — right 16 px
+        // Imposing castle wall — 64 px of stone above the ground tile.
+        // Three visible faces in the BR→TL isometric view:
+        //   Left shadow face  (x: 0..15)  — darkest, side wall receding into distance
+        //   Front main face   (x: 15..49) — primary face with brickwork and window slits
+        //   Right lit face    (x: 49..63) — lighter, slight specular hit from upper-left
         const wallColor      = damaged ? CASTLE_COLORS.wallDark  : CASTLE_COLORS.wall;
         const wallLightColor = damaged ? CASTLE_COLORS.wall       : CASTLE_COLORS.wallLight;
         const mortarColor    = CASTLE_COLORS.wallMortar;
 
-        // Main front face (center)
-        drawWallFace(buffer, W, H, 16, 48, 0, wallColor, wallLightColor, mortarColor, damaged, 100);
+        // Left shadow face — solid dark stone, no mortar detail (receding plane)
+        for (let y = 0; y < groundStart; y++) {
+            const shade = damaged
+                ? CASTLE_COLORS.wallDark
+                : (y < groundStart * 0.25 ? CASTLE_COLORS.wallMortar : CASTLE_COLORS.wallDark);
+            for (let x = 0; x < 15; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...shade);
+            }
+        }
 
-        // Left shadow face
-        fillRect(buffer, W, H, 0, 0, 16, groundStart,
-            damaged ? CASTLE_COLORS.wallDark : CASTLE_COLORS.wallMortar);
+        // Right lit face — bright highlight strip
+        for (let y = 0; y < groundStart; y++) {
+            for (let x = 49; x < W; x++) {
+                setCastleOverlayPixel(buffer, W, x, y,
+                    ...(damaged ? CASTLE_COLORS.wallMortar : CASTLE_COLORS.wallLight));
+            }
+        }
 
-        // Right lit face
-        fillRect(buffer, W, H, 48, 0, W, groundStart,
-            damaged ? CASTLE_COLORS.wallMortar : CASTLE_COLORS.wallLight);
+        // Front main face — full brickwork
+        drawWallFace(buffer, W, H, 15, 49, 0, wallColor, wallLightColor, mortarColor, damaged, 100);
 
-        // Battlements along the top
+        // Window slits — two narrow arrow-loops in the middle third of the wall
+        if (!damaged) {
+            const slitY = Math.floor(groundStart * 0.45);
+            for (const slitX of [23, 38]) {
+                for (let dy = 0; dy < 6; dy++) {
+                    setCastleOverlayPixel(buffer, W, slitX, slitY + dy, ...CASTLE_COLORS.iron);
+                }
+                // Widen slightly at center for cross-slit look
+                setCastleOverlayPixel(buffer, W, slitX - 1, slitY + 2, ...CASTLE_COLORS.iron);
+                setCastleOverlayPixel(buffer, W, slitX + 1, slitY + 2, ...CASTLE_COLORS.iron);
+            }
+        } else {
+            // Damaged: one crumbled slit
+            const slitY = Math.floor(groundStart * 0.45);
+            for (let dy = 0; dy < 4; dy++) {
+                setCastleOverlayPixel(buffer, W, 30, slitY + dy, ...CASTLE_COLORS.iron);
+            }
+        }
+
+        // Crenellated battlements along the top — tall merlons (8px), wide crenels
         drawBattlements(buffer, W, H, 0, W, 0, wallColor, damaged);
 
     // ── Tower ─────────────────────────────────────────────────────────────────
     } else if (structureType === 'tower') {
-        // Tower: circular cross-section, drawn as a rounded front face
+        // Round tower — 96 px of visible stone.
+        // Circular cross-section tapering from base (radius 26) to top (radius 20).
+        // Three shading bands: left shadow edge, right lit edge, center face with mortar.
         const towerColor      = damaged ? CASTLE_COLORS.towerDark  : CASTLE_COLORS.tower;
         const towerLightColor = damaged ? CASTLE_COLORS.tower       : CASTLE_COLORS.towerLight;
         const mortarColor     = CASTLE_COLORS.wallMortar;
 
-        // Draw the tower body as a rounded rectangle (wider in the middle)
-        // The tower is centered horizontally
         const towerCenterX = 32;
-        const towerRadius  = 20; // half-width of the tower face
+        const baseRadius   = 26; // wider at base for ground-contact visual weight
+        const topRadius    = 20; // narrows toward the top
+
+        resetSeed(55000);
 
         for (let y = 0; y < groundStart; y++) {
-            // Taper the tower slightly toward the top (isometric perspective)
-            const taper = Math.round((y / groundStart) * 4); // 0 at top, 4 at bottom
-            const xLeft  = Math.max(0, towerCenterX - towerRadius + taper);
-            const xRight = Math.min(W, towerCenterX + towerRadius - taper);
+            // Linear taper: radius decreases from baseRadius at bottom to topRadius at top
+            const t = y / (groundStart - 1); // 0=top, 1=bottom
+            const radius = Math.round(topRadius + (baseRadius - topRadius) * t);
+            const xLeft  = Math.max(0, towerCenterX - radius);
+            const xRight = Math.min(W, towerCenterX + radius);
 
             for (let x = xLeft; x < xRight; x++) {
-                // Left edge: shadow
-                if (x < xLeft + 4) {
+                const distFromLeft  = x - xLeft;
+                const distFromRight = xRight - 1 - x;
+                const innerWidth    = xRight - xLeft;
+
+                if (distFromLeft < 4) {
+                    // Hard shadow edge — far curved wall
                     setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.towerDark);
-                // Right edge: highlight
-                } else if (x >= xRight - 4) {
+                } else if (distFromRight < 4) {
+                    // Highlight edge — near curved wall catching upper-left light
                     setCastleOverlayPixel(buffer, W, x, y,
                         ...(damaged ? CASTLE_COLORS.towerDark : CASTLE_COLORS.towerLight));
-                // Mortar lines every 5 rows
-                } else if (y % 5 === 4) {
+                } else if (y % 6 === 5) {
+                    // Mortar course
                     setCastleOverlayPixel(buffer, W, x, y, ...mortarColor);
                 } else {
-                    // Stone blocks with variation
-                    const blockPhase = Math.floor((x - xLeft) / 8) + (Math.floor(y / 5) % 2 === 0 ? 0 : 1);
-                    const useLight = !damaged && (blockPhase % 2 === 0);
-                    const baseColor = useLight ? towerLightColor : towerColor;
-                    const variation = damaged
-                        ? (seededRandom() - 0.7) * 12
-                        : (seededRandom() - 0.5) * 8;
-                    const nr = Math.max(0, Math.min(255, baseColor[0] + variation));
-                    const ng = Math.max(0, Math.min(255, baseColor[1] + variation));
-                    const nb = Math.max(0, Math.min(255, baseColor[2] + variation));
-                    setCastleOverlayPixel(buffer, W, x, y, nr, ng, nb);
+                    // Stone block with horizontal stagger per course
+                    const course  = Math.floor(y / 6);
+                    const stagger = (course % 2 === 0) ? 0 : 5;
+                    const blockW  = 10;
+                    const posInBlock = (x - xLeft + stagger) % blockW;
+                    const isJoint    = (posInBlock === 0);
+
+                    if (isJoint) {
+                        setCastleOverlayPixel(buffer, W, x, y, ...mortarColor);
+                    } else {
+                        const variation = damaged
+                            ? (seededRandom() - 0.7) * 14
+                            : (seededRandom() - 0.5) * 8;
+                        // Lit more on right side of face
+                        const lateralBias = (x - xLeft - 4) / (innerWidth - 8);
+                        const base = (!damaged && lateralBias > 0.6) ? towerLightColor : towerColor;
+                        const nr = Math.max(0, Math.min(255, base[0] + variation));
+                        const ng = Math.max(0, Math.min(255, base[1] + variation));
+                        const nb = Math.max(0, Math.min(255, base[2] + variation));
+                        setCastleOverlayPixel(buffer, W, x, y, nr, ng, nb);
+                    }
                 }
             }
         }
 
-        // Battlements at the top of the tower
-        const topTaper = 4;
-        const battleX0 = towerCenterX - towerRadius + topTaper;
-        const battleX1 = towerCenterX + towerRadius - topTaper;
+        // Arrow slit — single vertical slit mid-height
+        if (!damaged) {
+            const slitY = Math.floor(groundStart * 0.5);
+            const slitX = towerCenterX + 2;
+            for (let dy = 0; dy < 8; dy++) {
+                setCastleOverlayPixel(buffer, W, slitX, slitY + dy, ...CASTLE_COLORS.iron);
+            }
+            setCastleOverlayPixel(buffer, W, slitX - 1, slitY + 3, ...CASTLE_COLORS.iron);
+            setCastleOverlayPixel(buffer, W, slitX + 1, slitY + 3, ...CASTLE_COLORS.iron);
+        }
+
+        // Round cap battlements — merlons only over the tower body
+        const battleX0 = towerCenterX - topRadius + 4;
+        const battleX1 = towerCenterX + topRadius - 4;
         drawBattlements(buffer, W, H, battleX0, battleX1, 0, towerColor, damaged);
 
     // ── Keep quadrants ────────────────────────────────────────────────────────
@@ -1243,47 +1319,69 @@ function generateCastleOverlay(structureType, damaged) {
         const keepLightColor = damaged ? CASTLE_COLORS.tower       : CASTLE_COLORS.towerLight;
         const mortarColor    = CASTLE_COLORS.wallMortar;
 
-        // Full-width keep face
-        drawWallFace(buffer, W, H, 0, W, 0, keepColor, keepLightColor, mortarColor, damaged,
-            structureType === 'keep-tl' ? 200 :
-            structureType === 'keep-bl' ? 300 :
-            structureType === 'keep-br' ? 400 : 500);
+        // Each keep quadrant is a massive stone face — full width, full height.
+        // Left and right edge strips provide isometric depth.
+        const seedBase = structureType === 'keep-tl' ? 200 :
+                         structureType === 'keep-bl' ? 300 :
+                         structureType === 'keep-br' ? 400 : 500;
 
-        // Window slit (1×3 dark rectangle) — only on undamaged or partially damaged
-        if (!damaged || structureType === 'keep-center') {
-            const slitX = structureType === 'keep-tl' ? 30 :
-                          structureType === 'keep-bl' ? 34 :
-                          structureType === 'keep-br' ? 28 : 32;
-            const slitY = Math.floor(groundStart * 0.4);
-            for (let dy = 0; dy < 3; dy++) {
-                const sy = slitY + dy;
-                if (sy >= 0 && sy < groundStart) {
-                    setCastleOverlayPixel(buffer, W, slitX, sy, 25, 25, 22);
-                }
+        // Shadow left edge
+        for (let y = 0; y < groundStart; y++) {
+            for (let x = 0; x < 10; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.towerDark);
+            }
+        }
+        // Lit right edge
+        for (let y = 0; y < groundStart; y++) {
+            for (let x = W - 10; x < W; x++) {
+                setCastleOverlayPixel(buffer, W, x, y,
+                    ...(damaged ? CASTLE_COLORS.towerDark : CASTLE_COLORS.towerLight));
             }
         }
 
-        // Keep center: flag pole and flag
-        if (structureType === 'keep-center') {
-            // Flag pole
-            for (let y = 0; y < groundStart - 4; y++) {
-                if (y >= 0 && y < groundStart) {
-                    setCastleOverlayPixel(buffer, W, 32, y, 55, 35, 18);
-                    setCastleOverlayPixel(buffer, W, 33, y, 65, 42, 22);
+        // Main face — full-height brickwork with deep mortar courses
+        drawWallFace(buffer, W, H, 10, W - 10, 0, keepColor, keepLightColor, mortarColor, damaged, seedBase);
+
+        // Window slit — narrow arrow-loop at mid height
+        const slitX = structureType === 'keep-tl' ? 28 :
+                      structureType === 'keep-bl' ? 34 :
+                      structureType === 'keep-br' ? 28 : 32;
+        const slitY = Math.floor(groundStart * 0.4);
+
+        if (!damaged || structureType === 'keep-center') {
+            for (let dy = 0; dy < 8; dy++) {
+                const sy = slitY + dy;
+                if (sy >= 0 && sy < groundStart) {
+                    setCastleOverlayPixel(buffer, W, slitX, sy, ...CASTLE_COLORS.iron);
                 }
             }
-            // Flag (5×4 pixels)
+            // Cross-shape at center of slit
+            if (slitY + 3 < groundStart) {
+                setCastleOverlayPixel(buffer, W, slitX - 1, slitY + 3, ...CASTLE_COLORS.iron);
+                setCastleOverlayPixel(buffer, W, slitX + 1, slitY + 3, ...CASTLE_COLORS.iron);
+            }
+        }
+
+        // Keep center: tall flag pole + banner
+        if (structureType === 'keep-center') {
+            // Flag pole running nearly full height
+            for (let y = 2; y < groundStart - 6; y++) {
+                setCastleOverlayPixel(buffer, W, 32, y, ...CASTLE_COLORS.woodDark);
+                setCastleOverlayPixel(buffer, W, 33, y, ...CASTLE_COLORS.wood);
+            }
+            // Banner — 8 wide × 6 tall, flies from top of pole
             resetSeed(25000);
-            const flagH = damaged ? 3 : 5;
+            const flagH = damaged ? 4 : 6;
             for (let fy = 0; fy < flagH; fy++) {
-                for (let fx = 0; fx < 7; fx++) {
-                    const flagY = 2 + fy;
+                for (let fx = 0; fx < 8; fx++) {
+                    const flagY = 4 + fy;
                     const flagX = 34 + fx;
                     if (flagY >= 0 && flagY < groundStart && flagX >= 0 && flagX < W) {
                         const noise = (seededRandom() - 0.5) * 6;
                         setCastleOverlayPixel(buffer, W, flagX, flagY,
-                            Math.max(0, Math.min(255, 200 + noise)),
-                            30, 25);
+                            Math.max(0, Math.min(255, CASTLE_COLORS.wallDark[0] + noise)),
+                            Math.max(0, Math.min(255, CASTLE_COLORS.wallDark[1] + noise)),
+                            Math.max(0, Math.min(255, CASTLE_COLORS.wallDark[2] + noise)));
                     }
                 }
             }
@@ -1298,38 +1396,67 @@ function generateCastleOverlay(structureType, damaged) {
         const wallLightColor = damaged ? CASTLE_COLORS.wall       : CASTLE_COLORS.wallLight;
         const mortarColor    = CASTLE_COLORS.wallMortar;
 
-        // Stone wall face — full width
-        drawWallFace(buffer, W, H, 0, W, 0, wallColor, wallLightColor, mortarColor, damaged, 600);
+        // Gatehouse: tallest structure — 112 px above ground.
+        // Left and right flanking tower strips + central arch span.
 
-        // Arch opening (dark rectangle in the center-lower portion)
-        // The arch spans the lower half of the above-ground area
-        const archTop    = Math.floor(groundStart * 0.35);
-        const archBottom = groundStart; // arch goes to the ground boundary
-        const archLeft   = 20;
-        const archRight  = 44;
+        // Left flanking tower body (x: 0..22)
+        for (let y = 0; y < groundStart; y++) {
+            const t = y / (groundStart - 1);
+            const radius = Math.round(10 + 4 * t); // tapers slightly toward top
+            for (let x = 0; x < radius * 2; x++) {
+                const shade = (x < 3) ? CASTLE_COLORS.towerDark :
+                              (x > radius * 2 - 4) ? (damaged ? CASTLE_COLORS.towerDark : CASTLE_COLORS.towerLight) :
+                              (y % 6 === 5) ? mortarColor : CASTLE_COLORS.tower;
+                setCastleOverlayPixel(buffer, W, x, y, ...shade);
+            }
+        }
 
-        // Dark arch interior
-        fillRect(buffer, W, H, archLeft, archTop, archRight, archBottom, [25, 22, 20]);
+        // Right flanking tower body (x: 42..63)
+        for (let y = 0; y < groundStart; y++) {
+            const t = y / (groundStart - 1);
+            const radius = Math.round(10 + 4 * t);
+            const towerRight = W;
+            const towerLeft  = towerRight - radius * 2;
+            for (let x = Math.max(42, towerLeft); x < towerRight; x++) {
+                const shade = (x < towerLeft + 3) ? CASTLE_COLORS.towerDark :
+                              (x > towerRight - 4) ? (damaged ? CASTLE_COLORS.towerDark : CASTLE_COLORS.towerLight) :
+                              (y % 6 === 5) ? mortarColor : CASTLE_COLORS.tower;
+                setCastleOverlayPixel(buffer, W, x, y, ...shade);
+            }
+        }
 
-        // Arch curve at the top (rounded arch)
+        // Central wall face between towers
+        drawWallFace(buffer, W, H, 22, 42, 0, wallColor, wallLightColor, mortarColor, damaged, 600);
+
+        // Arch opening — tall pointed arch in the lower two-thirds of the gatehouse face
+        const archTop    = Math.floor(groundStart * 0.28);
+        const archBottom = groundStart;
+        const archLeft   = 22;
+        const archRight  = 42;
         const archCenterX = (archLeft + archRight) / 2;
-        const archRadius  = (archRight - archLeft) / 2;
+        const archHalfW   = (archRight - archLeft) / 2;
+
+        // Fill arch interior with dark iron color
+        for (let y = archTop; y < archBottom; y++) {
+            for (let x = archLeft; x < archRight; x++) {
+                setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
+            }
+        }
+
+        // Rounded arch curve at the top
         for (let x = archLeft; x < archRight; x++) {
-            const dx = x - archCenterX;
-            const archY = archTop - Math.round(Math.sqrt(Math.max(0, archRadius * archRadius - dx * dx)) * 0.4);
-            if (archY >= 0 && archY < groundStart) {
-                // Fill from archY down to archTop with dark color
-                for (let y = archY; y < archTop; y++) {
-                    if (y >= 0 && y < groundStart) {
-                        setCastleOverlayPixel(buffer, W, x, y, 25, 22, 20);
-                    }
+            const dx   = x - archCenterX;
+            const archY = archTop - Math.round(Math.sqrt(Math.max(0, archHalfW * archHalfW - dx * dx)) * 0.5);
+            for (let y = Math.max(0, archY); y < archTop; y++) {
+                if (y >= 0 && y < groundStart) {
+                    setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
                 }
             }
         }
 
-        // Portcullis bars (vertical iron bars)
+        // Portcullis vertical bars
         if (!damaged) {
-            for (let x = archLeft + 1; x < archRight; x += 3) {
+            for (let x = archLeft + 2; x < archRight; x += 3) {
                 for (let y = archTop; y < archBottom; y++) {
                     if (y >= 0 && y < groundStart) {
                         setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
@@ -1337,7 +1464,7 @@ function generateCastleOverlay(structureType, damaged) {
                 }
             }
             // Horizontal crossbars
-            for (let y = archTop + 3; y < archBottom; y += 4) {
+            for (let y = archTop + 4; y < archBottom; y += 5) {
                 for (let x = archLeft; x < archRight; x++) {
                     if (y >= 0 && y < groundStart) {
                         setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.ironLight);
@@ -1345,16 +1472,16 @@ function generateCastleOverlay(structureType, damaged) {
                 }
             }
         } else {
-            // Damaged: broken portcullis — only partial bars
-            for (let x = archLeft + 1; x < archRight; x += 3) {
-                const barHeight = Math.floor(groundStart * 0.3) + Math.floor(seededRandom() * Math.floor(groundStart * 0.2));
-                for (let y = archTop; y < archTop + barHeight && y < groundStart; y++) {
+            // Damaged: broken portcullis — partial bars only
+            for (let x = archLeft + 2; x < archRight; x += 3) {
+                const barH = Math.floor((archBottom - archTop) * 0.35);
+                for (let y = archTop; y < archTop + barH && y < groundStart; y++) {
                     setCastleOverlayPixel(buffer, W, x, y, ...CASTLE_COLORS.iron);
                 }
             }
         }
 
-        // Battlements at the top
+        // Battlements — across the full top (both flanking towers and center span)
         drawBattlements(buffer, W, H, 0, W, 0, wallColor, damaged);
 
     // ── Bridge-mm (cobblestone bridge surface) ────────────────────────────────
@@ -1434,6 +1561,172 @@ function generateCastleOverlay(structureType, damaged) {
     return buffer;
 }
 
+// ─── Isometric Wall Overlay Sprite Generator ────────────────────────────────
+
+/**
+ * Generates a 2.5D isometric stone wall overlay for all castle structure tiles.
+ *
+ * Canvas: 64×96 px (OVERLAY_WIDTH × WALL_OVERLAY_HEIGHT).
+ * The bottom 32 rows (y = 64..95) are the ground diamond footprint — left alpha=0.
+ * The top 64 rows (y = 0..63) are the wall's vertical stone face.
+ *
+ * ── Viewpoint: BR→TL (camera in the SE, looking NW) ────────────────────────
+ *
+ * Diamond vertices in this 64×96 canvas:
+ *   Top    (32,  64)
+ *   Left   ( 0,  80)   ← West corner
+ *   Bottom (32,  95)   ← South corner (deepest point on screen)
+ *   Right  (63,  80)   ← East corner
+ *
+ * Two bottom edges are visible:
+ *
+ *   LEFT face  (SW edge): x = 0..31
+ *     surfaceRow(x) = floor(80 + x * 0.5) + 1
+ *     x=0  → sr=81 (wall body = [wallTopY, 80])
+ *     x=31 → sr=96 (= H, full wall body)
+ *
+ *   RIGHT face (SE edge): x = 32..63
+ *     surfaceRow(x) = floor(80 + (63-x) * 0.5) + 1
+ *     x=32 → sr=96 (full wall body)
+ *     x=63 → sr=81
+ *
+ *   WALL_H   = 64   → wallTopY = 95 - 64 = 31
+ *   MERLON_H = 6    → merlonTopCap = wallTopY - MERLON_H = 25
+ *   PERIOD   = 9    (MERLON_W=5 + CRENEL_W=4)
+ *
+ * With 64px of wall height, units can visibly stand atop the battlements.
+ *
+ * @param {boolean} [damaged=false] - Whether to draw the damaged variant.
+ * @returns {Buffer} 64×96 RGBA pixel buffer with transparent background.
+ */
+function generateIsoWallOverlay(damaged = false) {
+    const W = 64;
+    const H = 96; // matches CASTLE_OVERLAY_CANVAS_HEIGHTS.wall = 96
+
+    const buffer = createCastleOverlayBuffer(W, H);
+    const castlePalette = getPaletteForCategory('castle');
+
+    // ── Geometry constants ────────────────────────────────────────────────
+    // Diamond top vertex in this canvas: (32, H - TILE_HEIGHT*2) = (32, 64)
+    // Diamond bottom vertex: (32, H - 1) = (32, 95)
+    // Diamond left vertex:   (0,  H - TILE_HEIGHT/2 * 3) = (0, 80)  [approx]
+    // Diamond right vertex:  (63, 80)
+    //
+    // Surface row formulas are anchored at the diamond bottom vertex row (95)
+    // minus half-tile steps toward each edge:
+    //   SW edge (left face): at column x, the diamond surface is at y = 80 + x * 0.5
+    //   SE edge (right face): at column x, y = 80 + (63-x) * 0.5
+    const DIAMOND_LEFT_Y  = 80; // y of left & right diamond vertices
+    const DIAMOND_BOT_Y   = 95; // y of bottom diamond vertex
+    const WALL_H          = 64; // px of visible wall above surface = 2 tile heights
+    const MERLON_H        = 6;  // tall merlons — units can crouch behind them
+    const MERLON_W        = 5;
+    const CRENEL_W        = 4;
+    const PERIOD          = MERLON_W + CRENEL_W; // 9
+    const wallTopY        = DIAMOND_BOT_Y - WALL_H; // = 31
+    const merlonTopCap    = wallTopY - MERLON_H;    // = 25
+
+    function leftSurfaceRow(x)  { return Math.floor(DIAMOND_LEFT_Y + x * 0.5) + 1; }
+    function rightSurfaceRow(x) { return Math.floor(DIAMOND_LEFT_Y + (63 - x) * 0.5) + 1; }
+
+    // ── Colors ────────────────────────────────────────────────────────────
+    const faceMain   = damaged ? CASTLE_COLORS.wallDark   : CASTLE_COLORS.wall;
+    const faceLight  = damaged ? CASTLE_COLORS.wall        : CASTLE_COLORS.wallLight;
+    const faceShadow = CASTLE_COLORS.wallDark;
+    const mortar     = CASTLE_COLORS.wallMortar;
+    const border     = CASTLE_COLORS.wallDark;
+
+    resetSeed(damaged ? 88800 : 88000);
+    const ch = (v) => Math.round(Math.max(0, Math.min(255, v)));
+
+    // ── Draw one column of wall face ───────────────────────────────────────
+    function drawColumn(x, sr, faceColor, litColor) {
+        for (let y = wallTopY; y < sr && y < H; y++) {
+            if (y < 0) continue;
+            const rise = sr - 1 - y;
+            const noise = (seededRandom() - 0.5) * 10;
+
+            const isMortarRow = (rise % 6 === 5); // mortar every 6 rows
+            const courseIdx   = Math.floor(rise / 6);
+            const stagger     = (courseIdx % 2 === 0) ? 0 : Math.floor(PERIOD / 2);
+            const isJoint     = ((x + stagger) % PERIOD === 0);
+
+            let r, g, b;
+            if (isMortarRow || isJoint) {
+                r = mortar[0] + noise * 0.3;
+                g = mortar[1] + noise * 0.3;
+                b = mortar[2] + noise * 0.3;
+            } else {
+                // Upper half of wall slightly lighter (ambient sky light hits top)
+                const topBias = rise / WALL_H;
+                const c = (topBias < 0.4) ? litColor : faceColor;
+                r = c[0] + noise;
+                g = c[1] + noise;
+                b = c[2] + noise;
+            }
+            setCastleOverlayPixel(buffer, W, x, y, ch(r), ch(g), ch(b));
+        }
+
+        // Parapet cap at wallTopY (unconditional dark line)
+        if (wallTopY >= 0 && wallTopY < H) {
+            setCastleOverlayPixel(buffer, W, x, wallTopY, ...border);
+        }
+
+        // Battlements above parapet
+        const isMerlon = (x % PERIOD) < MERLON_W;
+        if (isMerlon) {
+            for (let m = 1; m <= MERLON_H; m++) {
+                const my = wallTopY - m;
+                if (my < merlonTopCap || my >= H) continue;
+                const noise = (seededRandom() - 0.5) * 8;
+                const c = (m <= MERLON_H / 2) ? litColor : faceColor;
+                setCastleOverlayPixel(buffer, W, x, my,
+                    ch(c[0] + noise), ch(c[1] + noise), ch(c[2] + noise));
+            }
+            if (merlonTopCap >= 0 && merlonTopCap < H) {
+                setCastleOverlayPixel(buffer, W, x, merlonTopCap, ...border);
+            }
+        }
+
+        // Arrow slit — one per wall face half, at mid-height of wall body
+        // Only draw on selected x columns to avoid cluttering
+        const slitXL = 14; // left face slit column
+        const slitXR = 50; // right face slit column
+        const slitY  = wallTopY + Math.floor(WALL_H * 0.38);
+        if ((x === slitXL || x === slitXR) && !damaged) {
+            for (let dy = 0; dy < 10; dy++) {
+                const sy = slitY + dy;
+                if (sy >= wallTopY && sy < H) {
+                    setCastleOverlayPixel(buffer, W, x, sy, ...CASTLE_COLORS.iron);
+                }
+            }
+            // Cross-slit arm
+            if (slitY + 4 < H) {
+                if (x > 0)  setCastleOverlayPixel(buffer, W, x - 1, slitY + 4, ...CASTLE_COLORS.iron);
+                if (x < 63) setCastleOverlayPixel(buffer, W, x + 1, slitY + 4, ...CASTLE_COLORS.iron);
+            }
+        }
+    }
+
+    // ── Left face: SW edge (West→South), x = 0..31 ────────────────────────
+    for (let x = 0; x <= 31; x++) {
+        drawColumn(x, leftSurfaceRow(x), faceMain, faceLight);
+    }
+
+    // ── Right face: SE edge (South→East), x = 32..63 ──────────────────────
+    for (let x = 32; x <= 63; x++) {
+        drawColumn(x, rightSurfaceRow(x), faceShadow, faceMain);
+    }
+
+    // ── Ridge seam at x=32 ────────────────────────────────────────────────
+    for (let y = wallTopY; y < H; y++) {
+        if (y >= 0) setCastleOverlayPixel(buffer, W, 32, y, ...border);
+    }
+
+    quantizeToPalette(buffer, castlePalette);
+    return buffer;
+}
+
 module.exports = {
     generateTreeOverlay,
     createOverlayBuffer,
@@ -1442,5 +1735,6 @@ module.exports = {
     createCastleOverlayBuffer,
     setCastleOverlayPixel,
     generateCastleOverlay,
+    generateIsoWallOverlay,
     CASTLE_OVERLAY_SPRITES,
 };

@@ -81,7 +81,9 @@ const SpriteManager = {
         'unit-artillery',
 
         // Castle structures
+        'castle-bridge-start',
         'castle-bridge-mid',
+        'castle-bridge-gate',
         'castle-tower',
         'castle-keep-tl',
         'castle-keep-bl',
@@ -133,7 +135,10 @@ const SpriteManager = {
         'castle-keep-center-damaged-overlay',
         // Gatehouse: 64×80 px
         'castle-gatehouse-overlay',
-        'castle-gatehouse-damaged-overlay'
+        'castle-gatehouse-damaged-overlay',
+        // Isometric wall face overlay (64×48) — single sprite used by all castle structure tiles at runtime
+        'castle-iso-wall-overlay',
+        'castle-iso-wall-damaged-overlay',
     ],
 
     /**

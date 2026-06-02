@@ -62,8 +62,8 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
 - [x] 6. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Create `overlay-utils.js` utility module
-  - [ ] 7.1 Create `js/game-logic/lib/overlay-utils.js` with `resolveOverlayDraw(tile, ctx, x, y, camera)`
+- [x] 7. Create `overlay-utils.js` utility module
+  - [x] 7.1 Create `js/game-logic/lib/overlay-utils.js` with `resolveOverlayDraw(tile, ctx, x, y, camera)`
     - Depends on: task 1 (for `CASTLE_OVERLAY_SPRITES` names), task 4.1 (for `CASTLE_OVERLAY_CATEGORY_MAP` shape)
     - Return `null` if `!tile.overlay` (no overlay — caller passes through)
     - For `tree-*` overlays: return a zero-arg draw closure using `OVERLAY_HEIGHT=48` and `TREE_OVERLAY_OFFSET_Y`
@@ -72,7 +72,7 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Export `{ resolveOverlayDraw }`
     - _Requirements: 4.3, 4.4, 5.1, 5.2, 5.3, 5.5, 6.1, 6.2_
 
-  - [ ] 7.2 Write unit tests for `resolveOverlayDraw`
+  - [x] 7.2 Write unit tests for `resolveOverlayDraw`
     - Depends on: task 7.1
     - Assert returns `null` for a tile with no `overlay` field
     - Assert returns a function for a tile with a valid `tree-*` overlay name
@@ -81,8 +81,8 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert throws for a `castle-*` name that matches the prefix but is not registered in `CASTLE_OVERLAY_CATEGORY_MAP`
     - _Requirements: 4.3, 4.4, 5.1, 5.2, 5.3_
 
-- [ ] 8. Update level loader for castle and bridge tile objects
-  - [ ] 8.1 Update the 11 castle/bridge switch cases in `LevelLoader.parseLevelText` in `js/game-logic/level-loader.js`
+- [x] 8. Update level loader for castle and bridge tile objects
+  - [x] 8.1 Update the 11 castle/bridge switch cases in `LevelLoader.parseLevelText` in `js/game-logic/level-loader.js`
     - `=` → `{ sprite: 'bridge-mm', overlay: 'bridge-mm-overlay' }`
     - `b` → `{ sprite: 'castle-bridge-start', overlay: 'castle-bridge-start-overlay' }` (fixes existing bug: was mapping to `castle-bridge-mid`)
     - `m` → `{ sprite: 'castle-bridge-mid', overlay: 'castle-bridge-mid-overlay' }` (fixes existing bug)
@@ -98,7 +98,7 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Do not modify `tileHash` or any other switch cases
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 8.5_
 
-  - [ ] 8.2 Write unit tests for level loader castle tile changes
+  - [x] 8.2 Write unit tests for level loader castle tile changes
     - Depends on: task 8.1
     - Assert each of the 11 castle/bridge characters produces a tile with the correct `sprite` and `overlay` values
     - Assert `b`, `m`, `g` now map to their correct distinct sprites (not all `castle-bridge-mid`)
@@ -106,17 +106,17 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert `tileHash` returns the same values as before for fixed inputs
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13_
 
-- [ ] 9. Checkpoint — Ensure all tests pass
+- [x] 9. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Update IsoRenderer with castle overlay constants and `CASTLE_OVERLAY_CATEGORY_MAP`
-  - [ ] 10.1 Add 5 height constants, 5 offset constants, and `CASTLE_OVERLAY_CATEGORY_MAP` to `js/game-logic/lib/iso-renderer.js`
+- [x] 10. Update IsoRenderer with castle overlay constants and `CASTLE_OVERLAY_CATEGORY_MAP`
+  - [x] 10.1 Add 5 height constants, 5 offset constants, and `CASTLE_OVERLAY_CATEGORY_MAP` to `js/game-logic/lib/iso-renderer.js`
     - `WALL_OVERLAY_HEIGHT = 48`, `BRIDGE_OVERLAY_HEIGHT = 48`, `TOWER_OVERLAY_HEIGHT = 64`, `KEEP_OVERLAY_HEIGHT = 64`, `GATEHOUSE_OVERLAY_HEIGHT = 80`
     - `WALL_OVERLAY_OFFSET_Y = 0`, `BRIDGE_OVERLAY_OFFSET_Y = 0`, `TOWER_OVERLAY_OFFSET_Y = 0`, `KEEP_OVERLAY_OFFSET_Y = 0`, `GATEHOUSE_OVERLAY_OFFSET_Y = 0`
     - Add `CASTLE_OVERLAY_CATEGORY_MAP` mapping all 18 castle/bridge overlay sprite names to their `{ height, offsetY }` constants (see design.md §5 for the full map)
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ] 10.2 Update `IsoRenderer.drawTerrain` to call `resolveOverlayDraw` from `overlay-utils.js`
+  - [x] 10.2 Update `IsoRenderer.drawTerrain` to call `resolveOverlayDraw` from `overlay-utils.js`
     - Depends on: tasks 10.1 and 7.1
     - Import `resolveOverlayDraw` from `js/game-logic/lib/overlay-utils.js`
     - Replace the existing inline overlay draw block with:
@@ -127,7 +127,7 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Draw hover/select diamond outlines after both sprite draw calls (unchanged behavior)
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 6.1, 6.2, 6.3, 8.4_
 
-  - [ ] 10.3 Write unit tests for IsoRenderer castle overlay rendering
+  - [x] 10.3 Write unit tests for IsoRenderer castle overlay rendering
     - Depends on: tasks 10.1 and 10.2
     - Assert all 5 height constants and 5 offset constants are defined and are numbers
     - Assert `CASTLE_OVERLAY_CATEGORY_MAP` contains entries for all 18 castle/bridge overlay sprite names
@@ -135,8 +135,8 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Assert tiles with a castle `overlay` produce exactly two `SpriteManager.draw` calls in the correct order
     - _Requirements: 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 11. Integrate castle overlay sprites into the build pipeline
-  - [ ] 11.1 Update `js/level-generators/build-sprites.js` to include the castle overlay generator and sprites
+- [x] 11. Integrate castle overlay sprites into the build pipeline
+  - [x] 11.1 Update `js/level-generators/build-sprites.js` to include the castle overlay generator and sprites
     - Depends on: tasks 1 and 5
     - Add `generate-castle-overlay-sprites.js` to `GENERATOR_SCRIPTS` after `generate-damaged-castle-sprites.js`
     - Import `CASTLE_OVERLAY_SPRITES` from `sprite-constants.js` and derive `CASTLE_OVERLAY_SPRITE_NAMES = Object.values(CASTLE_OVERLAY_SPRITES)`
@@ -145,42 +145,42 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - Add a pre-pack existence check: for each name in `CASTLE_OVERLAY_SPRITE_NAMES`, verify the PNG exists in `OUTPUT_DIR`; if any are missing, log each missing file name to stderr and throw (exit non-zero)
     - _Requirements: 2.3, 2.4, 2.5, 9.1, 9.2, 9.3, 9.4_
 
-  - [ ] 11.2 Write unit tests for build pipeline castle overlay integration
+  - [x] 11.2 Write unit tests for build pipeline castle overlay integration
     - Depends on: task 11.1
     - Assert the build pipeline exits non-zero and logs a structured error when a castle overlay PNG is missing
     - Assert the build pipeline exits non-zero and logs an error when `CASTLE_OVERLAY_SPRITES` is undefined or empty
     - Assert `CASTLE_OVERLAY_SPRITE_NAMES` values are included in the sprite entries passed to `packAtlas()`
     - _Requirements: 2.3, 2.4, 2.5, 9.3_
 
-- [ ] 12. Checkpoint — Ensure all tests pass
+- [x] 12. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. Property tests — sprite generator invariants
+- [x] 13. Property tests — sprite generator invariants
   - Depends on: tasks 4.1 and 5 (all 18 overlay buffers must be generatable)
-  - [ ] 13.1 Write property test for transparent background invariant
+  - [x] 13.1 Write property test for transparent background invariant
     - **Property 1: Transparent background invariant**
     - For each of the 18 generated castle overlay buffers, use fast-check to generate random (x, y) coordinates within the canvas bounds; for any coordinate outside the drawn structure's vertical body (alpha=0 in the reference buffer), assert alpha=0
     - Tag: `// Feature: castle-structure-overlays, Property 1: Transparent background invariant`
     - File: `property-tests/castle-overlay-transparent.property.js`
     - _Requirements: 10.1_
 
-  - [ ] 13.2 Write property test for palette fidelity of overlay pixels
+  - [x] 13.2 Write property test for palette fidelity of overlay pixels
     - **Property 2: Palette fidelity of overlay pixels**
-    - For each generated castle overlay buffer, use fast-check to generate random pixel indices; for any pixel with alpha > 0, assert its RGB values are within ±15 per channel of at least one color in `CASTLE_COLORS`
+    - For each generated castle overlay buffer, use fast-check to generate random pixel indices; for any pixel with alpha > 0, assert its RGB values are within ±15 per channel of at least one color in `getPaletteForCategory('castle')` (i.e. `PRIMARY_PALETTE + CASTLE_ACCENT_COLORS`, which includes `BORDER_COLOR`)
     - Tag: `// Feature: castle-structure-overlays, Property 2: Palette fidelity of overlay pixels`
     - File: `property-tests/castle-overlay-palette.property.js`
     - _Requirements: 10.2_
 
-- [ ] 14. Property tests — level loader invariants
+- [x] 14. Property tests — level loader invariants
   - Depends on: task 8.1 (all 11 castle/bridge cases updated)
-  - [ ] 14.1 Write property test for castle tile ground+overlay fields
+  - [x] 14.1 Write property test for castle tile ground+overlay fields
     - **Property 3: Castle tile produces ground and overlay fields**
     - Use fast-check to generate arbitrary non-negative integer (row, col) pairs; for each castle/bridge character (`=`, `b`, `m`, `g`, `T`, `K`, `j`, `J`, `F`, `G`, `W`), parse a minimal level string and assert the resulting tile has `sprite` ∈ `Object.values(CASTLE_SPRITES)` and `overlay` ∈ `Object.values(CASTLE_OVERLAY_SPRITES)`
     - Tag: `// Feature: castle-structure-overlays, Property 3: Castle tile produces ground and overlay fields`
     - File: `property-tests/castle-overlay-level-loader.property.js`
     - _Requirements: 10.3_
 
-  - [ ] 14.2 Write property test for non-overlay tile has no overlay field
+  - [x] 14.2 Write property test for non-overlay tile has no overlay field
     - **Property 4: Non-overlay tile has no overlay field**
     - Use fast-check to generate arbitrary non-negative integer (row, col) pairs and arbitrary non-overlay characters (`.`, `,`, `R`, `D`, `~`, `C`); assert the resulting tile does NOT have an `overlay` field (not present, not `undefined`, not `null`, not empty string)
     - Note: `O`, `P`, `S` are NOT in this set — they produce tree overlays via the existing tree-overlay-system
@@ -188,30 +188,30 @@ Extend the existing tree overlay pipeline to support 2.5D rendering for castle a
     - File: `property-tests/castle-overlay-level-loader.property.js` (same file as 14.1)
     - _Requirements: 10.4_
 
-- [ ] 15. Property tests — renderer invariants
+- [x] 15. Property tests — renderer invariants
   - Depends on: tasks 10.1 and 10.2 (constants, map, and drawTerrain update all complete)
-  - [ ] 15.1 Write property test for overlay draw sequence invariant
+  - [x] 15.1 Write property test for overlay draw sequence invariant
     - **Property 5: Overlay draw sequence invariant**
     - Use fast-check to generate arbitrary tile objects with a castle `overlay` field and arbitrary camera configurations with `tileW`/`tileH` in [1, 256]; mock `SpriteManager.draw` and assert the first call uses `tile.sprite` and the second call uses `tile.overlay`
     - Tag: `// Feature: castle-structure-overlays, Property 5: Overlay draw sequence invariant`
     - File: `property-tests/castle-overlay-renderer.property.js`
     - _Requirements: 10.5_
 
-  - [ ] 15.2 Write property test for overlay dimensions invariant
+  - [x] 15.2 Write property test for overlay dimensions invariant
     - **Property 6: Overlay dimensions invariant**
     - Use fast-check to generate arbitrary tile objects covering all 18 castle overlay sprite names and arbitrary camera configurations; mock `SpriteManager.draw` and assert the overlay draw call passes `OVERLAY_WIDTH` (64) and the correct per-structure height constant (48, 64, or 80) — not `camera.tileW` or `camera.tileH`
     - Tag: `// Feature: castle-structure-overlays, Property 6: Overlay dimensions invariant`
     - File: `property-tests/castle-overlay-renderer.property.js` (same file as 15.1)
     - _Requirements: 10.6_
 
-  - [ ] 15.3 Write property test for overlay positioning formula invariant
+  - [x] 15.3 Write property test for overlay positioning formula invariant
     - **Property 7: Overlay positioning formula invariant**
     - Use fast-check to generate arbitrary tile screen positions and camera `tileW`/`tileH` values in [1, 256]; mock `SpriteManager.draw` and assert the overlay draw call uses X = `tileCenterX - 32` and Y = `tileTopY - (overlayHeight - camera.tileH) + overlayOffsetY` where `tileTopY = y - camera.tileH / 2` and `overlayHeight`/`overlayOffsetY` come from `CASTLE_OVERLAY_CATEGORY_MAP`
     - Tag: `// Feature: castle-structure-overlays, Property 7: Overlay positioning formula invariant`
     - File: `property-tests/castle-overlay-renderer.property.js` (same file as 15.1)
     - _Requirements: 10.7_
 
-- [ ] 16. Final checkpoint — Ensure all tests pass
+- [x] 16. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
