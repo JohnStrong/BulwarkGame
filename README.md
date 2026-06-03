@@ -30,6 +30,11 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [Enhanced Sprite Pipeline](#enhanced-sprite-pipeline)
 - [Architecture Documentation](#architecture-documentation)
 - [Enemy Goal / Playstyle](#enemy-goal--playstyle)
+  - [How Enemies Navigate the Map](#how-enemies-navigate-the-map)
+  - [Tile Movement Costs](#tile-movement-costs)
+  - [Shared Enemy Intelligence](#shared-enemy-intelligence)
+  - [Tree Tiles — A Special Hazard](#tree-tiles--a-special-hazard)
+  - [Unit-Specific Pathfinding Behaviors](#unit-specific-pathfinding-behaviors)
 
 ---
 
@@ -464,39 +469,64 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 
 ### How Enemies Navigate the Map
 
-Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn. The algorithm runs once per unit per turn, taking into account terrain costs, unit type, and any player units currently blocking tiles.
+Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn. The algorithm runs once per unit per turn, weighing terrain costs, unit type, and the positions of all player units on the map.
 
 Enemies operate in two distinct phases, separated by a single condition: whether the castle walls have been breached.
 
 **Phase 1 — Assault the perimeter.**
-From spawn, enemies can see the castle in the distance. They set their sights on the outer ring of passable tiles immediately adjacent to the castle walls, towers, and gatehouse. They do not yet know the layout inside — the keep is hidden behind the walls. All units converge on this perimeter ring, probing for the weakest approach.
+From spawn, enemies can see the castle in the distance. They set their sights on the outer ring of passable tiles immediately adjacent to the castle walls, towers, and gatehouse. They do not yet know the layout inside — the keep is hidden behind the walls. All units converge on this perimeter ring, probing for the cheapest approach.
 
 **Phase 2 — Storm the keep.**
 Once the castle has been breached (a game-state flag flips to `true`), every active enemy immediately re-targets the keep tiles (the `K`, `j`, `J`, `F` tile cluster). The final objective is to destroy the keep. Until breach is triggered, the interior remains invisible to them — the castle walls serve as a genuine information barrier, not just a health pool.
 
-Each turn, A\* computes the lowest-cost path through the hex grid to the nearest reachable target tile. The path respects terrain movement costs and dynamically avoids tiles occupied by player units — meaning an archer placed on the road genuinely forces enemies to go around.
+Each turn, A\* computes the lowest-cost path through the hex grid to the nearest reachable target tile. Crucially, **player units are no longer hard walls** — they carry a movement cost of `3`, making them expensive to move through but not impossible. If every uncontested route to the castle is more costly than fighting, enemies will choose to engage. Your unit placement creates genuine tactical pressure rather than an impenetrable blockade.
 
 ---
 
-### Tile Movement Costs and Passability
+### Tile Movement Costs
 
-| Tile | Character(s) | Movement Cost | Notes |
-|------|-------------|--------------|-------|
+Every tile has a base movement cost. The pathfinder always takes the cheapest available route, so the cost table directly shapes where enemies walk.
+
+| Tile | Character(s) | Base Cost | Notes |
+|------|-------------|----------|-------|
 | Grass | `.` | 1 | Standard open terrain |
 | Flowers | `,` | 1 | Same cost as grass |
-| Dirt road | `D` | 1 | Preferred route — roads are fast |
+| Dirt road | `D` | 1 | Preferred route |
 | Cobblestone bridge | `=` | 1 | River crossing |
-| Castle bridge | `b`, `m`, `g` | 1 | Drawbridge approach — enemies use this |
+| Castle bridge | `b`, `m`, `g` | 1 | Drawbridge approach |
 | Bailey (courtyard) | `C` | 1 | Interior courtyard tiles |
-| Water | `~` | 2 | Passable but slow — twice the movement cost |
+| Water | `~` | 2 | Passable but slow |
+| Water under fire | `~` (in threat zone) | 4 | See Shared Intelligence below |
+| Player unit (combat) | any terrain | 3 | Enemies can choose to fight |
 | Oak / Pine / Shrub | `O`, `P`, `S` | 1 or ∞ | Tree-eligible units only (see below) |
-| Rock | `R` | ∞ | Impassable for all unit types |
-| Castle wall | `W` | ∞ | Cannot be moved onto (combat not yet implemented) |
+| Rock | `R` | ∞ | Impassable for all |
+| Castle wall | `W` | ∞ | Cannot be moved onto |
 | Tower | `T` | ∞ | Impassable — future: destroyable |
 | Gatehouse | `G` | ∞ | Impassable — future: destroyable |
 | Keep tiles | `K`, `j`, `J`, `F` | ∞ | Phase 2 target, not traversable |
 
-A tile occupied by a **player unit** is treated as impassable regardless of its terrain type — placing your troops directly on a road forces enemies to find an alternative route.
+**The cost ordering the enemies reason with:**
+
+```
+open ground / road / bridge  = 1   ← always preferred
+open water                   = 2   ← tolerable if necessary
+fight a player unit          = 3   ← chosen when routing costs more
+water under player fire      = 4   ← last resort
+walls / keep / rock          = ∞   ← never passable
+```
+
+---
+
+### Shared Enemy Intelligence
+
+Enemies act as a coordinated force. Before each turn begins, the **EnemyManager** pools the positions of every player unit on the map into a single shared cost map — it doesn't matter which enemy can "see" which player. Every enemy unit reasons from the same collective intelligence that turn.
+
+This means:
+- If an archer guards bridge 1 and a knight guards bridge 2, both enemies know about both blockades simultaneously, even if they spawn far apart.
+- The shared map penalises **water tiles within 3 hex steps of any player unit** — raising their cost from `2` to `4`. This represents enemies recognising that water near a defender is a kill zone; they'd rather fight on dry ground.
+- The only tiles where the cost ever *drops* below the combat option (cost `3`) are uncontested open terrain (cost `1`) and open water outside any player's threat zone (cost `2`).
+
+In practical terms: block both bridges and your enemy has three options — swim through uncontested water (cost 2, if any exists), fight through your unit (cost 3), or wade through water your units are watching (cost 4). They'll pick the cheapest.
 
 ---
 
@@ -515,7 +545,7 @@ Lighter, more agile unit types (archers and cavalry) have the speed and awarenes
 | Cavalry | **Passable** (cost 1) — agile enough to navigate cover |
 | Siege Engine | **Impassable** — too slow and bulky for forest terrain |
 
-This creates an interesting dynamic for the player: placing units inside a forest patch is a strong deterrent against infantry and siege engines, but archers and cavalry will still push through. Covering a tree cluster with a player archer can therefore stop all four enemy types — the enemy AI will route around any tile occupied by a player unit, regardless of terrain.
+Note that tree passability stacks with the combat cost system. If a player unit is inside a forest, archers and cavalry will still path through — but the tree tile now also carries a combat cost of `3`, so they'll only do it if there's no cheaper route outside the trees.
 
 ---
 

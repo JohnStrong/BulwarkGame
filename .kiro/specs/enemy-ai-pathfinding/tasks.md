@@ -55,24 +55,26 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - _Requirements: 2.1, 8.3_
 
 - [ ] 4. Implement A* `findPath` in `pathfinding-engine.js`
-  - [ ] 4.1 Implement `PathfindingEngine.findPath(unitType, startRow, startCol, targetSet, tileGraph, getUnitAt)`
+  - [ ] 4.1 Implement `PathfindingEngine.findPath(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay)`
     - Use `MinHeap` for the open set, `Map` for gScore and parent
     - Compute heuristic as minimum `hexDistance` to any target tile
-    - Skip tiles where `getMovementCost === Infinity` or `getUnitAt !== null`
+    - Skip tiles where base `getMovementCost === Infinity` (walls, rock, keep)
+    - Apply `dynamicCostOverlay`: `effectiveCost = overlay.has(key) ? overlay.get(key) : baseCost`
+    - Player-occupied tiles are no longer skipped — they carry overlay cost 3 and are traversable
     - Call `reconstructPath` to return ordered path from start (exclusive) to goal (inclusive)
-    - Return `[]` when no path exists (no error thrown)
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 8.1, 8.2, 8.3, 8.4, 8.5_
+    - Return `[]` when no path exists (no error thrown); treat `null`/`undefined` overlay as empty Map
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7 (revised), 8.1, 8.2, 8.3, 8.4, 8.5, 9.6_
 
-  - [ ]* 4.2 Write property tests for `findPath` endpoints and validity (Properties 5, 6, 7, 12)
+  - [ ]* 4.2 Write property tests for `findPath` endpoints, validity, and cost ordering (Properties 5, 6, 7, 12)
     - **Property 5: Returned path endpoints are correct**
     - **Validates: Requirements 2.1, 2.5**
-    - **Property 6: Path never traverses invalid tiles**
-    - **Validates: Requirements 2.7, 8.1, 8.2**
+    - **Property 6 (revised): Path cost ordering is respected**
+    - **Validates: Requirements 2.7 (revised), 9.1, 9.8**
     - **Property 7: Empty path returned for unreachable targets**
     - **Validates: Requirements 2.6, 8.4**
     - **Property 12: Pathfinding is deterministic**
     - **Validates: Requirements 8.5**
-    - Generate random grids with mixed passable/impassable tiles and random target sets
+    - Generate random grids; verify A* picks the lower-cost route when a combat tile (cost 3) and an open route (cost 1) both lead to the target
     - _File: `tests/pathfinding-engine.test.js`_
 
 - [ ] 5. Checkpoint — validate `pathfinding-engine.js` in isolation
@@ -123,12 +125,15 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 - [ ] 8. Implement `EnemyManager.executeTurn()` — pathfinding and movement
   - [ ] 8.1 Implement the `executeTurn()` movement loop
     - Rebuild `_tileGraph` from current level tiles each turn
+    - Call `PathfindingEngine.buildSharedThreatMap(UnitManager.getPlacedUnits(), tileGraph)` ONCE per turn; store as `_sharedThreatMap`
     - Select `targetSet`: `computeCastlePerimeter` when `_castleBreached === false`, `computeKeepTileSet` when `true`
-    - For each unit, call `PathfindingEngine.findPath` then advance unit by 1 tile via `moveUnit`
-    - Re-verify destination passability and occupancy before committing each move (Req 5.5)
-    - Update `unit.row` and `unit.col`; leave unit stationary when path is empty (Req 5.3)
-    - Wrap `getUnitAt` calls in try/catch; treat errors as blocked (design error-handling table)
-    - _Requirements: 2.8, 3.1, 3.2, 3.4, 5.1, 5.2, 5.3, 5.4, 5.5, 7.3, 7.4, 7.5_
+    - For each unit, call `PathfindingEngine.findPath(unit.type, unit.row, unit.col, targetSet, tileGraph, _sharedThreatMap)`
+    - Advance unit by 1 tile via `moveUnit`; leave unit stationary when path is empty (Req 5.3)
+    - Re-verify terrain passability (walls/keep/rock still `Infinity`) before committing move
+    - Allow movement onto player-occupied tiles (combat cost 3); flag for Resolve Phase
+    - Block movement onto tiles occupied by another enemy unit
+    - Wrap `getPlacedUnits` call in try/catch; treat errors as empty placed-units list
+    - _Requirements: 2.8, 3.1, 3.2, 3.4, 5.1, 5.2, 5.3, 5.4, 5.5, 7.3, 7.4, 7.5, 9.4, 10.1, 10.3, 10.4_
 
   - [ ]* 8.2 Write property tests for `executeTurn` two-phase targeting and unit movement (Properties 8 & 11)
     - **Property 8: Two-phase target selection correctness**
@@ -159,14 +164,61 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 - [ ] 11. Final checkpoint — full test suite passes
   - Ensure all tests pass, ask the user if questions arise.
 
+- [ ] 12. Implement `PathfindingEngine.hexRing` and `PathfindingEngine.buildSharedThreatMap`
+  - [ ] 12.1 Implement `hexRing(row, col, radius, tileGraph)` in `pathfinding-engine.js`
+    - BFS from `(row, col)` up to `radius` hex steps using `hexNeighbors`
+    - Skip tiles not present in `tileGraph` (out-of-bounds guard)
+    - Return array of tile objects within the ring (all steps 1 through `radius`)
+    - Expose on `PathfindingEngine`
+    - _Requirements: 9.2_
+
+  - [ ] 12.2 Implement `PathfindingEngine.buildSharedThreatMap(placedUnits, tileGraph)`
+    - For each player unit in `placedUnits`: set `overlay.set(tileKey(unit.row, unit.col), 3)` (combat cost)
+    - Expand `hexRing(unit.row, unit.col, 3, tileGraph)` for each player unit
+    - For each tile in the ring where `resolveTileChar(tile) === '~'`: set `overlay.set(key, 4)` if not already higher
+    - Never lower an existing overlay entry (combat tile at cost 3 stays 3 even if inside a water threat zone)
+    - Return empty Map when `placedUnits` is empty or null
+    - Expose on `PathfindingEngine`
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 10.2_
+
+  - [ ]* 12.3 Write property tests for `hexRing` and `buildSharedThreatMap` (Properties 14, 15, 16)
+    - **Property 14: CombatCostTile costs are exactly 3**
+    - **Validates: Requirements 9.1, 9.5**
+    - **Property 15: Threat-zone water tiles cost exactly 4**
+    - **Validates: Requirements 9.2, 9.3, 9.5**
+    - **Property 16: Empty overlay when no player units are present**
+    - **Validates: Requirement 9.7**
+    - Generate random placed-unit positions; assert combat tiles = 3, threat-zone water = 4, non-water non-occupied tiles absent from overlay
+    - _File: `tests/pathfinding-engine.test.js`_
+
+- [ ] 13. Checkpoint — validate `buildSharedThreatMap` and updated `findPath` in isolation
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Add `getSharedThreatMap()` to EnemyManager and write SharedThreatMap integration tests
+  - [ ] 14.1 Add `EnemyManager.getSharedThreatMap()` returning `_sharedThreatMap` (the Map built during last `executeTurn`)
+    - Returns `null` before the first `executeTurn` call
+    - _Requirements: 10.6_
+
+  - [ ]* 14.2 Write property and integration tests for SharedThreatMap broadcast (Property 17)
+    - **Property 17: SharedThreatMap is identical for all units in the same turn**
+    - **Validates: Requirements 10.3, 10.5**
+    - Spy on `PathfindingEngine.findPath` calls within one `executeTurn`; assert all receive the same overlay Map reference
+    - Assert `getSharedThreatMap()` reflects the most recent turn's player unit positions
+    - _File: `tests/enemy-manager.test.js`_
+
+- [ ] 15. Final checkpoint — full test suite passes with all new overlay and threat-map tests
+  - Ensure all tests pass, ask the user if questions arise.
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
-- All 13 correctness properties from the design are covered by property test sub-tasks
+- All 17 correctness properties from the design are covered by property test sub-tasks
 - Both new files follow the existing browser-global singleton pattern (no `module.exports`)
 - Test files use `node:test` + `fast-check@3.23.2` and inline re-implementations of pure logic (no DOM, no `fetch`), matching the pattern in existing `unit-manager.spec.js` and `utils.spec.js`
 - Run tests with: `node --test tests/pathfinding-engine.test.js tests/enemy-manager.test.js`
 - Cavalry is classified as tree-eligible in `TREE_ELIGIBLE` but `UNIT_DEFS` shows `treeEligible: false` — the authoritative source is `TREE_ELIGIBLE` inside `pathfinding-engine.js` (see design note)
+- **Key behavioural change from original spec**: player-occupied tiles are no longer impassable (cost ∞). They carry a combat cost of `3` via the DynamicCostOverlay, allowing enemies to choose to fight when routing is costlier. The `findPath` signature changed from `getUnitAt` callback to `dynamicCostOverlay` Map — update any existing test stubs accordingly.
+- ThreatSightRadius is defined as 3 hex steps (BFS radius = 3), producing up to 18 surrounding tiles — matching the "immediate 18 pixels" intent expressed in hex-grid terms.
 
 ## Task Dependency Graph
 
@@ -177,10 +229,11 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     { "id": 1, "tasks": ["1.2", "1.3", "2.2", "4.1"] },
     { "id": 2, "tasks": ["4.2", "6.1", "6.2"] },
     { "id": 3, "tasks": ["6.3", "6.4", "7.1"] },
-    { "id": 4, "tasks": ["6.5", "7.2"] },
-    { "id": 5, "tasks": ["8.1"] },
-    { "id": 6, "tasks": ["8.2", "10.1"] },
-    { "id": 7, "tasks": ["10.2"] }
+    { "id": 4, "tasks": ["6.5", "7.2", "12.1"] },
+    { "id": 5, "tasks": ["8.1", "12.2"] },
+    { "id": 6, "tasks": ["8.2", "10.1", "12.3"] },
+    { "id": 7, "tasks": ["10.2", "14.1"] },
+    { "id": 8, "tasks": ["14.2"] }
   ]
 }
 ```

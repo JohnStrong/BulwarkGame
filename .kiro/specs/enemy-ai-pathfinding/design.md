@@ -4,7 +4,9 @@
 
 This feature adds an Enemy AI Pathfinding system to the browser-based isometric hex-grid tower defense game. Two new plain JavaScript files are introduced — `js/game-logic/pathfinding-engine.js` and `js/game-logic/enemy-manager.js` — loaded as `<script>` tags after the existing modules. No build tooling, bundler, or existing file modifications are needed beyond adding those two `<script>` tags and the single `EnemyManager.executeTurn()` call in the game loop's Enemy Phase.
 
-The system uses A* pathfinding over the odd-row-offset hex grid defined by `hexToPixel` in `utils.js`. Enemy units follow a two-phase assault pattern: while `castleBreached` is `false` they target the CastlePerimeter ring; after breach they converge on the KeepTileSet. Terrain movement costs are unit-type-aware, tree tiles are only passable for Archer and Cavalry, and any tile occupied by a player unit is dynamically blocked.
+The system uses A* pathfinding over the odd-row-offset hex grid defined by `hexToPixel` in `utils.js`. Enemy units follow a two-phase assault pattern: while `castleBreached` is `false` they target the CastlePerimeter ring; after breach they converge on the KeepTileSet. Terrain movement costs are unit-type-aware, tree tiles are only passable for Archer and Cavalry, and player unit positions are factored in through a **DynamicCostOverlay** — a per-turn cost map built once by `EnemyManager` and shared across all units.
+
+Player-occupied tiles are no longer impassable. Instead they carry a combat cost of `3`, allowing enemies to choose to fight when no cheaper route exists. Water tiles within 3 hex steps of any player unit are penalised to cost `4`, making them less attractive than open water (`2`) or even direct combat (`3`). All player unit positions are pooled into a **SharedThreatMap** before each turn begins, so every enemy unit reasons from the same collective intelligence.
 
 ---
 
@@ -18,14 +20,17 @@ game-iso.js (Game Loop)
     ├── enemy-manager.js (EnemyManager)
     │       spawns / tracks EnemyUnit instances
     │       builds TileGraph from LevelLoader
-    │       delegates path computation to PathfindingEngine
+    │       builds SharedThreatMap from UnitManager.getPlacedUnits() (once per turn)
+    │       passes SharedThreatMap to PathfindingEngine for every unit
     │       moves units via PathfindingEngine output
     │
     └── pathfinding-engine.js (PathfindingEngine)
             pure A* over hex TileGraph
             MovementCostTable lookup
+            DynamicCostOverlay applied on top of base costs
             hexNeighbors (odd-row-offset)
             hexDistance heuristic
+            buildSharedThreatMap() — sight-radius expansion helper
 ```
 
 Both new files expose singleton objects (`EnemyManager`, `PathfindingEngine`) as browser globals, matching the existing pattern used by `LevelLoader`, `UnitManager`, `AnimationController`, etc.
@@ -179,18 +184,20 @@ function tileKey(row, col) { return `${row},${col}`; }
 ```js
 /**
  * PathfindingEngine.findPath(unitType, startRow, startCol,
- *                            targetSet, tileGraph, getUnitAt)
+ *                            targetSet, tileGraph, dynamicCostOverlay)
  *
- * @param {string}   unitType   - 'Infantry' | 'Archer' | 'Cavalry' | 'SiegeEngine'
+ * @param {string}   unitType           - 'Infantry' | 'Archer' | 'Cavalry' | 'SiegeEngine'
  * @param {number}   startRow
  * @param {number}   startCol
- * @param {Array}    targetSet  - [{ row, col }, ...] candidate goal tiles
- * @param {Map}      tileGraph  - Map<"row,col", tile> from buildTileGraph()
- * @param {Function} getUnitAt  - (row, col) => unit | null  (from UnitManager)
+ * @param {Array}    targetSet          - [{ row, col }, ...] candidate goal tiles
+ * @param {Map}      tileGraph          - Map<"row,col", tile> from buildTileGraph()
+ * @param {Map}      dynamicCostOverlay - Map<"row,col", number> from buildSharedThreatMap()
+ *                                        Contains combat costs (3) and threat-zone water costs (4).
+ *                                        Pass an empty Map when no player units are present.
  * @returns {Array}  ordered path [{row,col}, ...] from start (exclusive) to
  *                   best target (inclusive), or [] if no path exists
  */
-function findPath(unitType, startRow, startCol, targetSet, tileGraph, getUnitAt) {
+function findPath(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay) {
     const targetKeys = new Set(targetSet.map(t => tileKey(t.row, t.col)));
 
     // Min-heap priority queue (f-score)
@@ -222,12 +229,15 @@ function findPath(unitType, startRow, startCol, targetSet, tileGraph, getUnitAt)
             if (!tile) continue;                          // out of bounds
 
             const tileChar = resolveTileChar(tile);
-            const cost = getMovementCost(tileChar, unitType);
-            if (cost === Infinity) continue;              // impassable terrain
+            const baseCost = getMovementCost(tileChar, unitType);
+            if (baseCost === Infinity) continue;          // impassable terrain (walls, keep, rock)
 
-            if (getUnitAt(nr, nc) !== null) continue;    // blocked by player unit
+            // Apply dynamic overlay: combat cost (3) or threat-zone water (4) override base cost.
+            const effectiveCost = dynamicCostOverlay.has(nKey)
+                ? dynamicCostOverlay.get(nKey)
+                : baseCost;
 
-            const tentativeG = currentG + cost;
+            const tentativeG = currentG + effectiveCost;
             if (tentativeG < (gScore.get(nKey) ?? Infinity)) {
                 gScore.set(nKey, tentativeG);
                 parent.set(nKey, key);
@@ -254,6 +264,81 @@ class MinHeap {
     pop()      { /* sift-down */ }
 }
 ```
+
+### DynamicCostOverlay and SharedThreatMap
+
+The `DynamicCostOverlay` is a `Map<"row,col", number>` that EnemyManager builds once per turn and passes unchanged to every `findPath` call. It encodes two kinds of cost penalties on top of the base `MovementCostTable`:
+
+| Tile condition | Overlay cost | Reasoning |
+|----------------|-------------|-----------|
+| Occupied by a player unit | `3` | Combat is costly but not impossible — enemies choose to fight when routing is worse |
+| Water tile within ThreatSightRadius of any player unit | `4` | Swimming under fire is worse than fighting; enemies avoid contested water if they can |
+
+**Cost ordering summary:**
+
+```
+passable terrain  = 1
+water (open)      = 2
+combat tile       = 3   ← fight a player unit
+water under fire  = 4   ← water in a player unit's sight radius
+impassable        = ∞   ← walls, towers, keep, rock
+```
+
+This ordering means enemies always prefer uncontested open ground, will cross open water if needed, will choose direct combat over dangerous water crossings, and will only wade through fire as an absolute last resort.
+
+**`buildSharedThreatMap(placedUnits, tileGraph)` algorithm:**
+
+```
+buildSharedThreatMap(placedUnits, tileGraph):
+  overlay = new Map()
+
+  FOR each playerUnit in placedUnits:
+    // 1. Mark the occupied tile as combat cost
+    overlay.set(tileKey(playerUnit.row, playerUnit.col), COMBAT_COST=3)
+
+    // 2. Expand ThreatSightRadius: all tiles within 3 hex steps
+    threatTiles = hexRing(playerUnit.row, playerUnit.col, radius=3, tileGraph)
+
+    FOR each tile in threatTiles:
+      tileChar = resolveTileChar(tile)
+      IF tileChar === '~':  // water only
+        currentOverlayCost = overlay.get(tileKey(tile)) ?? baseCost(tileChar)
+        // Only raise cost, never lower it (combat tile stays at 3 even if in threat zone)
+        IF THREAT_WATER_COST=4 > currentOverlayCost:
+          overlay.set(tileKey(tile), THREAT_WATER_COST=4)
+
+  RETURN overlay
+```
+
+**`hexRing(row, col, radius, tileGraph)` — BFS within N hex steps:**
+
+Uses standard BFS capped at `radius` hops from the origin. Returns all tiles reachable within `radius` steps that exist in the tileGraph (i.e., are within map bounds). The `radius=3` value represents the "immediate 18-tile surroundings" of a hex tile — the first, second, and third hex rings collectively contain 6 + 12 = 18 tiles when unobstructed, matching the intent of the sight definition.
+
+```js
+function hexRing(row, col, radius, tileGraph) {
+    const visited = new Set([tileKey(row, col)]);
+    let frontier = [{ row, col }];
+    const result = [];
+
+    for (let step = 0; step < radius; step++) {
+        const next = [];
+        for (const { row: r, col: c } of frontier) {
+            for (const { row: nr, col: nc } of hexNeighbors(r, c)) {
+                const k = tileKey(nr, nc);
+                if (!visited.has(k) && tileGraph.has(k)) {
+                    visited.add(k);
+                    next.push({ row: nr, col: nc });
+                    result.push(tileGraph.get(k));
+                }
+            }
+        }
+        frontier = next;
+    }
+    return result;
+}
+```
+
+The overlay is passed to `findPath` as a plain `Map` — no mutation occurs inside `findPath`. If `placedUnits` is empty the overlay is an empty Map and behaviour is identical to the base cost table.
 
 ---
 
@@ -435,16 +520,21 @@ const EnemyManager = {
 ```
 executeTurn()
   1. Build TileGraph from LevelLoader.getCurrentLevel().tiles
-  2. Select targetSet:
+  2. Build SharedThreatMap from UnitManager.getPlacedUnits() via
+     PathfindingEngine.buildSharedThreatMap(placedUnits, tileGraph)
+     — this is done ONCE and reused for all units this turn
+  3. Select targetSet:
        castleBreached === false → CastlePerimeter (re-computed from current level)
        castleBreached === true  → KeepTileSet
-  3. For each EnemyUnit (in insertion order):
+  4. For each EnemyUnit (in insertion order):
        a. Call PathfindingEngine.findPath(unit.type, unit.row, unit.col,
-                                          targetSet, tileGraph, UnitManager.getUnitAt)
+                                          targetSet, tileGraph, sharedThreatMap)
        b. Advance unit along path by 1 tile (or up to movePts tiles if design
           evolves — currently 1 tile/turn per Req 5.2)
-       c. Verify destination is passable and unoccupied before committing move
+       c. Verify destination terrain is not absolutely impassable before committing move
        d. Update unit.row, unit.col
+       e. IF destination tile contains a player unit (overlay cost 3), flag for combat
+          resolution in the Resolve Phase (combat mechanics are a future feature)
 ```
 
 ### Movement Step Detail
@@ -454,13 +544,14 @@ function moveUnit(unit, path) {
     if (path.length === 0) return; // stationary (Req 5.3)
     const next = path[0];          // path excludes start, so index 0 is next tile
 
-    // Guard: re-verify destination before committing (Req 5.5)
+    // Guard: re-verify terrain passability before committing (walls/keep/rock are still ∞)
     const tile = tileGraph.get(tileKey(next.row, next.col));
     if (!tile) return;
     const ch = resolveTileChar(tile);
     if (getMovementCost(ch, unit.type) === Infinity) return;
-    if (UnitManager.getUnitAt(next.row, next.col) !== null) return;
-    if (EnemyManager.getEnemyUnitAt(next.row, next.col) !== null) return;
+    // Note: player-occupied tiles are no longer impassable — they are combat cost 3.
+    // Movement onto such tiles is allowed; combat resolution is handled in the Resolve Phase.
+    if (EnemyManager.getEnemyUnitAt(next.row, next.col) !== null) return; // can't stack enemies
 
     unit.row = next.row;
     unit.col = next.col;
@@ -508,24 +599,32 @@ buildTileGraph()  →  Map<"row,col", tile>
         ├── computeCastlePerimeter() → [{row,col}, ...]   ← Phase 1 targets
         ├── computeKeepTileSet()     → [{row,col}, ...]   ← Phase 2 targets
         └── identifySpawnPoints()   → [{row,col}, ...]
-                │
-                ▼
-         EnemyManager.spawnWave()
-                │
-                ▼
-       [EnemyUnit, EnemyUnit, ...]
-                │  (per-turn)
-                ▼
+
+UnitManager.getPlacedUnits()
+        │
+        ▼
+buildSharedThreatMap(placedUnits, tileGraph)
+        │
+        └── SharedThreatMap: Map<"row,col", number>
+              combat tiles  → cost 3
+              threat-zone water → cost 4
+
+        │
+        ▼
+EnemyManager.spawnWave()  →  [EnemyUnit, EnemyUnit, ...]
+        │  (per-turn, all units share the same SharedThreatMap)
+        ▼
   PathfindingEngine.findPath(unitType, row, col,
                              targetSet, tileGraph,
-                             UnitManager.getUnitAt)
-                │
-                ▼
+                             sharedThreatMap)   ← overlay replaces getUnitAt
+        │
+        ▼
        path: [{row,col}, ...]
-                │
-                ▼
+        │
+        ▼
        moveUnit(unit, path)
        → update unit.row, unit.col
+       → flag combat if destination was a CombatCostTile
 ```
 
 ---
@@ -536,10 +635,11 @@ buildTileGraph()  →  Map<"row,col", tile>
 |-----------|-----------|
 | No path to target exists | `findPath` returns `[]`; unit stays stationary |
 | Target tile set is empty | `findPath` returns `[]` immediately |
-| `getUnitAt` throws | Wrapped in try/catch; unit treated as stationary |
+| `getPlacedUnits` throws during overlay build | Wrapped in try/catch; overlay treated as empty Map; units path on base costs only |
 | Level has no F tile | `identifySpawnPoints` returns `[]`; wave spawn no-ops |
 | Level has fewer than 2 spawn candidates | Use all available candidates |
 | Unknown tile character | `getMovementCost` returns `Infinity` (treat as wall) |
+| `dynamicCostOverlay` is `null` or `undefined` | `findPath` treats it as an empty Map |
 
 ---
 
@@ -607,11 +707,11 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
-### Property 6: Path never traverses invalid tiles
+### Property 6: Path cost ordering is respected
 
-*For any* call to `findPath` with a given `unitType` and `getUnitAt` function, every tile in the returned path satisfies both: (a) `getMovementCost(tileChar, unitType) < Infinity`, and (b) `getUnitAt(tile.row, tile.col) === null`.
+*For any* call to `findPath` with a non-empty path, every tile traversed has an effective cost of less than `Infinity`. The path cost ordering is respected: passable tiles (cost 1) are preferred over open water (cost 2), open water is preferred over combat tiles (cost 3), and combat tiles are preferred over threat-zone water (cost 4). Specifically, if a shorter-total-cost path exists that avoids a higher-cost tile, A* returns that path instead.
 
-**Validates: Requirements 2.7, 8.1, 8.2**
+**Validates: Requirements 2.7 (revised), 9.1, 9.8**
 
 ---
 
@@ -671,17 +771,51 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
+### Property 14: CombatCostTile costs are exactly 3
+
+*For any* player unit position `(row, col)` in `placedUnits`, `buildSharedThreatMap` assigns exactly cost `3` to `tileKey(row, col)` in the returned overlay, regardless of the underlying terrain type.
+
+**Validates: Requirements 9.1, 9.5**
+
+---
+
+### Property 15: Threat-zone water tiles cost exactly 4
+
+*For any* water tile (`~`) within 3 hex steps of any player unit position, `buildSharedThreatMap` assigns exactly cost `4` to that tile's key in the overlay. Water tiles outside all ThreatSightRadii are not present in the overlay.
+
+**Validates: Requirements 9.2, 9.3, 9.5**
+
+---
+
+### Property 16: Empty overlay when no player units are present
+
+*When* `placedUnits` is an empty array, `buildSharedThreatMap` returns an empty `Map` with no entries.
+
+**Validates: Requirement 9.7**
+
+---
+
+### Property 17: SharedThreatMap is identical for all units in the same turn
+
+*For any* turn invocation of `executeTurn()`, the `dynamicCostOverlay` passed to each `findPath` call is the same `Map` object reference (or a deeply equal Map), ensuring all enemy units reason from identical cost data.
+
+**Validates: Requirements 10.3, 10.5**
+
+---
+
 ## Components and Interfaces
 
 ### `pathfinding-engine.js` — PathfindingEngine (browser global)
 
 | Export | Signature | Description |
 |--------|-----------|-------------|
-| `PathfindingEngine.findPath` | `(unitType, startRow, startCol, targetSet, tileGraph, getUnitAt) → [{row,col}]` | A* pathfinding; returns ordered path excluding start, including goal. Empty array if unreachable. |
+| `PathfindingEngine.findPath` | `(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay) → [{row,col}]` | A* pathfinding with overlay costs; returns ordered path excluding start, including goal. Empty array if unreachable. |
+| `PathfindingEngine.buildSharedThreatMap` | `(placedUnits, tileGraph) → Map<string, number>` | Builds the DynamicCostOverlay from all player unit positions: combat tiles (cost 3) and threat-zone water (cost 4). |
+| `PathfindingEngine.hexRing` | `(row, col, radius, tileGraph) → tile[]` | Returns all tiles within `radius` hex steps via BFS. Used by `buildSharedThreatMap` for sight-radius expansion. |
 | `PathfindingEngine.buildTileGraph` | `(tiles) → Map<string, tile>` | Converts `LevelLoader` tile array into `"row,col"` keyed Map. |
 | `PathfindingEngine.hexNeighbors` | `(row, col) → [{row,col}]` | Returns 6 neighbors in odd-row-offset topology. |
 | `PathfindingEngine.hexDistance` | `(r1, c1, r2, c2) → number` | Cube-coordinate hex distance. Admissible A* heuristic. |
-| `PathfindingEngine.getMovementCost` | `(tileChar, unitType) → number` | Returns movement cost (1, 2, or Infinity). |
+| `PathfindingEngine.getMovementCost` | `(tileChar, unitType) → number` | Returns base movement cost (1, 2, or Infinity) before overlay. |
 | `PathfindingEngine.resolveTileChar` | `(tile) → string` | Maps a `LevelLoader` tile object to its source character. |
 
 ### `enemy-manager.js` — EnemyManager (browser global)
@@ -690,11 +824,12 @@ Because the source files are plain browser globals (no `module.exports`), the te
 |--------|-----------|-------------|
 | `EnemyManager.init` | `() → void` | Builds tile graph and spawn points from current level. |
 | `EnemyManager.spawnWave` | `(waveConfig: [{type, count}]) → void` | Places enemy units at spawn points per wave definition. |
-| `EnemyManager.executeTurn` | `() → void` | Enemy Phase: recomputes paths and advances all units. |
+| `EnemyManager.executeTurn` | `() → void` | Enemy Phase: builds SharedThreatMap, then recomputes paths and advances all units. |
 | `EnemyManager.setCastleBreached` | `(value: boolean) → void` | Updates `castleBreached` flag; called by Resolve Phase. |
 | `EnemyManager.reset` | `() → void` | Clears all units, resets `castleBreached` to `false`. |
 | `EnemyManager.getEnemyUnits` | `() → EnemyUnit[]` | Returns active units for rendering. |
 | `EnemyManager.getEnemyUnitAt` | `(row, col) → EnemyUnit \| null` | Finds unit at a position. |
+| `EnemyManager.getSharedThreatMap` | `() → Map<string, number>` | Returns the SharedThreatMap built during the most recent `executeTurn` call. For debugging and testing. |
 
 ---
 

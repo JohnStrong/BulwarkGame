@@ -13,6 +13,11 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 - **PathfindingEngine**: The A* implementation that computes optimal hex-grid paths for a given EnemyUnit from its current position to a target tile set.
 - **MovementCostTable**: A lookup structure mapping tile character codes to movement cost values for each EnemyUnit type.
 - **TileGraph**: The runtime graph of passable hex tiles built from the current level's tile array, used as input to PathfindingEngine.
+- **DynamicCostOverlay**: A `Map<"row,col", number>` of additional movement cost penalties computed each turn from the positions of all player units. Layered on top of the base MovementCostTable inside the A* edge-weight calculation.
+- **ThreatSightRadius**: The set of hex tiles within 3 hex steps of a player unit's position — representing that unit's visible threat area. Defined as all tiles reachable from the player unit in exactly 1, 2, or 3 hex steps (the 18-tile hex ring surrounding the unit, matching the "immediate 18 pixels" intent expressed in hex-grid terms).
+- **CombatCostTile**: A tile occupied by a player unit. These tiles are no longer treated as impassable but instead carry a movement cost of `3`, allowing the pathfinder to route through them when no lower-cost alternative exists. Moving onto a CombatCostTile represents the enemy choosing to engage and fight.
+- **ThreatZoneWaterPenalty**: Water tiles (`~`) whose position falls within the ThreatSightRadius of any player unit receive an additional cost of `+2` (total cost `4`), making water under fire less desirable than open water (cost `2`) and less desirable than fighting through a player unit (cost `3`) in isolation.
+- **SharedThreatMap**: A per-turn `Map<"row,col", number>` built by EnemyManager once from all known player unit positions and broadcast to PathfindingEngine for every unit's pathfinding call that turn. Represents the collective intelligence of the enemy force — any unit's observation is shared with all others.
 - **SpawnPoint**: A tile on the enemy-side edge of the map designated as a valid origin for EnemyUnit placement at the start of a wave.
 - **CastlePerimeter**: The set of tiles adjacent to castle structure tiles (W, T, G characters) that are themselves passable — the Phase 1 target ring.
 - **KeepTileSet**: The set of tiles with characters K, j, J, F — the Phase 2 target for enemies after the castle has been breached.
@@ -53,7 +58,7 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 4. THE PathfindingEngine SHALL use the hex distance (minimum number of hex steps) between the current tile and the nearest target tile as the A* heuristic.
 5. WHEN multiple target tiles exist in the target set, THE PathfindingEngine SHALL return the path to the nearest reachable target tile by accumulated movement cost.
 6. IF no reachable path exists from the EnemyUnit's current position to any target tile, THEN THE PathfindingEngine SHALL return an empty path.
-7. THE PathfindingEngine SHALL treat any tile occupied by a player unit (as reported by `UnitManager.getUnitAt(row, col)`) as impassable, regardless of the tile's terrain type.
+7. THE PathfindingEngine SHALL treat any tile occupied by a player unit (as reported by `UnitManager.getUnitAt(row, col)`) as a **CombatCostTile** with a movement cost of `3`, rather than as impassable. This allows enemy units to choose to engage when no lower-cost path exists.
 8. THE PathfindingEngine SHALL run once per EnemyUnit per turn, immediately before that unit's movement step in the EnemyPhase.
 
 ---
@@ -140,3 +145,35 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 3. WHEN the hex grid contains up to 40 columns and 33 rows (matching `level1.txt` dimensions), THE PathfindingEngine SHALL complete path computation for a single EnemyUnit within a single synchronous execution frame without perceptible frame-rate impact.
 4. THE PathfindingEngine SHALL handle disconnected graphs (island tiles with no valid path to the target) by returning an empty path rather than throwing an error.
 5. THE PathfindingEngine SHALL produce consistent results for identical inputs across multiple invocations within the same game state.
+
+---
+
+### Requirement 9: Dynamic Cost Overlay — Player Unit Combat Cost and Threat Zones
+
+**User Story:** As a player, I want enemy units to weigh up fighting through my troops versus routing around them through dangerous terrain, so that unit placement creates genuine tactical decisions rather than hard walls.
+
+#### Acceptance Criteria
+
+1. THE PathfindingEngine SHALL apply a movement cost of `3` to any tile occupied by a player unit, replacing the previous impassable classification. This cost represents the enemy choosing to fight rather than route around.
+2. THE PathfindingEngine SHALL compute a ThreatSightRadius of 3 hex steps around each player unit's position each turn, producing the set of all tiles within that radius.
+3. WHEN a water tile (`~`) falls within the ThreatSightRadius of any player unit, THE PathfindingEngine SHALL assign it a total movement cost of `4` (base water cost `2` + threat zone penalty `+2`).
+4. THE DynamicCostOverlay SHALL be computed by EnemyManager once per turn before any unit's `findPath` call, by iterating over all player unit positions from `UnitManager.getPlacedUnits()`.
+5. THE DynamicCostOverlay SHALL be a `Map<"row,col", number>` containing only tiles whose effective cost differs from the base MovementCostTable value — that is, only CombatCostTiles and threat-zone water tiles.
+6. THE PathfindingEngine SHALL accept the DynamicCostOverlay as a parameter in `findPath` and apply it as a final cost modifier after the base MovementCostTable lookup: `effectiveCost = overlay.has(key) ? overlay.get(key) : baseCost`.
+7. WHEN no player units are placed on the map, THE DynamicCostOverlay SHALL be empty and `findPath` SHALL behave identically to the base MovementCostTable rules.
+8. THE cost ordering SHALL satisfy: passable terrain (cost `1`) < water (cost `2`) < fighting a player unit (cost `3`) < water under fire (cost `4`). This ordering ensures enemies prefer open routes, tolerate water, choose combat over running through fire, and avoid contested water as a last resort.
+
+---
+
+### Requirement 10: Shared Enemy Intelligence via EnemyManager
+
+**User Story:** As a player, I want enemy units to act as a coordinated force — sharing knowledge of player unit positions — so that individually blocking one unit doesn't neutralise an entire wave.
+
+#### Acceptance Criteria
+
+1. THE EnemyManager SHALL build the SharedThreatMap once per turn at the start of `executeTurn()`, before any individual enemy unit's pathfinding call.
+2. THE SharedThreatMap SHALL incorporate the positions of all player units currently on the map, as returned by `UnitManager.getPlacedUnits()`, regardless of which enemy unit can physically see them.
+3. THE EnemyManager SHALL pass the same SharedThreatMap to every `PathfindingEngine.findPath` call within that turn, ensuring all active enemy units use identical cost information.
+4. WHEN a player unit is placed or removed between turns, THE EnemyManager SHALL rebuild the SharedThreatMap from scratch at the start of the next `executeTurn()` call, ensuring it always reflects the current game state.
+5. THE SharedThreatMap SHALL be the sole source of player unit position data for pathfinding cost computation — individual enemy units SHALL NOT query `UnitManager.getUnitAt` independently during path computation.
+6. THE EnemyManager SHALL expose the current SharedThreatMap via a `getSharedThreatMap()` method for debugging and testing purposes.
