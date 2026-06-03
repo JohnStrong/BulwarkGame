@@ -1,6 +1,8 @@
 ; Tutorial Level  The Crossing
 ; Teaches: roads, river barrier, bridge chokepoint, forest cover
 ; ( = grass|water border (left bank)  ) = water|grass border (right bank)
+; Keep interior uses # (keep-floor — bailey tile, no overlay)
+; The large keep sprite is anchored at F and covers K/j/J/# tiles
 name=Tutorial  The Crossing
 ~~~.PPP....DD.......~~~~~....OO.OOO..OO.OOO..OO.OOO........
 ~~~.PPPP...DD.......~~~~~...OOO..OO.OOO..OO.OOO..OO........

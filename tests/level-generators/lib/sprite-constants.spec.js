@@ -256,3 +256,165 @@ describe('sprite-constants: TREE_OVERLAY_SPRITES registry', () => {
         assert.equal(shrubCount, 2, 'Should have 2 shrub overlay variants');
     });
 });
+
+// ─── CASTLE_OVERLAY_SPRITES tests (added for castle-structure-overlays feature) ──
+
+const { CASTLE_OVERLAY_SPRITES } = require('../../../js/level-generators/lib/sprite-constants');
+
+describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
+    it('should be exported from sprite-constants', () => {
+        assert.ok(CASTLE_OVERLAY_SPRITES !== undefined, 'CASTLE_OVERLAY_SPRITES should be exported');
+        assert.ok(typeof CASTLE_OVERLAY_SPRITES === 'object' && CASTLE_OVERLAY_SPRITES !== null);
+    });
+
+    it('should have exactly 23 entries (20 original + 3 keep-full states)', () => {
+        assert.equal(Object.keys(CASTLE_OVERLAY_SPRITES).length, 23);
+    });
+
+    it('should contain all expected undamaged overlay keys', () => {
+        const expectedUndamaged = [
+            'wall', 'tower',
+            'keepTopLeft', 'keepBotLeft', 'keepBotRight', 'keepCenter',
+            'gatehouse',
+            'bridgeMm', 'bridgeStart', 'bridgeMid', 'bridgeGate',
+            'isoWall',
+        ];
+        for (const key of expectedUndamaged) {
+            assert.ok(key in CASTLE_OVERLAY_SPRITES, `Missing undamaged key: ${key}`);
+        }
+    });
+
+    it('should contain all expected damaged overlay keys', () => {
+        const expectedDamaged = [
+            'wallDamaged', 'towerDamaged',
+            'keepTopLeftDamaged', 'keepBotLeftDamaged', 'keepBotRightDamaged', 'keepCenterDamaged',
+            'gatehouseDamaged',
+            'isoWallDamaged',
+        ];
+        for (const key of expectedDamaged) {
+            assert.ok(key in CASTLE_OVERLAY_SPRITES, `Missing damaged key: ${key}`);
+        }
+    });
+
+    it('should map to the correct canonical sprite name strings', () => {
+        assert.equal(CASTLE_OVERLAY_SPRITES.wall,                   'castle-wall-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.wallDamaged,            'castle-wall-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.tower,                  'castle-tower-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.towerDamaged,           'castle-tower-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepTopLeft,            'castle-keep-tl-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepTopLeftDamaged,     'castle-keep-tl-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepBotLeft,            'castle-keep-bl-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepBotLeftDamaged,     'castle-keep-bl-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepBotRight,           'castle-keep-br-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepBotRightDamaged,    'castle-keep-br-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepCenter,             'castle-keep-center-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.keepCenterDamaged,      'castle-keep-center-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.gatehouse,              'castle-gatehouse-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.gatehouseDamaged,       'castle-gatehouse-damaged-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.bridgeMm,               'bridge-mm-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.bridgeStart,            'castle-bridge-start-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.bridgeMid,              'castle-bridge-mid-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.bridgeGate,             'castle-bridge-gate-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.isoWall,                'castle-iso-wall-overlay');
+        assert.equal(CASTLE_OVERLAY_SPRITES.isoWallDamaged,         'castle-iso-wall-damaged-overlay');
+    });
+
+    it('all sprite name values should be non-empty strings', () => {
+        for (const [key, name] of Object.entries(CASTLE_OVERLAY_SPRITES)) {
+            assert.ok(
+                typeof name === 'string' && name.length > 0,
+                `${key} should map to a non-empty string, got: ${JSON.stringify(name)}`
+            );
+        }
+    });
+
+    it('all sprite name values should be unique (no duplicates)', () => {
+        const values = Object.values(CASTLE_OVERLAY_SPRITES);
+        const unique = new Set(values);
+        assert.equal(unique.size, values.length, 'All castle overlay sprite names should be unique');
+    });
+
+    it('wall and bridge overlay names should end with "-overlay"', () => {
+        const wallBridgeKeys = ['wall', 'wallDamaged', 'bridgeMm', 'bridgeStart', 'bridgeMid', 'bridgeGate'];
+        for (const key of wallBridgeKeys) {
+            assert.ok(
+                CASTLE_OVERLAY_SPRITES[key].endsWith('-overlay'),
+                `${key} value "${CASTLE_OVERLAY_SPRITES[key]}" should end with "-overlay"`
+            );
+        }
+    });
+
+    it('damaged overlay names should contain "-damaged-overlay"', () => {
+        const damagedKeys = [
+            'wallDamaged', 'towerDamaged',
+            'keepTopLeftDamaged', 'keepBotLeftDamaged', 'keepBotRightDamaged', 'keepCenterDamaged',
+            'gatehouseDamaged',
+        ];
+        for (const key of damagedKeys) {
+            assert.ok(
+                CASTLE_OVERLAY_SPRITES[key].includes('-damaged-overlay'),
+                `${key} value "${CASTLE_OVERLAY_SPRITES[key]}" should contain "-damaged-overlay"`
+            );
+        }
+    });
+
+    it('bridge overlay names should have no damaged variants', () => {
+        const bridgeKeys = ['bridgeMm', 'bridgeStart', 'bridgeMid', 'bridgeGate'];
+        for (const key of bridgeKeys) {
+            assert.ok(
+                !CASTLE_OVERLAY_SPRITES[key].includes('-damaged-'),
+                `Bridge overlay "${key}" should not have a damaged variant in its name`
+            );
+        }
+        // Confirm no damagedBridge* keys exist
+        const allKeys = Object.keys(CASTLE_OVERLAY_SPRITES);
+        const damagedBridgeKeys = allKeys.filter(k => k.startsWith('bridge') && k.includes('Damaged'));
+        assert.equal(damagedBridgeKeys.length, 0, 'Bridge overlays should have no damaged variant keys');
+    });
+
+    it('should have 8 damaged variants and 12 undamaged variants', () => {
+        const values = Object.values(CASTLE_OVERLAY_SPRITES);
+        const damagedCount   = values.filter(v => v.includes('-damaged-overlay')).length;
+        const undamagedCount = values.filter(v => v.endsWith('-overlay') && !v.includes('-damaged-')).length;
+        // 9 damaged (original 8 + keep-damaged), 14 undamaged (original 12 + keep + keep-destroyed)
+        assert.equal(damagedCount,   9,  'Should have 9 damaged overlay variants');
+        assert.equal(undamagedCount, 14, 'Should have 14 undamaged overlay variants');
+    });
+
+    it('should not collide with CASTLE_SPRITES values', () => {
+        const {
+            CASTLE_SPRITES: castleFlat,
+        } = require('../../../js/level-generators/lib/sprite-constants');
+        const flatValues = new Set(Object.values(castleFlat));
+        for (const [key, name] of Object.entries(CASTLE_OVERLAY_SPRITES)) {
+            assert.ok(
+                !flatValues.has(name),
+                `Castle overlay sprite "${name}" (${key}) collides with a CASTLE_SPRITES value`
+            );
+        }
+    });
+
+    it('should not collide with TERRAIN_SPRITES or TREE_OVERLAY_SPRITES values', () => {
+        const {
+            TERRAIN_SPRITES: terrain,
+            TREE_OVERLAY_SPRITES: treeOverlays,
+        } = require('../../../js/level-generators/lib/sprite-constants');
+        const otherValues = new Set([
+            ...Object.values(terrain),
+            ...Object.values(treeOverlays),
+        ]);
+        for (const [key, name] of Object.entries(CASTLE_OVERLAY_SPRITES)) {
+            assert.ok(
+                !otherValues.has(name),
+                `Castle overlay sprite "${name}" (${key}) collides with a terrain or tree overlay sprite name`
+            );
+        }
+    });
+
+    it('keep overlay names should reference the correct quadrant abbreviations', () => {
+        assert.ok(CASTLE_OVERLAY_SPRITES.keepTopLeft.includes('-tl-'),    'keepTopLeft should contain "-tl-"');
+        assert.ok(CASTLE_OVERLAY_SPRITES.keepBotLeft.includes('-bl-'),    'keepBotLeft should contain "-bl-"');
+        assert.ok(CASTLE_OVERLAY_SPRITES.keepBotRight.includes('-br-'),   'keepBotRight should contain "-br-"');
+        assert.ok(CASTLE_OVERLAY_SPRITES.keepCenter.includes('-center-'), 'keepCenter should contain "-center-"');
+    });
+});

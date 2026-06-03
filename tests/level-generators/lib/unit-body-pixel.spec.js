@@ -45,28 +45,29 @@ const CY = 14;
 // ─── Drop shadow ──────────────────────────────────────────────────────────────
 
 describe('unit-body: drop shadow pixel assertions', () => {
-    it('should have semi-transparent pixels at the shadow ellipse center (CX+1, CY+9)', () => {
+    it('should have semi-transparent pixels at the shadow ellipse center (CX, CY+9)', () => {
         const buf = createBuffer();
         drawUnit(buf, UNIT_PALETTES.knight, 'sword', 20000);
-        // Shadow center: (centerX + 1, centerY + 9) = (33, 23)
+        // Shadow at (centerX, centerY+9) = (32, 23) — offsetX=-1, offsetY=0 in the ellipse,
+        // not overlapping with any boot pixel (boots are at CX±1/±2, CY+9)
         assert.ok(
-            isSemiTransparent(buf, CX + 1, CY + 9),
-            `Shadow center at (${CX + 1}, ${CY + 9}) should be semi-transparent`
+            isSemiTransparent(buf, CX, CY + 9),
+            `Shadow at (${CX}, ${CY + 9}) should be semi-transparent`
         );
     });
 
     it('shadow pixels should have alpha = 100', () => {
         const buf = createBuffer();
         drawUnit(buf, UNIT_PALETTES.knight, 'sword', 20000);
-        // The shadow uses alpha = 100 per the source code
-        const p = getPixel(buf, CX + 1, CY + 9);
+        // Check a shadow pixel not covered by a boot: (CX, CY+9) = (32, 23)
+        const p = getPixel(buf, CX, CY + 9);
         assert.equal(p.a, 100, `Shadow alpha should be 100, got ${p.a}`);
     });
 
     it('shadow pixels should be very dark (near-black)', () => {
         const buf = createBuffer();
         drawUnit(buf, UNIT_PALETTES.knight, 'sword', 20000);
-        const p = getPixel(buf, CX + 1, CY + 9);
+        const p = getPixel(buf, CX, CY + 9);
         // Shadow color: [20, 20, 15]
         assert.ok(p.r <= 25, `Shadow R should be <= 25, got ${p.r}`);
         assert.ok(p.g <= 25, `Shadow G should be <= 25, got ${p.g}`);
@@ -331,12 +332,12 @@ describe('unit-body: all unit types produce valid figures', () => {
         const key = paletteKeys[i];
         const weapon = weapons[i % weapons.length];
 
-        it(`${key} with ${weapon} should have drop shadow at (CX+1, CY+9)`, () => {
+        it(`${key} with ${weapon} should have drop shadow at (CX, CY+9)`, () => {
             const buf = createBuffer();
             drawUnit(buf, UNIT_PALETTES[key], weapon, 20000 + i * 200);
             assert.ok(
-                isSemiTransparent(buf, CX + 1, CY + 9),
-                `${key} drop shadow should be semi-transparent at (${CX + 1}, ${CY + 9})`
+                isSemiTransparent(buf, CX, CY + 9),
+                `${key} drop shadow should be semi-transparent at (${CX}, ${CY + 9})`
             );
         });
 
