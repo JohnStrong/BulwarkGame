@@ -18,6 +18,8 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 - **CombatCostTile**: A tile occupied by a player unit. These tiles are no longer treated as impassable but instead carry a movement cost of `3`, allowing the pathfinder to route through them when no lower-cost alternative exists. Moving onto a CombatCostTile represents the enemy choosing to engage and fight.
 - **ThreatZoneWaterPenalty**: Water tiles (`~`) whose position falls within the ThreatSightRadius of any player unit receive an additional cost of `+2` (total cost `4`), making water under fire less desirable than open water (cost `2`) and less desirable than fighting through a player unit (cost `3`) in isolation.
 - **SharedThreatMap**: A per-turn `Map<"row,col", number>` built by EnemyManager once from all known player unit positions and broadcast to PathfindingEngine for every unit's pathfinding call that turn. Represents the collective intelligence of the enemy force — any unit's observation is shared with all others.
+- **DirectionalSightRadius**: The per-direction view distance of an EnemyUnit. Defaults to `3` hex steps in each of the six hex directions on open terrain. Reduced to `1` in any direction where the immediate neighbor in that direction is a tree tile. If the enemy unit itself occupies a tree tile, all six directions are capped at `1`.
+- **EnemyVisibleTiles**: The set of tiles an EnemyUnit can observe from its current position, computed by raycasting up to the directional view distance in each of the six hex directions. Used to determine which water tiles receive the ThreatZoneWaterPenalty in the SharedThreatMap.
 - **SpawnPoint**: A tile on the enemy-side edge of the map designated as a valid origin for EnemyUnit placement at the start of a wave.
 - **CastlePerimeter**: The set of tiles adjacent to castle structure tiles (W, T, G characters) that are themselves passable — the Phase 1 target ring.
 - **KeepTileSet**: The set of tiles with characters K, j, J, F — the Phase 2 target for enemies after the castle has been breached.
@@ -177,3 +179,25 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 4. WHEN a player unit is placed or removed between turns, THE EnemyManager SHALL rebuild the SharedThreatMap from scratch at the start of the next `executeTurn()` call, ensuring it always reflects the current game state.
 5. THE SharedThreatMap SHALL be the sole source of player unit position data for pathfinding cost computation — individual enemy units SHALL NOT query `UnitManager.getUnitAt` independently during path computation.
 6. THE EnemyManager SHALL expose the current SharedThreatMap via a `getSharedThreatMap()` method for debugging and testing purposes.
+
+---
+
+### Requirement 11: Directional Enemy View Distance — Tree Occlusion
+
+**User Story:** As a player, I want enemy units to have reduced visibility when moving near woodland, so that I can set up ambushes in and around forests to surprise and pick off enemies before they can react.
+
+#### Acceptance Criteria
+
+1. EACH EnemyUnit SHALL have a base view distance of `3` hex steps in all six hex directions when on open terrain (grass, road, bridge, water, bailey, flowers).
+2. FOR each of the six hex directions from an EnemyUnit's current position, THE view distance in that direction SHALL be reduced to `1` hex step IF the immediate neighbor tile in that direction is a tree tile (overlay character `O`, `P`, or `S`).
+3. THE directional view distance SHALL be computed per direction independently — a unit surrounded by trees on three sides has view distance `3` in the remaining three open directions and view distance `1` in the three blocked directions.
+4. AN EnemyUnit's visible tile set SHALL be computed as the union of all tiles reachable within the allowed view distance along each of the six hex directions, stopping at the first impassable tile (wall, keep, rock) in that direction.
+5. THE visible tile set IS USED SOLELY to determine which tiles the enemy unit contributes to the SharedThreatMap — specifically, which water tiles receive the ThreatZoneWaterPenalty (cost `4`). The enemy unit's own combat-cost tile (cost `3`) is always added to the overlay regardless of view distance.
+6. WHEN `buildSharedThreatMap` is called, it SHALL compute the directional visible tile set for each enemy unit's current position and use those sets — rather than a uniform 3-step BFS ring — to determine which water tiles are penalised.
+
+   > **Clarification on direction of application:** The ThreatSightRadius defined in Requirement 9 models what *player units* can see and threaten (affecting where enemies are afraid to swim). Requirement 11 models what *enemy units* can see — specifically, which tiles they are *aware* of and can react to. In `buildSharedThreatMap`, the visible tiles of player units (Req 9) and the visible tiles of enemy units (Req 11) combine: a water tile is penalised only if it is both within a *player unit's* threat radius AND visible to at least one enemy unit. This prevents enemies from fearing player units they genuinely cannot see.
+
+7. IF an EnemyUnit is itself positioned on a tree tile (tree-eligible units may enter tree tiles), THE view distance SHALL be `1` in ALL six directions — the unit is fully inside woodland and moving effectively blind.
+8. THE directional view occlusion applies only to tree tiles. Other terrain types (water, road, grass, rock, walls) do not reduce view distance in adjacent directions.
+9. THE `buildSharedThreatMap` function SHALL accept the list of active EnemyUnit positions in addition to placed player units, so it can compute the combined threat map that reflects what enemies can collectively observe.
+

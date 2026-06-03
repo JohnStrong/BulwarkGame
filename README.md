@@ -33,7 +33,8 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
   - [How Enemies Navigate the Map](#how-enemies-navigate-the-map)
   - [Tile Movement Costs](#tile-movement-costs)
   - [Shared Enemy Intelligence](#shared-enemy-intelligence)
-  - [Tree Tiles — A Special Hazard](#tree-tiles--a-special-hazard)
+  - [Enemy View Distance and Woodland Ambushes](#enemy-view-distance-and-woodland-ambushes)
+  - [Tree Tiles — Passability and Ambush Potential](#tree-tiles--passability-and-ambush-potential)
   - [Unit-Specific Pathfinding Behaviors](#unit-specific-pathfinding-behaviors)
 
 ---
@@ -519,24 +520,49 @@ walls / keep / rock          = ∞   ← never passable
 
 ### Shared Enemy Intelligence
 
-Enemies act as a coordinated force. Before each turn begins, the **EnemyManager** pools the positions of every player unit on the map into a single shared cost map — it doesn't matter which enemy can "see" which player. Every enemy unit reasons from the same collective intelligence that turn.
+Enemies act as a coordinated force. Before each turn begins, the **EnemyManager** pools the positions of every player unit on the map into a single shared cost map — but with a twist: it also factors in what the enemy units themselves can see.
 
-This means:
-- If an archer guards bridge 1 and a knight guards bridge 2, both enemies know about both blockades simultaneously, even if they spawn far apart.
-- The shared map penalises **water tiles within 3 hex steps of any player unit** — raising their cost from `2` to `4`. This represents enemies recognising that water near a defender is a kill zone; they'd rather fight on dry ground.
-- The only tiles where the cost ever *drops* below the combat option (cost `3`) are uncontested open terrain (cost `1`) and open water outside any player's threat zone (cost `2`).
+**Every enemy unit has a directional view distance** (see the section below). When `buildSharedThreatMap` runs, it computes the union of all tiles visible to all active enemy units, then applies threat penalties only to tiles inside that combined view. A player archer hiding deep in the forest generates no water penalty on the far side of the trees if no enemy unit has line of sight to that water — enemies can't fear a threat they haven't spotted.
 
-In practical terms: block both bridges and your enemy has three options — swim through uncontested water (cost 2, if any exists), fight through your unit (cost 3), or wade through water your units are watching (cost 4). They'll pick the cheapest.
+What this means in practice:
+- If an archer guards bridge 1 and a knight guards bridge 2, every enemy knows about both blockades — as long as at least one enemy unit can see each bridge.
+- Water tiles within 3 hex steps of a player unit are penalised to cost `4` — but only if they're visible to at least one enemy.
+- The only tiles where the cost drops below the combat option (cost `3`) are uncontested open terrain (cost `1`) and open water outside the combined threat zone (cost `2`).
+
+Block both bridges, keep your units hidden in the trees, and enemies marching through open ground won't "see" your ambush — they'll just walk closer before your archers open fire.
 
 ---
 
-### Tree Tiles — A Special Hazard
+### Enemy View Distance and Woodland Ambushes
 
-Tree tiles (`O` oak, `P` pine, `S` shrub) represent cover and ambush potential. Enemies treat them differently based on unit type.
+Each enemy unit sees up to **3 hex steps in each of the six hex directions** when on open terrain. This is the range at which they spot player units, identify dangerous water, and reason about their costs.
 
-The reasoning is tactical: an enemy infantry unit pushing through dense woodland risks walking into an ambush by archers or knights hidden in the undergrowth. Heavy melee units and siege crews are not equipped to deal with that risk — they avoid trees entirely and route around them.
+**Tree tiles shorten sight.** If the immediate neighbor in a given direction is a tree tile (oak, pine, or shrub), the enemy can only see **1 hex step** in that direction — the canopy blocks their view. Each direction is checked independently:
 
-Lighter, more agile unit types (archers and cavalry) have the speed and awareness to move through woodland, and may choose to do so if it represents the shortest route.
+- An enemy moving along a road with forest to its northwest and northeast can still see 3 steps in the other four directions, but only 1 step toward the trees.
+- An enemy unit that has entered a tree tile (archers and cavalry can do this) is moving **blind in all directions** — sight is capped at 1 hex in every direction. They see only their immediate 6 neighbors.
+
+**What this enables for the player:**
+
+Forests are natural ambush positions. Place an archer inside a tree cluster and the enemy column marching past on the road won't register the threat in their cost calculations — the trees block the sight line. Your archer fires; the enemies see the unit now that it's 1 hex away, but by then it may be too late to reroute.
+
+The same logic applies to the water penalty: enemy units in or near woodland can't see across the tree line, so they won't penalise water on the far side. A river crossing that looks safe to a blind enemy column becomes a kill zone once they step into the clearing.
+
+**Summary by terrain context:**
+
+| Enemy context | Sight in open directions | Sight toward a tree-adjacent direction |
+|---|---|---|
+| On open terrain, no adjacent trees | 3 hex steps | — |
+| On open terrain, tree in one direction | 3 hex steps | 1 hex step |
+| Inside a tree tile | 1 hex step (all directions) | 1 hex step |
+
+---
+
+### Tree Tiles — Passability and Ambush Potential
+
+Tree tiles (`O` oak, `P` pine, `S` shrub) interact with the AI in two distinct ways: **passability** (can the enemy move there?) and **sight occlusion** (can the enemy see past them?).
+
+**Passability** depends on unit type, for the same tactical reason described above — infantry and siege engines avoid trees to reduce ambush risk; archers and cavalry are agile enough to push through.
 
 | Enemy Type | Tree Tiles (O, P, S) |
 |------------|---------------------|
@@ -545,7 +571,11 @@ Lighter, more agile unit types (archers and cavalry) have the speed and awarenes
 | Cavalry | **Passable** (cost 1) — agile enough to navigate cover |
 | Siege Engine | **Impassable** — too slow and bulky for forest terrain |
 
-Note that tree passability stacks with the combat cost system. If a player unit is inside a forest, archers and cavalry will still path through — but the tree tile now also carries a combat cost of `3`, so they'll only do it if there's no cheaper route outside the trees.
+**Sight occlusion** applies to all enemy types. A tree tile in a given direction reduces sight in that direction from 3 hex steps to 1 — regardless of whether the enemy can actually enter the tree. An infantry unit marching past a forest can only see 1 step *into* the tree line; it can still see 3 steps across open ground on its other sides.
+
+This means player unit placement inside forests is genuinely hidden from approaching enemies until they get within 1 hex — at which point the ambush fires. The enemy AI won't penalise water on the far side of a forest it can't see through, and it won't reroute away from an archer it hasn't spotted yet.
+
+Note that tree passability stacks with the combat cost system. If a player unit is inside a forest, archers and cavalry will still path through trees — but they must be within sight range to "know" the unit is there. If they can't see it, the tile appears to them as ordinary woodland (cost 1), not a combat tile (cost 3).
 
 ---
 

@@ -8,6 +8,8 @@ The system uses A* pathfinding over the odd-row-offset hex grid defined by `hexT
 
 Player-occupied tiles are no longer impassable. Instead they carry a combat cost of `3`, allowing enemies to choose to fight when no cheaper route exists. Water tiles within 3 hex steps of any player unit are penalised to cost `4`, making them less attractive than open water (`2`) or even direct combat (`3`). All player unit positions are pooled into a **SharedThreatMap** before each turn begins, so every enemy unit reasons from the same collective intelligence.
 
+Enemy units also have **directional view distance**: in open terrain they can see 3 hex steps in each of the six hex directions. However, if the immediate neighbor in a given direction is a tree tile, that direction is capped at 1 hex step — the forest blocks their line of sight. A unit fully inside woodland (itself on a tree tile) is effectively blind in all directions, seeing only the 6 immediately adjacent tiles. This enables woodland ambushes: enemies only fear player units they can actually see.
+
 ---
 
 ## Architecture
@@ -31,6 +33,7 @@ game-iso.js (Game Loop)
             hexNeighbors (odd-row-offset)
             hexDistance heuristic
             buildSharedThreatMap() — sight-radius expansion helper
+            computeEnemyVisibleTiles() — directional view distance with tree occlusion
 ```
 
 Both new files expose singleton objects (`EnemyManager`, `PathfindingEngine`) as browser globals, matching the existing pattern used by `LevelLoader`, `UnitManager`, `AnimationController`, etc.
@@ -265,14 +268,14 @@ class MinHeap {
 }
 ```
 
-### DynamicCostOverlay and SharedThreatMap
+### DynamicCostOverlay, SharedThreatMap, and Directional Enemy Sight
 
 The `DynamicCostOverlay` is a `Map<"row,col", number>` that EnemyManager builds once per turn and passes unchanged to every `findPath` call. It encodes two kinds of cost penalties on top of the base `MovementCostTable`:
 
 | Tile condition | Overlay cost | Reasoning |
 |----------------|-------------|-----------|
 | Occupied by a player unit | `3` | Combat is costly but not impossible — enemies choose to fight when routing is worse |
-| Water tile within ThreatSightRadius of any player unit | `4` | Swimming under fire is worse than fighting; enemies avoid contested water if they can |
+| Water tile visible to at least one enemy AND within player threat radius | `4` | Enemies only fear water near a defender they can actually see |
 
 **Cost ordering summary:**
 
@@ -280,65 +283,94 @@ The `DynamicCostOverlay` is a `Map<"row,col", number>` that EnemyManager builds 
 passable terrain  = 1
 water (open)      = 2
 combat tile       = 3   ← fight a player unit
-water under fire  = 4   ← water in a player unit's sight radius
+water under fire  = 4   ← water in a player unit's sight radius, seen by an enemy
 impassable        = ∞   ← walls, towers, keep, rock
 ```
 
-This ordering means enemies always prefer uncontested open ground, will cross open water if needed, will choose direct combat over dangerous water crossings, and will only wade through fire as an absolute last resort.
+---
 
-**`buildSharedThreatMap(placedUnits, tileGraph)` algorithm:**
+### Directional Enemy Sight — `computeEnemyVisibleTiles`
+
+Each enemy unit has a **directional view distance** per hex direction. The default is `3` steps in each of the 6 directions on open terrain. The distance is reduced to `1` in any direction where the immediate neighbor is a tree tile (`O`, `P`, `S`). If the enemy itself occupies a tree tile, all six directions are capped at `1`.
 
 ```
-buildSharedThreatMap(placedUnits, tileGraph):
+computeEnemyVisibleTiles(row, col, tileGraph):
+  visibleTiles = Set()
+  TREE_CHARS = {'O', 'P', 'S'}
+
+  unitTileChar = resolveTileChar(tileGraph.get(tileKey(row, col)))
+  inTree = TREE_CHARS.has(unitTileChar)
+
+  FOR each direction d in hexNeighbors(row, col):  // 6 directions
+    immediateNeighbor = tileGraph.get(tileKey(d.row, d.col))
+    neighborChar = immediateNeighbor ? resolveTileChar(immediateNeighbor) : null
+
+    // Determine sight distance in this direction
+    IF inTree:
+      sightDistance = 1         // blind in all directions when inside woodland
+    ELSE IF neighborChar IN TREE_CHARS:
+      sightDistance = 1         // trees block this direction
+    ELSE:
+      sightDistance = 3         // open terrain — full sight
+
+    // Raycast along direction d up to sightDistance steps
+    current = { row, col }
+    FOR step = 1 TO sightDistance:
+      next = stepInDirection(current, d_offset)  // single hex step in direction d
+      nextTile = tileGraph.get(tileKey(next.row, next.col))
+      IF NOT nextTile: BREAK                     // out of bounds
+      nextChar = resolveTileChar(nextTile)
+      IF nextChar IN {'W','T','G','K','j','J','F','R'}: BREAK  // impassable blocks sight
+      visibleTiles.add(nextTile)
+      current = next
+
+  RETURN visibleTiles
+```
+
+**Direction stepping**: since `hexNeighbors` returns all 6 neighbors at once, raycasting along a single direction requires tracking which neighbor offset corresponds to each compass direction and continuing to add that same offset each step. The six directional offsets for odd and even rows are derived from the same `hexNeighbors` table already defined in the engine.
+
+**Key properties of directional sight:**
+- A unit on grass/road with trees to its NW and NE can still see 3 steps to the E, SE, SW, W
+- A unit fully inside woodland (tree tile) sees only its 6 immediate neighbors — moving blind
+- Tree adjacency is checked at depth-1 only; the immediate neighbor determines whether that ray is shortened
+- Walls and impassable terrain still stop rays early regardless of sight distance
+
+---
+
+### Updated `buildSharedThreatMap`
+
+The function signature expands to accept enemy unit positions so it can apply directional sight occlusion:
+
+```
+buildSharedThreatMap(placedUnits, activeEnemyUnits, tileGraph):
   overlay = new Map()
 
+  // Step 1: build the set of tiles collectively visible to all active enemy units
+  enemyVisibleSet = new Set()
+  FOR each enemyUnit in activeEnemyUnits:
+    FOR each tile in computeEnemyVisibleTiles(enemyUnit.row, enemyUnit.col, tileGraph):
+      enemyVisibleSet.add(tileKey(tile.row, tile.col))
+
+  // Step 2: mark player unit combat tiles (always, regardless of visibility)
   FOR each playerUnit in placedUnits:
-    // 1. Mark the occupied tile as combat cost
     overlay.set(tileKey(playerUnit.row, playerUnit.col), COMBAT_COST=3)
 
-    // 2. Expand ThreatSightRadius: all tiles within 3 hex steps
+  // Step 3: expand player unit threat radii; penalise water ONLY if visible to enemies
+  FOR each playerUnit in placedUnits:
     threatTiles = hexRing(playerUnit.row, playerUnit.col, radius=3, tileGraph)
-
     FOR each tile in threatTiles:
       tileChar = resolveTileChar(tile)
-      IF tileChar === '~':  // water only
-        currentOverlayCost = overlay.get(tileKey(tile)) ?? baseCost(tileChar)
-        // Only raise cost, never lower it (combat tile stays at 3 even if in threat zone)
-        IF THREAT_WATER_COST=4 > currentOverlayCost:
+      IF tileChar === '~' AND enemyVisibleSet.has(tileKey(tile)):
+        currentCost = overlay.get(tileKey(tile)) ?? baseCost(tileChar)
+        IF THREAT_WATER_COST=4 > currentCost:
           overlay.set(tileKey(tile), THREAT_WATER_COST=4)
 
   RETURN overlay
 ```
 
-**`hexRing(row, col, radius, tileGraph)` — BFS within N hex steps:**
+**What this achieves:** enemies only avoid water near defenders they can actually see. A player archer hiding in the forest generates no water penalty on the far side of the woods if no enemy unit has line of sight to that water. This makes ambush placement meaningful — enemies won't reroute away from water they don't know is dangerous.
 
-Uses standard BFS capped at `radius` hops from the origin. Returns all tiles reachable within `radius` steps that exist in the tileGraph (i.e., are within map bounds). The `radius=3` value represents the "immediate 18-tile surroundings" of a hex tile — the first, second, and third hex rings collectively contain 6 + 12 = 18 tiles when unobstructed, matching the intent of the sight definition.
-
-```js
-function hexRing(row, col, radius, tileGraph) {
-    const visited = new Set([tileKey(row, col)]);
-    let frontier = [{ row, col }];
-    const result = [];
-
-    for (let step = 0; step < radius; step++) {
-        const next = [];
-        for (const { row: r, col: c } of frontier) {
-            for (const { row: nr, col: nc } of hexNeighbors(r, c)) {
-                const k = tileKey(nr, nc);
-                if (!visited.has(k) && tileGraph.has(k)) {
-                    visited.add(k);
-                    next.push({ row: nr, col: nc });
-                    result.push(tileGraph.get(k));
-                }
-            }
-        }
-        frontier = next;
-    }
-    return result;
-}
-```
-
-The overlay is passed to `findPath` as a plain `Map` — no mutation occurs inside `findPath`. If `placedUnits` is empty the overlay is an empty Map and behaviour is identical to the base cost table.
+The overlay is passed to `findPath` unchanged — no mutation occurs inside `findPath`. If both `placedUnits` and `activeEnemyUnits` are empty, the overlay is empty and behaviour is identical to the base cost table.
 
 ---
 
@@ -520,9 +552,11 @@ const EnemyManager = {
 ```
 executeTurn()
   1. Build TileGraph from LevelLoader.getCurrentLevel().tiles
-  2. Build SharedThreatMap from UnitManager.getPlacedUnits() via
-     PathfindingEngine.buildSharedThreatMap(placedUnits, tileGraph)
-     — this is done ONCE and reused for all units this turn
+  2. Build SharedThreatMap from UnitManager.getPlacedUnits() AND EnemyManager._units via
+     PathfindingEngine.buildSharedThreatMap(placedUnits, activeEnemyUnits, tileGraph)
+     — done ONCE and reused for all units this turn
+     — enemy directional sight is applied here: water near player units is only penalised
+       if at least one enemy unit has line of sight to that water
   3. Select targetSet:
        castleBreached === false → CastlePerimeter (re-computed from current level)
        castleBreached === true  → KeepTileSet
@@ -803,6 +837,38 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
+### Property 18: Enemy units on open terrain have 3-step sight in all unblocked directions
+
+*For any* enemy unit on a non-tree tile, `computeEnemyVisibleTiles` returns tiles up to 3 hex steps away in every direction where the immediate neighbor is not a tree tile.
+
+**Validates: Requirements 11.1, 11.2**
+
+---
+
+### Property 19: Tree adjacency caps sight to 1 in the blocked direction only
+
+*For any* enemy unit on a non-tree tile with exactly one tree-adjacent neighbor direction, `computeEnemyVisibleTiles` returns only the 1-step tile in the tree-adjacent direction, while all other directions retain their full 3-step range.
+
+**Validates: Requirements 11.2, 11.3**
+
+---
+
+### Property 20: Enemy units inside woodland are blind beyond 1 hex in all directions
+
+*For any* enemy unit positioned on a tree tile, `computeEnemyVisibleTiles` returns at most the 6 immediately adjacent tiles (those within 1 hex step), regardless of what terrain those neighbors are.
+
+**Validates: Requirements 11.7**
+
+---
+
+### Property 21: Threat-zone water penalty only applied to enemy-visible tiles
+
+*For any* water tile `w` adjacent to a player unit's 3-step threat radius, `buildSharedThreatMap` assigns cost `4` to `w` only if `w` is present in the collective enemy visible tile set (union of all active enemy units' `computeEnemyVisibleTiles`). Water tiles outside all enemy sight lines retain their base cost of `2`.
+
+**Validates: Requirements 11.5, 11.6**
+
+---
+
 ## Components and Interfaces
 
 ### `pathfinding-engine.js` — PathfindingEngine (browser global)
@@ -810,8 +876,9 @@ Because the source files are plain browser globals (no `module.exports`), the te
 | Export | Signature | Description |
 |--------|-----------|-------------|
 | `PathfindingEngine.findPath` | `(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay) → [{row,col}]` | A* pathfinding with overlay costs; returns ordered path excluding start, including goal. Empty array if unreachable. |
-| `PathfindingEngine.buildSharedThreatMap` | `(placedUnits, tileGraph) → Map<string, number>` | Builds the DynamicCostOverlay from all player unit positions: combat tiles (cost 3) and threat-zone water (cost 4). |
-| `PathfindingEngine.hexRing` | `(row, col, radius, tileGraph) → tile[]` | Returns all tiles within `radius` hex steps via BFS. Used by `buildSharedThreatMap` for sight-radius expansion. |
+| `PathfindingEngine.buildSharedThreatMap` | `(placedUnits, activeEnemyUnits, tileGraph) → Map<string, number>` | Builds DynamicCostOverlay: combat tiles (cost 3) and threat-zone water visible to enemies (cost 4). |
+| `PathfindingEngine.computeEnemyVisibleTiles` | `(row, col, tileGraph) → Set<tile>` | Returns tiles visible from `(row, col)` using directional sight distance, reduced to 1 in tree-adjacent directions and all directions when on a tree tile. |
+| `PathfindingEngine.hexRing` | `(row, col, radius, tileGraph) → tile[]` | BFS within `radius` hex steps. Used by `buildSharedThreatMap` for player unit threat expansion. |
 | `PathfindingEngine.buildTileGraph` | `(tiles) → Map<string, tile>` | Converts `LevelLoader` tile array into `"row,col"` keyed Map. |
 | `PathfindingEngine.hexNeighbors` | `(row, col) → [{row,col}]` | Returns 6 neighbors in odd-row-offset topology. |
 | `PathfindingEngine.hexDistance` | `(r1, c1, r2, c2) → number` | Cube-coordinate hex distance. Admissible A* heuristic. |
