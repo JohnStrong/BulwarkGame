@@ -115,24 +115,24 @@ describe('iso-renderer.js module exports', () => {
         assert.equal(mod.TREE_OVERLAY_OFFSET_Y, 0);
     });
 
-    it('exports WALL_OVERLAY_HEIGHT = 48', () => {
-        assert.equal(mod.WALL_OVERLAY_HEIGHT, 48);
+    it('exports WALL_OVERLAY_HEIGHT = 96', () => {
+        assert.equal(mod.WALL_OVERLAY_HEIGHT, 96);
     });
 
-    it('exports BRIDGE_OVERLAY_HEIGHT = 48', () => {
-        assert.equal(mod.BRIDGE_OVERLAY_HEIGHT, 48);
+    it('exports BRIDGE_OVERLAY_HEIGHT = 64', () => {
+        assert.equal(mod.BRIDGE_OVERLAY_HEIGHT, 64);
     });
 
-    it('exports TOWER_OVERLAY_HEIGHT = 64', () => {
-        assert.equal(mod.TOWER_OVERLAY_HEIGHT, 64);
+    it('exports TOWER_OVERLAY_HEIGHT = 128', () => {
+        assert.equal(mod.TOWER_OVERLAY_HEIGHT, 128);
     });
 
-    it('exports KEEP_OVERLAY_HEIGHT = 64', () => {
-        assert.equal(mod.KEEP_OVERLAY_HEIGHT, 64);
+    it('exports KEEP_OVERLAY_HEIGHT = 128', () => {
+        assert.equal(mod.KEEP_OVERLAY_HEIGHT, 128);
     });
 
-    it('exports GATEHOUSE_OVERLAY_HEIGHT = 80', () => {
-        assert.equal(mod.GATEHOUSE_OVERLAY_HEIGHT, 80);
+    it('exports GATEHOUSE_OVERLAY_HEIGHT = 160', () => {
+        assert.equal(mod.GATEHOUSE_OVERLAY_HEIGHT, 160);
     });
 
     it('exports all four *_OVERLAY_OFFSET_Y constants as 0 (bridge removed)', () => {

@@ -1,34 +1,14 @@
 /**
  * Generate castle structure overlay sprites (transparent background).
  *
- * Produces exactly 18 castle/bridge overlay sprites:
- *   Walls (64×48):
- *     - castle-wall-overlay
- *     - castle-wall-damaged-overlay
- *   Towers (64×64):
- *     - castle-tower-overlay
- *     - castle-tower-damaged-overlay
- *   Keep quadrants (64×64):
- *     - castle-keep-tl-overlay
- *     - castle-keep-tl-damaged-overlay
- *     - castle-keep-bl-overlay
- *     - castle-keep-bl-damaged-overlay
- *     - castle-keep-br-overlay
- *     - castle-keep-br-damaged-overlay
- *     - castle-keep-center-overlay
- *     - castle-keep-center-damaged-overlay
- *   Gatehouse (64×80):
- *     - castle-gatehouse-overlay
- *     - castle-gatehouse-damaged-overlay
- *   Bridge surfaces (64×48) — no damaged variants:
- *     - bridge-mm-overlay
- *     - castle-bridge-start-overlay
- *     - castle-bridge-mid-overlay
- *     - castle-bridge-gate-overlay
+ * Delegates to generate-castle-block-sprites.js which produces
+ * isometric cobblestone wall-face overlays.  All sprites are written
+ * to OUTPUT_DIR as PNGs.
  *
- * Each overlay sprite has a transparent background (alpha=0 outside the
- * structure's vertical body) and is drawn on top of the flat ground tile
- * at runtime to achieve a 2.5D appearance.
+ * Canvas heights are determined by blockCount:
+ *   1 block  → 48 px  (wall, bridge)
+ *   2 blocks → 64 px  (tower, keep quadrants)
+ *   3 blocks → 80 px  (gatehouse)
  *
  * Requirements: 1.9, 9.1
  *
@@ -39,79 +19,66 @@
 'use strict';
 
 const sharp = require('sharp');
-const path = require('path');
+const path  = require('path');
 
 const { OUTPUT_DIR, CASTLE_OVERLAY_SPRITES } = require('./lib/sprite-constants');
-const { generateCastleOverlay, generateIsoWallOverlay } = require('./generate-iso-sprites-br-tl');
+const {
+    generateBlockOverlay,
+    canvasHeightForBlocks,
+    W: OVERLAY_WIDTH,
+} = require('./generate-castle-block-sprites');
 
 // ─── Sprite Definitions ──────────────────────────────────────────────────────
 
 /**
- * All 20 castle/bridge overlay sprites to generate.
- * Each entry maps a sprite name to its structureType and damaged flag.
- *
- * Canvas dimensions are determined by structureType inside generateCastleOverlay:
- *   - wall / bridge-*: 64×48 px
- *   - tower / keep-*:  64×64 px
- *   - gatehouse:       64×80 px
- *
- * The two 'iso-wall' entries use generateIsoWallOverlay (64×48) and are the
- * sprites actually used at runtime by all castle structure tiles (T, K, j, J, F, G, W).
+ * All 23 castle/bridge overlay sprites.
+ * blockCount drives canvas height: canvasHeightForBlocks(blockCount).
  */
 const CASTLE_OVERLAY_SPRITE_DEFS = [
+    // Iso-wall (shared overlay for all castle structure tiles W/T/K/j/J/G)
+    { name: CASTLE_OVERLAY_SPRITES.isoWall,              blockCount: 1, seed: 1200 },
+    { name: CASTLE_OVERLAY_SPRITES.isoWallDamaged,       blockCount: 1, seed: 1300 },
     // Walls (64×48)
-    { name: CASTLE_OVERLAY_SPRITES.wall,                structureType: 'wall',         damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.wallDamaged,         structureType: 'wall',         damaged: true  },
-    // Towers (64×64)
-    { name: CASTLE_OVERLAY_SPRITES.tower,               structureType: 'tower',        damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.towerDamaged,        structureType: 'tower',        damaged: true  },
+    { name: CASTLE_OVERLAY_SPRITES.wall,                 blockCount: 1, seed: 1000 },
+    { name: CASTLE_OVERLAY_SPRITES.wallDamaged,          blockCount: 1, seed: 1100 },
+    // Tower (64×64)
+    { name: CASTLE_OVERLAY_SPRITES.tower,                blockCount: 2, seed: 3000 },
+    { name: CASTLE_OVERLAY_SPRITES.towerDamaged,         blockCount: 2, seed: 3100 },
     // Keep quadrants (64×64)
-    { name: CASTLE_OVERLAY_SPRITES.keepTopLeft,         structureType: 'keep-tl',      damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.keepTopLeftDamaged,  structureType: 'keep-tl',      damaged: true  },
-    { name: CASTLE_OVERLAY_SPRITES.keepBotLeft,         structureType: 'keep-bl',      damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.keepBotLeftDamaged,  structureType: 'keep-bl',      damaged: true  },
-    { name: CASTLE_OVERLAY_SPRITES.keepBotRight,        structureType: 'keep-br',      damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.keepBotRightDamaged, structureType: 'keep-br',      damaged: true  },
-    { name: CASTLE_OVERLAY_SPRITES.keepCenter,          structureType: 'keep-center',  damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.keepCenterDamaged,   structureType: 'keep-center',  damaged: true  },
+    { name: CASTLE_OVERLAY_SPRITES.keepTopLeft,          blockCount: 2, seed: 4000 },
+    { name: CASTLE_OVERLAY_SPRITES.keepTopLeftDamaged,   blockCount: 2, seed: 4100 },
+    { name: CASTLE_OVERLAY_SPRITES.keepBotLeft,          blockCount: 2, seed: 4200 },
+    { name: CASTLE_OVERLAY_SPRITES.keepBotLeftDamaged,   blockCount: 2, seed: 4300 },
+    { name: CASTLE_OVERLAY_SPRITES.keepBotRight,         blockCount: 2, seed: 4400 },
+    { name: CASTLE_OVERLAY_SPRITES.keepBotRightDamaged,  blockCount: 2, seed: 4500 },
+    { name: CASTLE_OVERLAY_SPRITES.keepCenter,           blockCount: 2, seed: 4600 },
+    { name: CASTLE_OVERLAY_SPRITES.keepCenterDamaged,    blockCount: 2, seed: 4700 },
     // Gatehouse (64×80)
-    { name: CASTLE_OVERLAY_SPRITES.gatehouse,           structureType: 'gatehouse',    damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.gatehouseDamaged,    structureType: 'gatehouse',    damaged: true  },
-    // Bridge surfaces (64×48) — no damaged variants
-    { name: CASTLE_OVERLAY_SPRITES.bridgeMm,            structureType: 'bridge-mm',    damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.bridgeStart,         structureType: 'bridge-start', damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.bridgeMid,           structureType: 'bridge-mid',   damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.bridgeGate,          structureType: 'bridge-gate',  damaged: false },
-    // Isometric wall face (64×48) — single sprite used by all castle tiles at runtime
-    { name: CASTLE_OVERLAY_SPRITES.isoWall,             structureType: 'iso-wall',     damaged: false },
-    { name: CASTLE_OVERLAY_SPRITES.isoWallDamaged,      structureType: 'iso-wall',     damaged: true  },
+    { name: CASTLE_OVERLAY_SPRITES.gatehouse,            blockCount: 3, seed: 5000 },
+    { name: CASTLE_OVERLAY_SPRITES.gatehouseDamaged,     blockCount: 3, seed: 5100 },
+    // Full-keep overlays (64×64 — same block height as keep quadrants)
+    { name: CASTLE_OVERLAY_SPRITES.keep,                 blockCount: 2, seed: 6000 },
+    { name: CASTLE_OVERLAY_SPRITES.keepDamaged,          blockCount: 2, seed: 6100 },
+    { name: CASTLE_OVERLAY_SPRITES.keepDestroyed,        blockCount: 1, seed: 6200 },
+    // Bridge surfaces (64×48)
+    { name: CASTLE_OVERLAY_SPRITES.bridgeMm,             blockCount: 1, seed: 2000 },
+    { name: CASTLE_OVERLAY_SPRITES.bridgeStart,          blockCount: 1, seed: 2100 },
+    { name: CASTLE_OVERLAY_SPRITES.bridgeMid,            blockCount: 1, seed: 2200 },
+    { name: CASTLE_OVERLAY_SPRITES.bridgeGate,           blockCount: 1, seed: 2300 },
 ];
 
-// ─── Canvas Width ────────────────────────────────────────────────────────────
-
-/** All castle overlay sprites share the same canvas width. */
-const OVERLAY_WIDTH = 64;
-
-// ─── Main ───────────────────────────────────────────────────────────────────
+// ─── Main ────────────────────────────────────────────────────────────────────
 
 async function generateAll() {
-    console.log('Generating castle structure overlay sprites (transparent background)...\n');
+    console.log('Generating isometric cobblestone wall overlay sprites...\n');
 
     for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-        let buffer;
-        if (def.structureType === 'iso-wall') {
-            // Isometric wall face — uses dedicated generator, always 64×48
-            buffer = generateIsoWallOverlay(def.damaged);
-        } else {
-            buffer = generateCastleOverlay(def.structureType, def.damaged);
-        }
-        // Canvas height is encoded in the buffer length: buffer.length / (OVERLAY_WIDTH * 4)
-        const height = buffer.length / (OVERLAY_WIDTH * 4);
-
-        await sharp(buffer, { raw: { width: OVERLAY_WIDTH, height, channels: 4 } })
+        const h      = canvasHeightForBlocks(def.blockCount);
+        const buffer = generateBlockOverlay(def.blockCount, def.seed);
+        await sharp(buffer, { raw: { width: OVERLAY_WIDTH, height: h, channels: 4 } })
             .png()
             .toFile(path.join(OUTPUT_DIR, `${def.name}.png`));
-        console.log(`  ✓ ${def.name}.png  (${OVERLAY_WIDTH}×${height})`);
+        console.log(`  ✓ ${def.name}.png  (${OVERLAY_WIDTH}×${h})`);
     }
 
     console.log(`\nDone! ${CASTLE_OVERLAY_SPRITE_DEFS.length} castle overlay sprites.`);
@@ -123,7 +90,6 @@ module.exports = {
     OVERLAY_WIDTH,
 };
 
-// Run if executed directly
 if (require.main === module) {
     generateAll().catch(error => {
         console.error(`[SPRITE-BUILD-ERROR] generate-castle-overlay-sprites: ${error.message}`);

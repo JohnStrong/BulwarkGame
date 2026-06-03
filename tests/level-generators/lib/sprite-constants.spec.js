@@ -267,8 +267,8 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
         assert.ok(typeof CASTLE_OVERLAY_SPRITES === 'object' && CASTLE_OVERLAY_SPRITES !== null);
     });
 
-    it('should have exactly 20 entries', () => {
-        assert.equal(Object.keys(CASTLE_OVERLAY_SPRITES).length, 20);
+    it('should have exactly 23 entries (20 original + 3 keep-full states)', () => {
+        assert.equal(Object.keys(CASTLE_OVERLAY_SPRITES).length, 23);
     });
 
     it('should contain all expected undamaged overlay keys', () => {
@@ -376,8 +376,9 @@ describe('sprite-constants: CASTLE_OVERLAY_SPRITES registry', () => {
         const values = Object.values(CASTLE_OVERLAY_SPRITES);
         const damagedCount   = values.filter(v => v.includes('-damaged-overlay')).length;
         const undamagedCount = values.filter(v => v.endsWith('-overlay') && !v.includes('-damaged-')).length;
-        assert.equal(damagedCount,   8,  'Should have 8 damaged overlay variants');
-        assert.equal(undamagedCount, 12, 'Should have 12 undamaged overlay variants');
+        // 9 damaged (original 8 + keep-damaged), 14 undamaged (original 12 + keep + keep-destroyed)
+        assert.equal(damagedCount,   9,  'Should have 9 damaged overlay variants');
+        assert.equal(undamagedCount, 14, 'Should have 14 undamaged overlay variants');
     });
 
     it('should not collide with CASTLE_SPRITES values', () => {

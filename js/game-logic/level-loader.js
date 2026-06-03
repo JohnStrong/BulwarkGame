@@ -161,20 +161,19 @@ const LevelLoader = {
                     case 'R': level.tiles.push({ row, col, x, y, sprite: 'rock' }); break;
                     case 'D': level.tiles.push({ row, col, x, y, sprite: 'road-full' }); break;
                     case '~': level.tiles.push({ row, col, x, y, sprite: `water-${Math.floor(hash * 3) + 1}` }); break;
-                    // Bridge tiles render ground-only — no overlay sprites at runtime
                     case '=': level.tiles.push({ row, col, x, y, sprite: 'bridge-mm' }); break;
 
                     // Castle structures
-                    case 'b': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-start' }); break;
+                    case 'b': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
                     case 'm': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
-                    case 'g': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-gate' }); break;
-                    case 'T': level.tiles.push({ row, col, x, y, sprite: 'castle-tower', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'K': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-tl', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'j': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-bl', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'J': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-br', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'F': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-center', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'G': level.tiles.push({ row, col, x, y, sprite: 'castle-gatehouse', overlay: 'castle-iso-wall-overlay' }); break;
-                    case 'W': level.tiles.push({ row, col, x, y, sprite: 'castle-wall', overlay: 'castle-iso-wall-overlay' }); break;
+                    case 'g': level.tiles.push({ row, col, x, y, sprite: 'castle-bridge-mid' }); break;
+                    case 'T': level.tiles.push({ row, col, x, y, sprite: 'castle-tower' }); break;
+                    case 'K': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-tl' }); break;
+                    case 'j': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-bl' }); break;
+                    case 'J': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-br' }); break;
+                    case 'F': level.tiles.push({ row, col, x, y, sprite: 'castle-keep-center' }); break;
+                    case 'G': level.tiles.push({ row, col, x, y, sprite: 'castle-gatehouse' }); break;
+                    case 'W': level.tiles.push({ row, col, x, y, sprite: 'castle-wall' }); break;
                     case 'C': level.tiles.push({ row, col, x, y, sprite: `castle-bailey-${Math.floor(hash * 3) + 1}` }); break;
 
                     default: level.tiles.push({ row, col, x, y, sprite: 'grass-short-1' }); break;

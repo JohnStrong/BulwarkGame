@@ -81,9 +81,7 @@ const SpriteManager = {
         'unit-artillery',
 
         // Castle structures
-        'castle-bridge-start',
         'castle-bridge-mid',
-        'castle-bridge-gate',
         'castle-tower',
         'castle-keep-tl',
         'castle-keep-bl',
@@ -112,33 +110,7 @@ const SpriteManager = {
         'castle-gatehouse-damaged',
         'castle-bailey-1-damaged',
         'castle-bailey-2-damaged',
-        'castle-bailey-3-damaged',
-
-        // Castle overlay sprites (transparent background, drawn on top of castle ground tiles)
-        // Walls and bridges: 64×48 px
-        'castle-wall-overlay',
-        'castle-wall-damaged-overlay',
-        'bridge-mm-overlay',
-        'castle-bridge-start-overlay',
-        'castle-bridge-mid-overlay',
-        'castle-bridge-gate-overlay',
-        // Towers and keeps: 64×64 px
-        'castle-tower-overlay',
-        'castle-tower-damaged-overlay',
-        'castle-keep-tl-overlay',
-        'castle-keep-tl-damaged-overlay',
-        'castle-keep-bl-overlay',
-        'castle-keep-bl-damaged-overlay',
-        'castle-keep-br-overlay',
-        'castle-keep-br-damaged-overlay',
-        'castle-keep-center-overlay',
-        'castle-keep-center-damaged-overlay',
-        // Gatehouse: 64×80 px
-        'castle-gatehouse-overlay',
-        'castle-gatehouse-damaged-overlay',
-        // Isometric wall face overlay (64×48) — single sprite used by all castle structure tiles at runtime
-        'castle-iso-wall-overlay',
-        'castle-iso-wall-damaged-overlay',
+        'castle-bailey-3-damaged'
     ],
 
     /**

@@ -2,15 +2,19 @@
  * Tests for generate-castle-overlay-sprites.js
  *
  * Covers:
- *   - CASTLE_OVERLAY_SPRITE_DEFS: completeness, shape, and correctness of each entry
+ *   - CASTLE_OVERLAY_SPRITE_DEFS: completeness, shape, and entry count
  *   - OVERLAY_WIDTH constant
- *   - All 18 expected sprite names are present
- *   - structureType values are valid (accepted by generateCastleOverlay)
- *   - damaged flag is a boolean on every entry
- *   - Bridge entries have damaged=false (no damaged bridge variants)
- *   - Damaged entries exist for the 7 expected structure types
- *   - No duplicate sprite names in the definitions list
- *   - Each entry's name matches the corresponding CASTLE_OVERLAY_SPRITES registry value
+ *   - Each entry has: name (string), gen (function), w (number), h (number)
+ *   - All names match CASTLE_OVERLAY_SPRITES registry values
+ *   - No duplicate sprite names
+ *   - All sprite names end with '-overlay'
+ *   - Canvas dimension assignments by structure category
+ *   - Keep-full entries use w=192 (wide canvas)
+ *   - Bridge entries use h=64 (shortest height)
+ *   - Wall/isoWall entries use h=96
+ *   - Tower/keep-quadrant entries use h=128
+ *   - Gatehouse entries use h=160
+ *   - gen() is callable and returns a Buffer
  *
  * Uses Node.js built-in test runner (node:test).
  * Run: node --test tests/level-generators/generate-castle-overlay-sprites.spec.js
@@ -49,9 +53,9 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: basic shape', () => {
         assert.ok(Array.isArray(CASTLE_OVERLAY_SPRITE_DEFS));
     });
 
-    it('should contain exactly 20 entries', () => {
-        assert.equal(CASTLE_OVERLAY_SPRITE_DEFS.length, 20,
-            `Expected 20 sprite definitions, got ${CASTLE_OVERLAY_SPRITE_DEFS.length}`);
+    it('should contain exactly 23 entries', () => {
+        assert.equal(CASTLE_OVERLAY_SPRITE_DEFS.length, 23,
+            `Expected 23 sprite definitions, got ${CASTLE_OVERLAY_SPRITE_DEFS.length}`);
     });
 
     it('every entry should have a non-empty string name', () => {
@@ -62,19 +66,40 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: basic shape', () => {
         }
     });
 
-    it('every entry should have a non-empty string structureType', () => {
+    it('every entry should have a gen function', () => {
         for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-            assert.equal(typeof def.structureType, 'string',
-                `structureType should be a string for entry "${def.name}"`);
-            assert.ok(def.structureType.length > 0,
-                `structureType should not be empty for entry "${def.name}"`);
+            assert.equal(typeof def.gen, 'function',
+                `Entry "${def.name}" should have a gen function, got ${typeof def.gen}`);
         }
     });
 
-    it('every entry should have a boolean damaged flag', () => {
+    it('every entry should have a numeric w (width)', () => {
         for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-            assert.equal(typeof def.damaged, 'boolean',
-                `damaged should be a boolean for entry "${def.name}", got ${typeof def.damaged}`);
+            assert.equal(typeof def.w, 'number',
+                `Entry "${def.name}" should have a numeric w, got ${typeof def.w}`);
+            assert.ok(def.w > 0, `Entry "${def.name}" w should be positive`);
+        }
+    });
+
+    it('every entry should have a numeric h (height)', () => {
+        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
+            assert.equal(typeof def.h, 'number',
+                `Entry "${def.name}" should have a numeric h, got ${typeof def.h}`);
+            assert.ok(def.h > 0, `Entry "${def.name}" h should be positive`);
+        }
+    });
+
+    it('entries should NOT have a structureType field (old API removed)', () => {
+        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
+            assert.equal(def.structureType, undefined,
+                `Entry "${def.name}" should not have structureType (new gen-based API)`);
+        }
+    });
+
+    it('entries should NOT have a damaged field (old API removed)', () => {
+        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
+            assert.equal(def.damaged, undefined,
+                `Entry "${def.name}" should not have damaged field (new gen-based API)`);
         }
     });
 });
@@ -86,185 +111,34 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: no duplicate sprite names', () => {
         const names = CASTLE_OVERLAY_SPRITE_DEFS.map(d => d.name);
         const unique = new Set(names);
         assert.equal(unique.size, names.length,
-            `Found duplicate sprite names in CASTLE_OVERLAY_SPRITE_DEFS`);
+            'Found duplicate sprite names in CASTLE_OVERLAY_SPRITE_DEFS');
     });
 });
 
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: all 20 expected names present ───────────────
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: all expected names present ──────────────────
 
-describe('CASTLE_OVERLAY_SPRITE_DEFS: all 20 expected sprite names are present', () => {
-    const expectedNames = Object.values(CASTLE_OVERLAY_SPRITES);
+describe('CASTLE_OVERLAY_SPRITE_DEFS: all names from CASTLE_OVERLAY_SPRITES registry are present', () => {
+    const registryNames = Object.values(CASTLE_OVERLAY_SPRITES);
     const definedNames = new Set(CASTLE_OVERLAY_SPRITE_DEFS.map(d => d.name));
 
-    it(`should contain all ${expectedNames.length} names from CASTLE_OVERLAY_SPRITES`, () => {
-        assert.equal(expectedNames.length, 20,
-            `CASTLE_OVERLAY_SPRITES should have 20 entries, got ${expectedNames.length}`);
-        for (const name of expectedNames) {
+    it(`registry should have 23 entries`, () => {
+        assert.equal(registryNames.length, 23,
+            `CASTLE_OVERLAY_SPRITES should have 23 entries, got ${registryNames.length}`);
+    });
+
+    it('every registry name should have a corresponding definition', () => {
+        for (const name of registryNames) {
             assert.ok(definedNames.has(name),
-                `Missing sprite definition for "${name}"`);
+                `Missing sprite definition for registry entry "${name}"`);
         }
     });
 
-    it('should not contain any names absent from CASTLE_OVERLAY_SPRITES', () => {
-        const registryNames = new Set(expectedNames);
+    it('no definition name should be absent from the registry', () => {
+        const registrySet = new Set(registryNames);
         for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-            assert.ok(registryNames.has(def.name),
+            assert.ok(registrySet.has(def.name),
                 `Sprite "${def.name}" is in CASTLE_OVERLAY_SPRITE_DEFS but not in CASTLE_OVERLAY_SPRITES`);
         }
-    });
-});
-
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: valid structureType values ──────────────────
-
-describe('CASTLE_OVERLAY_SPRITE_DEFS: structureType values are valid', () => {
-    const validStructureTypes = new Set([
-        'wall', 'tower',
-        'keep-tl', 'keep-bl', 'keep-br', 'keep-center',
-        'gatehouse',
-        'bridge-mm', 'bridge-start', 'bridge-mid', 'bridge-gate',
-        'iso-wall',
-    ]);
-
-    it('every structureType should be one of the known valid types', () => {
-        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
-            assert.ok(validStructureTypes.has(def.structureType),
-                `Unknown structureType "${def.structureType}" for sprite "${def.name}"`);
-        }
-    });
-});
-
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: bridge entries have no damaged variants ─────
-
-describe('CASTLE_OVERLAY_SPRITE_DEFS: bridge entries have damaged=false', () => {
-    const bridgeTypes = ['bridge-mm', 'bridge-start', 'bridge-mid', 'bridge-gate'];
-
-    for (const bridgeType of bridgeTypes) {
-        it(`'${bridgeType}' entry should have damaged=false`, () => {
-            const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === bridgeType);
-            assert.ok(entry, `No entry found for structureType "${bridgeType}"`);
-            assert.equal(entry.damaged, false,
-                `Bridge type "${bridgeType}" should not have a damaged variant`);
-        });
-    }
-
-    it('no bridge structureType should appear with damaged=true', () => {
-        const damagedBridges = CASTLE_OVERLAY_SPRITE_DEFS.filter(
-            d => bridgeTypes.includes(d.structureType) && d.damaged === true
-        );
-        assert.equal(damagedBridges.length, 0,
-            `Found unexpected damaged bridge entries: ${damagedBridges.map(d => d.name).join(', ')}`);
-    });
-});
-
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: damaged variants exist for the 7 expected types
-
-describe('CASTLE_OVERLAY_SPRITE_DEFS: damaged variants exist for the 7 expected structure types', () => {
-    const damagedStructureTypes = ['wall', 'tower', 'keep-tl', 'keep-bl', 'keep-br', 'keep-center', 'gatehouse'];
-
-    for (const structureType of damagedStructureTypes) {
-        it(`'${structureType}' should have exactly one damaged=true entry`, () => {
-            const damagedEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(
-                d => d.structureType === structureType && d.damaged === true
-            );
-            assert.equal(damagedEntries.length, 1,
-                `Expected exactly 1 damaged entry for "${structureType}", found ${damagedEntries.length}`);
-        });
-
-        it(`'${structureType}' should have exactly one damaged=false entry`, () => {
-            const undamagedEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(
-                d => d.structureType === structureType && d.damaged === false
-            );
-            assert.equal(undamagedEntries.length, 1,
-                `Expected exactly 1 undamaged entry for "${structureType}", found ${undamagedEntries.length}`);
-        });
-    }
-});
-
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: name matches CASTLE_OVERLAY_SPRITES registry ─
-
-describe('CASTLE_OVERLAY_SPRITE_DEFS: each entry name matches CASTLE_OVERLAY_SPRITES registry', () => {
-    it('wall undamaged name should match CASTLE_OVERLAY_SPRITES.wall', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'wall' && !d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.wall);
-    });
-
-    it('wall damaged name should match CASTLE_OVERLAY_SPRITES.wallDamaged', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'wall' && d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.wallDamaged);
-    });
-
-    it('tower undamaged name should match CASTLE_OVERLAY_SPRITES.tower', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'tower' && !d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.tower);
-    });
-
-    it('tower damaged name should match CASTLE_OVERLAY_SPRITES.towerDamaged', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'tower' && d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.towerDamaged);
-    });
-
-    it('gatehouse undamaged name should match CASTLE_OVERLAY_SPRITES.gatehouse', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'gatehouse' && !d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.gatehouse);
-    });
-
-    it('gatehouse damaged name should match CASTLE_OVERLAY_SPRITES.gatehouseDamaged', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'gatehouse' && d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.gatehouseDamaged);
-    });
-
-    it('bridge-mm name should match CASTLE_OVERLAY_SPRITES.bridgeMm', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'bridge-mm');
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.bridgeMm);
-    });
-
-    it('bridge-start name should match CASTLE_OVERLAY_SPRITES.bridgeStart', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'bridge-start');
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.bridgeStart);
-    });
-
-    it('bridge-mid name should match CASTLE_OVERLAY_SPRITES.bridgeMid', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'bridge-mid');
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.bridgeMid);
-    });
-
-    it('bridge-gate name should match CASTLE_OVERLAY_SPRITES.bridgeGate', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'bridge-gate');
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.bridgeGate);
-    });
-
-    it('keep-tl undamaged name should match CASTLE_OVERLAY_SPRITES.keepTopLeft', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'keep-tl' && !d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.keepTopLeft);
-    });
-
-    it('keep-tl damaged name should match CASTLE_OVERLAY_SPRITES.keepTopLeftDamaged', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'keep-tl' && d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.keepTopLeftDamaged);
-    });
-
-    it('keep-center undamaged name should match CASTLE_OVERLAY_SPRITES.keepCenter', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'keep-center' && !d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.keepCenter);
-    });
-
-    it('keep-center damaged name should match CASTLE_OVERLAY_SPRITES.keepCenterDamaged', () => {
-        const entry = CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.structureType === 'keep-center' && d.damaged);
-        assert.ok(entry);
-        assert.equal(entry.name, CASTLE_OVERLAY_SPRITES.keepCenterDamaged);
     });
 });
 
@@ -277,67 +151,255 @@ describe('CASTLE_OVERLAY_SPRITE_DEFS: sprite name format', () => {
                 `Sprite name "${def.name}" should end with "-overlay"`);
         }
     });
+});
 
-    it('damaged sprite names should contain "-damaged-overlay"', () => {
-        for (const def of CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.damaged)) {
-            assert.ok(def.name.includes('-damaged-overlay'),
-                `Damaged sprite name "${def.name}" should contain "-damaged-overlay"`);
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: canvas dimensions by category ───────────────
+
+describe('CASTLE_OVERLAY_SPRITE_DEFS: canvas dimensions', () => {
+    // Helper: find entry by registry key
+    const byKey = (key) => {
+        const name = CASTLE_OVERLAY_SPRITES[key];
+        return CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.name === name);
+    };
+
+    it('isoWall entries should be w=64, h=96', () => {
+        const e = byKey('isoWall');
+        assert.ok(e, 'isoWall entry should exist');
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 96);
+    });
+
+    it('isoWallDamaged entries should be w=64, h=96', () => {
+        const e = byKey('isoWallDamaged');
+        assert.ok(e, 'isoWallDamaged entry should exist');
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 96);
+    });
+
+    it('wall entries should be w=64, h=96', () => {
+        const e = byKey('wall');
+        assert.ok(e, 'wall entry should exist');
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 96);
+    });
+
+    it('wallDamaged entries should be w=64, h=96', () => {
+        const e = byKey('wallDamaged');
+        assert.ok(e, 'wallDamaged entry should exist');
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 96);
+    });
+
+    it('tower entries should be w=64, h=128', () => {
+        const e = byKey('tower');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('towerDamaged entries should be w=64, h=128', () => {
+        const e = byKey('towerDamaged');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepTopLeft entries should be w=64, h=128', () => {
+        const e = byKey('keepTopLeft');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepTopLeftDamaged entries should be w=64, h=128', () => {
+        const e = byKey('keepTopLeftDamaged');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepBotLeft entries should be w=64, h=128', () => {
+        const e = byKey('keepBotLeft');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepBotRight entries should be w=64, h=128', () => {
+        const e = byKey('keepBotRight');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepCenter entries should be w=64, h=128', () => {
+        const e = byKey('keepCenter');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepCenterDamaged entries should be w=64, h=128', () => {
+        const e = byKey('keepCenterDamaged');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 128);
+    });
+
+    it('gatehouse entries should be w=64, h=160', () => {
+        const e = byKey('gatehouse');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 160);
+    });
+
+    it('gatehouseDamaged entries should be w=64, h=160', () => {
+        const e = byKey('gatehouseDamaged');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 160);
+    });
+
+    it('keep (large) entries should be w=192, h=128', () => {
+        const e = byKey('keep');
+        assert.ok(e, 'keep entry should exist');
+        assert.equal(e.w, 192);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepDamaged (large) entries should be w=192, h=128', () => {
+        const e = byKey('keepDamaged');
+        assert.ok(e);
+        assert.equal(e.w, 192);
+        assert.equal(e.h, 128);
+    });
+
+    it('keepDestroyed (large) entries should be w=192, h=128', () => {
+        const e = byKey('keepDestroyed');
+        assert.ok(e);
+        assert.equal(e.w, 192);
+        assert.equal(e.h, 128);
+    });
+
+    it('bridgeMm entries should be w=64, h=64', () => {
+        const e = byKey('bridgeMm');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 64);
+    });
+
+    it('bridgeStart entries should be w=64, h=64', () => {
+        const e = byKey('bridgeStart');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 64);
+    });
+
+    it('bridgeMid entries should be w=64, h=64', () => {
+        const e = byKey('bridgeMid');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 64);
+    });
+
+    it('bridgeGate entries should be w=64, h=64', () => {
+        const e = byKey('bridgeGate');
+        assert.ok(e);
+        assert.equal(e.w, 64);
+        assert.equal(e.h, 64);
+    });
+});
+
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: dimension category counts ───────────────────
+
+describe('CASTLE_OVERLAY_SPRITE_DEFS: dimension category counts', () => {
+    it('should have 4 entries with h=96 (isoWall, isoWallDamaged, wall, wallDamaged)', () => {
+        const h96 = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.h === 96);
+        assert.equal(h96.length, 4);
+    });
+
+    it('should have 10 entries with h=128 and w=64 (tower×2 + keep quadrants×8)', () => {
+        const h128w64 = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.h === 128 && d.w === 64);
+        assert.equal(h128w64.length, 10);
+    });
+
+    it('should have 3 entries with h=128 and w=192 (keep, keepDamaged, keepDestroyed)', () => {
+        const h128w192 = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.h === 128 && d.w === 192);
+        assert.equal(h128w192.length, 3);
+    });
+
+    it('should have 2 entries with h=160 (gatehouse, gatehouseDamaged)', () => {
+        const h160 = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.h === 160);
+        assert.equal(h160.length, 2);
+    });
+
+    it('should have 4 entries with h=64 (bridge entries)', () => {
+        const h64 = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.h === 64);
+        assert.equal(h64.length, 4);
+    });
+
+    it('should have exactly 3 entries with w=192 (large keep sprites)', () => {
+        const wide = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.w === 192);
+        assert.equal(wide.length, 3);
+    });
+
+    it('should have 20 entries with w=64 (all single-tile sprites)', () => {
+        const standard = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.w === 64);
+        assert.equal(standard.length, 20);
+    });
+});
+
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: gen() returns a Buffer ──────────────────────
+
+describe('CASTLE_OVERLAY_SPRITE_DEFS: gen() returns correct buffer', () => {
+    it('gen() for each entry should return a Buffer', () => {
+        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
+            const buf = def.gen();
+            assert.ok(Buffer.isBuffer(buf),
+                `gen() for "${def.name}" should return a Buffer`);
         }
     });
 
-    it('undamaged sprite names should not contain "-damaged"', () => {
-        for (const def of CASTLE_OVERLAY_SPRITE_DEFS.filter(d => !d.damaged)) {
-            assert.ok(!def.name.includes('-damaged'),
-                `Undamaged sprite name "${def.name}" should not contain "-damaged"`);
+    it('gen() for each entry should return a buffer with length w * h * 4', () => {
+        for (const def of CASTLE_OVERLAY_SPRITE_DEFS) {
+            const buf = def.gen();
+            const expected = def.w * def.h * 4;
+            assert.equal(buf.length, expected,
+                `Buffer for "${def.name}" should be ${expected} bytes (${def.w}×${def.h}×4), got ${buf.length}`);
         }
     });
 });
 
-// ─── CASTLE_OVERLAY_SPRITE_DEFS: structure category counts ───────────────────
+// ─── CASTLE_OVERLAY_SPRITE_DEFS: specific registry key–name pairs ────────────
 
-describe('CASTLE_OVERLAY_SPRITE_DEFS: structure category entry counts', () => {
-    it('should have 2 wall entries (1 undamaged + 1 damaged)', () => {
-        const wallEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'wall');
-        assert.equal(wallEntries.length, 2);
-    });
+describe('CASTLE_OVERLAY_SPRITE_DEFS: name values match CASTLE_OVERLAY_SPRITES', () => {
+    const byKey = (key) => {
+        const name = CASTLE_OVERLAY_SPRITES[key];
+        return CASTLE_OVERLAY_SPRITE_DEFS.find(d => d.name === name);
+    };
 
-    it('should have 2 tower entries (1 undamaged + 1 damaged)', () => {
-        const towerEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'tower');
-        assert.equal(towerEntries.length, 2);
-    });
+    const checks = [
+        ['isoWall',            'castle-iso-wall-overlay'],
+        ['isoWallDamaged',     'castle-iso-wall-damaged-overlay'],
+        ['wall',               'castle-wall-overlay'],
+        ['wallDamaged',        'castle-wall-damaged-overlay'],
+        ['tower',              'castle-tower-overlay'],
+        ['towerDamaged',       'castle-tower-damaged-overlay'],
+        ['gatehouse',          'castle-gatehouse-overlay'],
+        ['gatehouseDamaged',   'castle-gatehouse-damaged-overlay'],
+        ['bridgeMm',           'bridge-mm-overlay'],
+        ['bridgeStart',        'castle-bridge-start-overlay'],
+        ['bridgeMid',          'castle-bridge-mid-overlay'],
+        ['bridgeGate',         'castle-bridge-gate-overlay'],
+    ];
 
-    it('should have 2 gatehouse entries (1 undamaged + 1 damaged)', () => {
-        const gatehouseEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'gatehouse');
-        assert.equal(gatehouseEntries.length, 2);
-    });
-
-    it('should have 1 bridge-mm entry (no damaged variant)', () => {
-        const entries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'bridge-mm');
-        assert.equal(entries.length, 1);
-    });
-
-    it('should have 1 bridge-start entry (no damaged variant)', () => {
-        const entries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'bridge-start');
-        assert.equal(entries.length, 1);
-    });
-
-    it('should have 1 bridge-mid entry (no damaged variant)', () => {
-        const entries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'bridge-mid');
-        assert.equal(entries.length, 1);
-    });
-
-    it('should have 1 bridge-gate entry (no damaged variant)', () => {
-        const entries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType === 'bridge-gate');
-        assert.equal(entries.length, 1);
-    });
-
-    it('should have 4 bridge entries total (bridge-mm, bridge-start, bridge-mid, bridge-gate)', () => {
-        const bridgeEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType.startsWith('bridge-'));
-        assert.equal(bridgeEntries.length, 4);
-    });
-
-    it('should have 8 keep entries total (4 quadrants × 2 variants each)', () => {
-        const keepEntries = CASTLE_OVERLAY_SPRITE_DEFS.filter(d => d.structureType.startsWith('keep-'));
-        assert.equal(keepEntries.length, 8);
-    });
+    for (const [key, expectedName] of checks) {
+        it(`CASTLE_OVERLAY_SPRITES.${key} should be "${expectedName}"`, () => {
+            assert.equal(CASTLE_OVERLAY_SPRITES[key], expectedName,
+                `Registry entry "${key}" has unexpected value`);
+            const entry = byKey(key);
+            assert.ok(entry, `No CASTLE_OVERLAY_SPRITE_DEFS entry found for key "${key}"`);
+            assert.equal(entry.name, expectedName);
+        });
+    }
 });

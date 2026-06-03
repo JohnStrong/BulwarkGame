@@ -107,3 +107,185 @@ describe('generateCastleOverlay: undamaged and damaged variants are not byte-for
         });
     }
 });
+
+// ─── Tests: drawWalkwayPlatform (tested via generateCastleOverlay 'wall') ─────
+//
+// drawWalkwayPlatform replaced drawBattlements. Instead of alternating merlon/
+// crenel gaps, the top of each wall now carries a solid 3-row slab:
+//   topY - 2 : highlight row  (brightest — upward-facing stone)
+//   topY - 1 : surface fill row (walkway color — distinct from wall body)
+//   topY     : front ledge shadow row (darkest)
+//
+// These tests exercise the change indirectly through generateCastleOverlay('wall')
+// because drawWalkwayPlatform is an internal helper (not exported).
+
+describe('drawWalkwayPlatform via generateCastleOverlay wall: general top-row coverage', () => {
+    /**
+     * The old battlement design left crenels (gaps) as transparent. The new
+     * walkway is solid — every column across x=15..48 (the front face span)
+     * at the topY row must be opaque.
+     *
+     * We probe the wall overlay for opacity in the top region and assert that
+     * there are NO fully transparent columns across the full width (no crenel gaps).
+     */
+    it('wall undamaged: top section should have opaque pixels across the full width (no crenel gaps)', () => {
+        const buf = generateCastleOverlay('wall', false);
+        const W = 64;
+        // groundStart = H - 32; for wall H=96, groundStart=64.
+        // The walkway platform sits just above groundStart, so we scan rows 60-63.
+        const groundStart = 96 - 32; // 64
+        let emptyColumns = 0;
+
+        for (let x = 15; x < 49; x++) {
+            let hasOpaqueInTop = false;
+            for (let y = groundStart - 5; y < groundStart; y++) {
+                const idx = (y * W + x) * 4;
+                if (buf[idx + 3] === 255) { hasOpaqueInTop = true; break; }
+            }
+            if (!hasOpaqueInTop) emptyColumns++;
+        }
+
+        assert.equal(emptyColumns, 0,
+            `wall should have no transparent column gaps in top rows (old crenels), got ${emptyColumns} empty columns`);
+    });
+
+    it('wall damaged: top section should also have no crenel gaps', () => {
+        const buf = generateCastleOverlay('wall', true);
+        const W = 64;
+        const groundStart = 96 - 32;
+        let emptyColumns = 0;
+
+        for (let x = 15; x < 49; x++) {
+            let hasOpaqueInTop = false;
+            for (let y = groundStart - 5; y < groundStart; y++) {
+                const idx = (y * W + x) * 4;
+                if (buf[idx + 3] === 255) { hasOpaqueInTop = true; break; }
+            }
+            if (!hasOpaqueInTop) emptyColumns++;
+        }
+
+        assert.equal(emptyColumns, 0,
+            `damaged wall should have no transparent column gaps in top rows, got ${emptyColumns} empty columns`);
+    });
+});
+
+describe('drawWalkwayPlatform via generateCastleOverlay wall: walkway is lighter than wall body', () => {
+    /**
+     * The walkway surface (topY-1) uses wallColor + [18,15,10] for undamaged,
+     * which should be brighter than the mid-wall body pixels.
+     * We compare mean brightness in the top 3 rows vs mid-wall rows.
+     */
+    it('wall undamaged: top 3 rows should be brighter on average than mid-wall rows', () => {
+        const buf = generateCastleOverlay('wall', false);
+        const W = 64;
+        const groundStart = 96 - 32; // 64
+        const midStart = Math.floor(groundStart * 0.4);
+        const midEnd   = Math.floor(groundStart * 0.6);
+
+        function meanBrightness(y0, y1) {
+            let total = 0, count = 0;
+            for (let y = y0; y < y1; y++) {
+                for (let x = 15; x < 49; x++) {
+                    const idx = (y * W + x) * 4;
+                    if (buf[idx + 3] === 255) {
+                        total += (buf[idx] + buf[idx + 1] + buf[idx + 2]) / 3;
+                        count++;
+                    }
+                }
+            }
+            return count > 0 ? total / count : 0;
+        }
+
+        const topBrightness = meanBrightness(groundStart - 2, groundStart);
+        const midBrightness = meanBrightness(midStart, midEnd);
+
+        assert.ok(topBrightness > midBrightness,
+            `walkway top rows (${topBrightness.toFixed(1)}) should be brighter than mid-wall (${midBrightness.toFixed(1)})`);
+    });
+});
+
+describe('drawWalkwayPlatform via generateCastleOverlay wall: front ledge is darker than walkway surface', () => {
+    /**
+     * drawWalkwayPlatform is called with topY=2 for the wall, so the three
+     * platform rows land at absolute canvas positions:
+     *   y=0 : highlight row     (wallColor + [28,24,18])
+     *   y=1 : surface fill row  (wallColor + [18,15,10])
+     *   y=2 : front ledge row   (wallColor - [20,18,16])
+     *
+     * The front ledge (y=2) must be darker than the surface fill (y=1).
+     */
+    it('wall undamaged: front ledge row (y=2) should be darker than the surface fill row (y=1)', () => {
+        const buf = generateCastleOverlay('wall', false);
+        const W = 64;
+
+        function rowMeanBrightness(y) {
+            let total = 0, count = 0;
+            for (let x = 15; x < 49; x++) {
+                const idx = (y * W + x) * 4;
+                if (buf[idx + 3] === 255) {
+                    total += (buf[idx] + buf[idx + 1] + buf[idx + 2]) / 3;
+                    count++;
+                }
+            }
+            return count > 0 ? total / count : null;
+        }
+
+        const surfaceBrightness = rowMeanBrightness(1); // topY - 1
+        const ledgeBrightness   = rowMeanBrightness(2); // topY
+
+        if (surfaceBrightness !== null && ledgeBrightness !== null) {
+            assert.ok(ledgeBrightness < surfaceBrightness,
+                `front ledge (row 2, brightness ${ledgeBrightness.toFixed(1)}) should be darker than surface fill (row 1, brightness ${surfaceBrightness.toFixed(1)})`);
+        }
+    });
+});
+
+describe('drawWalkwayPlatform via generateCastleOverlay wall: determinism', () => {
+    it('wall undamaged should produce identical output on repeated calls', () => {
+        const a = generateCastleOverlay('wall', false);
+        const b = generateCastleOverlay('wall', false);
+        assert.ok(a.equals(b), 'wall undamaged must be deterministic');
+    });
+
+    it('wall damaged should produce identical output on repeated calls', () => {
+        const a = generateCastleOverlay('wall', true);
+        const b = generateCastleOverlay('wall', true);
+        assert.ok(a.equals(b), 'wall damaged must be deterministic');
+    });
+});
+
+describe('drawWalkwayPlatform via generateCastleOverlay wall: transparent background preserved', () => {
+    /**
+     * The ground diamond region (rows >= groundStart) must remain fully transparent
+     * in the wall overlay — drawWalkwayPlatform must not bleed into the ground area.
+     */
+    it('wall undamaged: ground diamond rows should remain fully transparent', () => {
+        const buf = generateCastleOverlay('wall', false);
+        const W = 64;
+        const H = 96;
+        const groundStart = H - 32; // 64
+
+        for (let y = groundStart; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+                const idx = (y * W + x) * 4;
+                assert.equal(buf[idx + 3], 0,
+                    `pixel at (${x}, ${y}) in ground region should be transparent (alpha=0)`);
+            }
+        }
+    });
+
+    it('wall damaged: ground diamond rows should remain fully transparent', () => {
+        const buf = generateCastleOverlay('wall', true);
+        const W = 64;
+        const H = 96;
+        const groundStart = H - 32;
+
+        for (let y = groundStart; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+                const idx = (y * W + x) * 4;
+                assert.equal(buf[idx + 3], 0,
+                    `damaged wall: pixel at (${x}, ${y}) should be transparent`);
+            }
+        }
+    });
+});

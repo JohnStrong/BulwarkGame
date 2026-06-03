@@ -27,24 +27,24 @@ const SPRITES_PATH         = path.resolve(__dirname, '../../../js/game-logic/spr
 // ─── Minimal CASTLE_OVERLAY_CATEGORY_MAP matching design.md §5 ───────────────
 
 const CASTLE_OVERLAY_CATEGORY_MAP = {
-    'castle-wall-overlay':               { height: 48, offsetY: 0 },
-    'castle-wall-damaged-overlay':       { height: 48, offsetY: 0 },
-    'castle-tower-overlay':              { height: 64, offsetY: 0 },
-    'castle-tower-damaged-overlay':      { height: 64, offsetY: 0 },
-    'castle-keep-tl-overlay':            { height: 64, offsetY: 0 },
-    'castle-keep-tl-damaged-overlay':    { height: 64, offsetY: 0 },
-    'castle-keep-bl-overlay':            { height: 64, offsetY: 0 },
-    'castle-keep-bl-damaged-overlay':    { height: 64, offsetY: 0 },
-    'castle-keep-br-overlay':            { height: 64, offsetY: 0 },
-    'castle-keep-br-damaged-overlay':    { height: 64, offsetY: 0 },
-    'castle-keep-center-overlay':        { height: 64, offsetY: 0 },
-    'castle-keep-center-damaged-overlay':{ height: 64, offsetY: 0 },
-    'castle-gatehouse-overlay':          { height: 80, offsetY: 0 },
-    'castle-gatehouse-damaged-overlay':  { height: 80, offsetY: 0 },
-    'bridge-mm-overlay':                 { height: 48, offsetY: 0 },
-    'castle-bridge-start-overlay':       { height: 48, offsetY: 0 },
-    'castle-bridge-mid-overlay':         { height: 48, offsetY: 0 },
-    'castle-bridge-gate-overlay':        { height: 48, offsetY: 0 },
+    'castle-wall-overlay':               { height: 96,  offsetY: 0 },
+    'castle-wall-damaged-overlay':       { height: 96,  offsetY: 0 },
+    'castle-tower-overlay':              { height: 128, offsetY: 0 },
+    'castle-tower-damaged-overlay':      { height: 128, offsetY: 0 },
+    'castle-keep-tl-overlay':            { height: 128, offsetY: 0 },
+    'castle-keep-tl-damaged-overlay':    { height: 128, offsetY: 0 },
+    'castle-keep-bl-overlay':            { height: 128, offsetY: 0 },
+    'castle-keep-bl-damaged-overlay':    { height: 128, offsetY: 0 },
+    'castle-keep-br-overlay':            { height: 128, offsetY: 0 },
+    'castle-keep-br-damaged-overlay':    { height: 128, offsetY: 0 },
+    'castle-keep-center-overlay':        { height: 128, offsetY: 0 },
+    'castle-keep-center-damaged-overlay':{ height: 128, offsetY: 0 },
+    'castle-gatehouse-overlay':          { height: 160, offsetY: 0 },
+    'castle-gatehouse-damaged-overlay':  { height: 160, offsetY: 0 },
+    'bridge-mm-overlay':                 { height: 64,  offsetY: 0 },
+    'castle-bridge-start-overlay':       { height: 64,  offsetY: 0 },
+    'castle-bridge-mid-overlay':         { height: 64,  offsetY: 0 },
+    'castle-bridge-gate-overlay':        { height: 64,  offsetY: 0 },
 };
 
 // ─── Mock iso-renderer exports ────────────────────────────────────────────────
@@ -273,7 +273,7 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
         assert.equal(spriteDrawCalls[0].w, 64, 'width must be OVERLAY_WIDTH (64)');
     });
 
-    it('returned function uses per-structure height for wall overlay (height=48)', () => {
+    it('returned function uses per-structure height for wall overlay (height=96)', () => {
         const tile = { sprite: 'castle-wall', overlay: 'castle-wall-overlay' };
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -281,10 +281,10 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
 
         drawFn();
 
-        assert.equal(spriteDrawCalls[0].h, 48, 'wall overlay height must be 48');
+        assert.equal(spriteDrawCalls[0].h, 96, 'wall overlay height must be 96');
     });
 
-    it('returned function uses per-structure height for tower overlay (height=64)', () => {
+    it('returned function uses per-structure height for tower overlay (height=128)', () => {
         const tile = { sprite: 'castle-tower', overlay: 'castle-tower-overlay' };
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -292,10 +292,10 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
 
         drawFn();
 
-        assert.equal(spriteDrawCalls[0].h, 64, 'tower overlay height must be 64');
+        assert.equal(spriteDrawCalls[0].h, 128, 'tower overlay height must be 128');
     });
 
-    it('returned function uses per-structure height for gatehouse overlay (height=80)', () => {
+    it('returned function uses per-structure height for gatehouse overlay (height=160)', () => {
         const tile = { sprite: 'castle-gatehouse', overlay: 'castle-gatehouse-overlay' };
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -303,10 +303,10 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
 
         drawFn();
 
-        assert.equal(spriteDrawCalls[0].h, 80, 'gatehouse overlay height must be 80');
+        assert.equal(spriteDrawCalls[0].h, 160, 'gatehouse overlay height must be 160');
     });
 
-    it('positions castle overlay using the per-structure formula (wall, height=48)', () => {
+    it('positions castle overlay using the per-structure formula (wall, height=96)', () => {
         const x = 200, y = 150;
         const camera = createMockCamera({ tileW: 64, tileH: 32 });
         const tile = { sprite: 'castle-wall', overlay: 'castle-wall-overlay' };
@@ -318,12 +318,12 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
         // overlayX = x - OVERLAY_WIDTH/2 = 200 - 32 = 168
         // tileTopY = y - tileH/2 = 150 - 16 = 134
         // overlayY = tileTopY - (overlayHeight - tileH) + offsetY
-        //          = 134 - (48 - 32) + 0 = 134 - 16 = 118
+        //          = 134 - (96 - 32) + 0 = 134 - 64 = 70
         assert.equal(spriteDrawCalls[0].x, 168, 'overlayX = x - OVERLAY_WIDTH/2');
-        assert.equal(spriteDrawCalls[0].y, 118, 'overlayY = tileTopY - (height - tileH) + offsetY');
+        assert.equal(spriteDrawCalls[0].y, 70, 'overlayY = tileTopY - (height - tileH) + offsetY');
     });
 
-    it('positions castle overlay using the per-structure formula (tower, height=64)', () => {
+    it('positions castle overlay using the per-structure formula (tower, height=128)', () => {
         const x = 200, y = 150;
         const camera = createMockCamera({ tileW: 64, tileH: 32 });
         const tile = { sprite: 'castle-tower', overlay: 'castle-tower-overlay' };
@@ -334,12 +334,12 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
 
         // overlayX = 200 - 32 = 168
         // tileTopY = 150 - 16 = 134
-        // overlayY = 134 - (64 - 32) + 0 = 134 - 32 = 102
+        // overlayY = 134 - (128 - 32) + 0 = 134 - 96 = 38
         assert.equal(spriteDrawCalls[0].x, 168, 'overlayX = x - OVERLAY_WIDTH/2');
-        assert.equal(spriteDrawCalls[0].y, 102, 'overlayY = tileTopY - (64 - tileH) + offsetY');
+        assert.equal(spriteDrawCalls[0].y, 38, 'overlayY = tileTopY - (128 - tileH) + offsetY');
     });
 
-    it('positions castle overlay using the per-structure formula (gatehouse, height=80)', () => {
+    it('positions castle overlay using the per-structure formula (gatehouse, height=160)', () => {
         const x = 200, y = 150;
         const camera = createMockCamera({ tileW: 64, tileH: 32 });
         const tile = { sprite: 'castle-gatehouse', overlay: 'castle-gatehouse-overlay' };
@@ -350,12 +350,12 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
 
         // overlayX = 200 - 32 = 168
         // tileTopY = 150 - 16 = 134
-        // overlayY = 134 - (80 - 32) + 0 = 134 - 48 = 86
+        // overlayY = 134 - (160 - 32) + 0 = 134 - 128 = 6
         assert.equal(spriteDrawCalls[0].x, 168, 'overlayX = x - OVERLAY_WIDTH/2');
-        assert.equal(spriteDrawCalls[0].y, 86, 'overlayY = tileTopY - (80 - tileH) + offsetY');
+        assert.equal(spriteDrawCalls[0].y, 6, 'overlayY = tileTopY - (160 - tileH) + offsetY');
     });
 
-    it('handles damaged variants (castle-wall-damaged-overlay) with height=48', () => {
+    it('handles damaged variants (castle-wall-damaged-overlay) with height=96', () => {
         const tile = { sprite: 'castle-wall-damaged', overlay: 'castle-wall-damaged-overlay' };
         const ctx = createMockCtx();
         const drawFn = resolveOverlayDraw(tile, ctx, 100, 100, createMockCamera());
@@ -363,10 +363,10 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
         drawFn();
 
         assert.equal(spriteDrawCalls[0].name, 'castle-wall-damaged-overlay');
-        assert.equal(spriteDrawCalls[0].h, 48);
+        assert.equal(spriteDrawCalls[0].h, 96);
     });
 
-    it('handles damaged variants (castle-tower-damaged-overlay) with height=64', () => {
+    it('handles damaged variants (castle-tower-damaged-overlay) with height=128', () => {
         const tile = { sprite: 'castle-tower-damaged', overlay: 'castle-tower-damaged-overlay' };
         const ctx = createMockCtx();
         const drawFn = resolveOverlayDraw(tile, ctx, 100, 100, createMockCamera());
@@ -374,7 +374,7 @@ describe('resolveOverlayDraw — castle-* and bridge-* overlays', () => {
         drawFn();
 
         assert.equal(spriteDrawCalls[0].name, 'castle-tower-damaged-overlay');
-        assert.equal(spriteDrawCalls[0].h, 64);
+        assert.equal(spriteDrawCalls[0].h, 128);
     });
 });
 
@@ -446,6 +446,131 @@ describe('resolveOverlayDraw — all 18 registered castle/bridge overlay names',
             assert.equal(typeof result, 'function', `Expected function for "${name}"`);
         });
     }
+});
+
+describe('resolveOverlayDraw — keep overlay 192px wide draw width', () => {
+    // The diff added logic: castle-keep-overlay* and castle-keep-damaged* names
+    // use overlayDrawWidth = 192 instead of OVERLAY_WIDTH (64).
+    let resolveOverlayDraw;
+
+    beforeEach(() => {
+        spriteDrawCalls = [];
+        ({ resolveOverlayDraw } = loadFreshOverlayUtils());
+    });
+
+    afterEach(() => {
+        clearCaches();
+    });
+
+    it('uses 192 as draw width for castle-keep-overlay (exact prefix match)', () => {
+        const tile = { sprite: 'castle-keep-tl', overlay: 'castle-keep-overlay' };
+        // Register the name in the mock map so it resolves
+        const origMap = mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP;
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = {
+            ...origMap,
+            'castle-keep-overlay': { height: 64, offsetY: 0 },
+        };
+        const mod = loadFreshOverlayUtils();
+        const drawFn = mod.resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 192, 'castle-keep-overlay must use 192px draw width');
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = origMap;
+    });
+
+    it('uses 192 as draw width for castle-keep-tl-overlay (starts with castle-keep-overlay prefix? No — tests castle-keep-damaged prefix)', () => {
+        // castle-keep-tl-overlay does NOT start with 'castle-keep-overlay' or 'castle-keep-damaged'
+        // so it should use OVERLAY_WIDTH (64), not 192.
+        const tile = { sprite: 'castle-keep-tl', overlay: 'castle-keep-tl-overlay' };
+        const drawFn = resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 64, 'castle-keep-tl-overlay uses standard OVERLAY_WIDTH (64)');
+    });
+
+    it('uses 192 as draw width for overlay names starting with castle-keep-damaged', () => {
+        const tile = { sprite: 'castle-keep-damaged', overlay: 'castle-keep-damaged-overlay' };
+        const origMap = mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP;
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = {
+            ...origMap,
+            'castle-keep-damaged-overlay': { height: 64, offsetY: 0 },
+        };
+        const mod = loadFreshOverlayUtils();
+        const drawFn = mod.resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 192, 'castle-keep-damaged-overlay must use 192px draw width');
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = origMap;
+    });
+
+    it('uses 192 as draw width for overlay names starting with castle-keep-destroyed', () => {
+        const tile = { sprite: 'castle-keep-destroyed', overlay: 'castle-keep-destroyed-overlay' };
+        const origMap = mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP;
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = {
+            ...origMap,
+            'castle-keep-destroyed-overlay': { height: 64, offsetY: 0 },
+        };
+        const mod = loadFreshOverlayUtils();
+        const drawFn = mod.resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 192, 'castle-keep-destroyed-overlay must use 192px draw width');
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = origMap;
+    });
+
+    it('uses standard 64px draw width for non-keep castle overlays (castle-wall-overlay)', () => {
+        const tile = { sprite: 'castle-wall', overlay: 'castle-wall-overlay' };
+        const drawFn = resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 64, 'castle-wall-overlay must use standard OVERLAY_WIDTH (64)');
+    });
+
+    it('uses standard 64px draw width for castle-tower-overlay', () => {
+        const tile = { sprite: 'castle-tower', overlay: 'castle-tower-overlay' };
+        const drawFn = resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 64, 'castle-tower-overlay must use standard OVERLAY_WIDTH (64)');
+    });
+
+    it('uses standard 64px draw width for castle-gatehouse-overlay', () => {
+        const tile = { sprite: 'castle-gatehouse', overlay: 'castle-gatehouse-overlay' };
+        const drawFn = resolveOverlayDraw(tile, createMockCtx(), 200, 150, createMockCamera());
+        drawFn();
+        assert.equal(spriteDrawCalls[0].w, 64, 'castle-gatehouse-overlay must use standard OVERLAY_WIDTH (64)');
+    });
+
+    it('correctly centers a 192px wide keep overlay (overlayX = x - 96)', () => {
+        const x = 200, y = 150;
+        const camera = createMockCamera({ tileW: 64, tileH: 32 });
+        const tile = { sprite: 'castle-keep-damaged', overlay: 'castle-keep-damaged-overlay' };
+        const origMap = mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP;
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = {
+            ...origMap,
+            'castle-keep-damaged-overlay': { height: 64, offsetY: 0 },
+        };
+        const mod = loadFreshOverlayUtils();
+        const drawFn = mod.resolveOverlayDraw(tile, createMockCtx(), x, y, camera);
+        drawFn();
+
+        // With overlayDrawWidth = 192: overlayX = x - 192/2 = 200 - 96 = 104
+        assert.equal(spriteDrawCalls[0].x, 104, 'Keep overlay X = x - 96 (half of 192)');
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = origMap;
+    });
+
+    it('Y position formula is unchanged for 192px wide keep overlays', () => {
+        const x = 200, y = 150;
+        const camera = createMockCamera({ tileW: 64, tileH: 32 });
+        const tile = { sprite: 'castle-keep-damaged', overlay: 'castle-keep-damaged-overlay' };
+        const origMap = mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP;
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = {
+            ...origMap,
+            'castle-keep-damaged-overlay': { height: 128, offsetY: 0 },
+        };
+        const mod = loadFreshOverlayUtils();
+        const drawFn = mod.resolveOverlayDraw(tile, createMockCtx(), x, y, camera);
+        drawFn();
+
+        // overlayY = (y - tileH/2) - (overlayHeight - tileH) + offsetY
+        //          = (150 - 16) - (128 - 32) + 0 = 134 - 96 = 38
+        assert.equal(spriteDrawCalls[0].y, 38, 'Y formula is unchanged for 192px wide overlay');
+        mockIsoRenderer.CASTLE_OVERLAY_CATEGORY_MAP = origMap;
+    });
 });
 
 describe('resolveOverlayDraw — module exports', () => {

@@ -136,14 +136,14 @@ describe('SpriteManager.spriteList — castle overlay sprites (task 2.2)', () =>
         }
     });
 
-    it('should contain exactly 20 castle overlay sprite names (no extras, no duplicates)', () => {
+    it('should contain exactly 23 castle overlay sprite names (20 original + 3 keep-full states)', () => {
         const overlayEntries = SpriteManager.spriteList.filter(n =>
             (n.startsWith('castle-') || n.startsWith('bridge-')) && n.endsWith('-overlay')
         );
         assert.equal(
             overlayEntries.length,
-            20,
-            `Expected 20 castle overlay entries, got ${overlayEntries.length}: ${overlayEntries.join(', ')}`
+            23,
+            `Expected 23 castle overlay entries, got ${overlayEntries.length}: ${overlayEntries.join(', ')}`
         );
     });
 
@@ -177,7 +177,7 @@ describe('SpriteManager.spriteList — castle overlay sprites (task 2.2)', () =>
         const keepOverlays = SpriteManager.spriteList.filter(n =>
             n.startsWith('castle-keep-') && n.endsWith('-overlay')
         );
-        assert.equal(keepOverlays.length, 8, `Expected 8 keep overlays, got ${keepOverlays.length}`);
+        assert.equal(keepOverlays.length, 11, `Expected 11 keep overlays, got ${keepOverlays.length}`);
     });
 
     it('should contain 2 gatehouse overlay sprites (undamaged + damaged)', () => {

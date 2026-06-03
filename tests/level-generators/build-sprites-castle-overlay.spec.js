@@ -89,6 +89,10 @@ function expectedHeightForOverlay(name) {
     if (name === 'castle-gatehouse-overlay' || name === 'castle-gatehouse-damaged-overlay') {
         return 80;
     }
+    // Single large keep overlay (192×192 px)
+    if (name === 'castle-keep-overlay' || name === 'castle-keep-damaged-overlay' || name === 'castle-keep-destroyed-overlay') {
+        return 192;
+    }
     if (
         name === 'castle-tower-overlay' ||
         name === 'castle-tower-damaged-overlay' ||
@@ -137,14 +141,14 @@ describe('build-sprites castle overlay: missing PNG detection', () => {
 
     it('should report the count of missing castle overlay PNGs in the error message', () => {
         const fakeDir = path.join(__dirname, '_nonexistent_castle_overlay_dir_');
-        const overlayNames = Object.values(CASTLE_OVERLAY_SPRITES); // 20 sprites
+        const overlayNames = Object.values(CASTLE_OVERLAY_SPRITES); // 23 sprites
 
         assert.throws(
             () => checkCastleOverlayPngsExist(overlayNames, fakeDir),
             (err) => {
                 assert.ok(
-                    err.message.includes('20 castle overlay PNG(s) missing'),
-                    `Expected count "20" in error: ${err.message}`
+                    err.message.includes('23 castle overlay PNG(s) missing'),
+                    `Expected count "23" in error: ${err.message}`
                 );
                 return true;
             }
@@ -443,12 +447,12 @@ process.exit(0);
         }
     });
 
-    it('CASTLE_OVERLAY_SPRITES from sprite-constants should have 20 entries', () => {
+    it('CASTLE_OVERLAY_SPRITES from sprite-constants should have 23 entries', () => {
         const overlayNames = Object.values(CASTLE_OVERLAY_SPRITES);
         assert.equal(
             overlayNames.length,
-            20,
-            `CASTLE_OVERLAY_SPRITES should have 20 entries, got ${overlayNames.length}`
+            23,
+            `CASTLE_OVERLAY_SPRITES should have 23 entries, got ${overlayNames.length}`
         );
     });
 });
@@ -456,9 +460,9 @@ process.exit(0);
 // ─── Tests: CASTLE_OVERLAY_SPRITE_NAMES included in packAtlas entries ─────────
 
 describe('build-sprites castle overlay: CASTLE_OVERLAY_SPRITE_NAMES included in packAtlas entries', () => {
-    it('should include all 20 castle overlay sprite names in the entries passed to packAtlas', () => {
+    it('should include all 23 castle overlay sprite names in the entries passed to packAtlas', () => {
         const overlayNames = Object.values(CASTLE_OVERLAY_SPRITES);
-        assert.equal(overlayNames.length, 20, 'CASTLE_OVERLAY_SPRITES should have 20 entries');
+        assert.equal(overlayNames.length, 23, 'CASTLE_OVERLAY_SPRITES should have 23 entries');
 
         // Build a minimal sprite entries array that mirrors what build-sprites.js does:
         // terrain + castle overlay sprites (use 64 height as a safe default for all)
@@ -499,7 +503,7 @@ describe('build-sprites castle overlay: CASTLE_OVERLAY_SPRITE_NAMES included in 
         }
     });
 
-    it('should include all 20 castle overlay names from CASTLE_OVERLAY_SPRITES constant', () => {
+    it('should include all 23 castle overlay names from CASTLE_OVERLAY_SPRITES constant', () => {
         const overlayNames = Object.values(CASTLE_OVERLAY_SPRITES);
 
         const expectedNames = [
@@ -523,6 +527,10 @@ describe('build-sprites castle overlay: CASTLE_OVERLAY_SPRITE_NAMES included in 
             'castle-bridge-gate-overlay',
             'castle-iso-wall-overlay',
             'castle-iso-wall-damaged-overlay',
+            // Single large keep overlay (192×192) — three damage states
+            'castle-keep-overlay',
+            'castle-keep-damaged-overlay',
+            'castle-keep-destroyed-overlay',
         ];
 
         assert.equal(overlayNames.length, expectedNames.length);

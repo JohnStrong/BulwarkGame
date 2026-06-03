@@ -63,10 +63,15 @@ function resolveOverlayDraw(tile, ctx, x, y, camera) {
             throw new Error(`Unregistered castle overlay sprite: ${overlayName}`);
         }
         const { height: overlayHeight, offsetY: overlayOffsetY, offsetX: overlayOffsetX = 0 } = category;
+        // Keep overlays are 192 px wide; all others are OVERLAY_WIDTH (64) px wide.
+        const overlayDrawWidth = overlayName.startsWith('castle-keep-overlay') ||
+                                 overlayName.startsWith('castle-keep-damaged') ||
+                                 overlayName.startsWith('castle-keep-destroyed')
+            ? 192 : OVERLAY_WIDTH;
         return () => {
-            const overlayX = x - OVERLAY_WIDTH / 2 + overlayOffsetX;
+            const overlayX = x - overlayDrawWidth / 2 + overlayOffsetX;
             const overlayY = (y - camera.tileH / 2) - (overlayHeight - camera.tileH) + overlayOffsetY;
-            SpriteManager.draw(ctx, overlayName, overlayX, overlayY, OVERLAY_WIDTH, overlayHeight);
+            SpriteManager.draw(ctx, overlayName, overlayX, overlayY, overlayDrawWidth, overlayHeight);
         };
     }
 

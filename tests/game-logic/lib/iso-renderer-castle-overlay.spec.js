@@ -87,36 +87,36 @@ describe('IsoRenderer castle overlay height constants (Req 4.1)', () => {
     it('WALL_OVERLAY_HEIGHT is defined and is a number', () => {
         assert.equal(typeof WALL_OVERLAY_HEIGHT, 'number');
     });
-    it('WALL_OVERLAY_HEIGHT equals 48', () => {
-        assert.equal(WALL_OVERLAY_HEIGHT, 48);
+    it('WALL_OVERLAY_HEIGHT equals 96', () => {
+        assert.equal(WALL_OVERLAY_HEIGHT, 96);
     });
 
     it('BRIDGE_OVERLAY_HEIGHT is defined and is a number', () => {
         assert.equal(typeof BRIDGE_OVERLAY_HEIGHT, 'number');
     });
-    it('BRIDGE_OVERLAY_HEIGHT equals 48', () => {
-        assert.equal(BRIDGE_OVERLAY_HEIGHT, 48);
+    it('BRIDGE_OVERLAY_HEIGHT equals 64', () => {
+        assert.equal(BRIDGE_OVERLAY_HEIGHT, 64);
     });
 
     it('TOWER_OVERLAY_HEIGHT is defined and is a number', () => {
         assert.equal(typeof TOWER_OVERLAY_HEIGHT, 'number');
     });
-    it('TOWER_OVERLAY_HEIGHT equals 64', () => {
-        assert.equal(TOWER_OVERLAY_HEIGHT, 64);
+    it('TOWER_OVERLAY_HEIGHT equals 128', () => {
+        assert.equal(TOWER_OVERLAY_HEIGHT, 128);
     });
 
     it('KEEP_OVERLAY_HEIGHT is defined and is a number', () => {
         assert.equal(typeof KEEP_OVERLAY_HEIGHT, 'number');
     });
-    it('KEEP_OVERLAY_HEIGHT equals 64', () => {
-        assert.equal(KEEP_OVERLAY_HEIGHT, 64);
+    it('KEEP_OVERLAY_HEIGHT equals 128', () => {
+        assert.equal(KEEP_OVERLAY_HEIGHT, 128);
     });
 
     it('GATEHOUSE_OVERLAY_HEIGHT is defined and is a number', () => {
         assert.equal(typeof GATEHOUSE_OVERLAY_HEIGHT, 'number');
     });
-    it('GATEHOUSE_OVERLAY_HEIGHT equals 80', () => {
-        assert.equal(GATEHOUSE_OVERLAY_HEIGHT, 80);
+    it('GATEHOUSE_OVERLAY_HEIGHT equals 160', () => {
+        assert.equal(GATEHOUSE_OVERLAY_HEIGHT, 160);
     });
 });
 
@@ -160,8 +160,8 @@ describe('IsoRenderer CASTLE_OVERLAY_CATEGORY_MAP (Req 4.3)', () => {
     });
 
     it('CASTLE_OVERLAY_CATEGORY_MAP contains entries for all registered castle overlay sprites', () => {
-        // 14 original entries + 2 iso wall overlay entries = 16 total
-        assert.equal(Object.keys(CASTLE_OVERLAY_CATEGORY_MAP).length, 16);
+        // 14 original entries + 2 iso wall overlay entries + 3 large keep = 19 total
+        assert.equal(Object.keys(CASTLE_OVERLAY_CATEGORY_MAP).length, 19);
     });
 
     for (const name of ALL_CASTLE_OVERLAY_NAMES) {
@@ -181,9 +181,9 @@ describe('IsoRenderer CASTLE_OVERLAY_CATEGORY_MAP (Req 4.3)', () => {
         });
     }
 
-    it('wall overlays have height 48', () => {
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-wall-overlay'].height, 48);
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-wall-damaged-overlay'].height, 48);
+    it('wall overlays have height 96', () => {
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-wall-overlay'].height, 96);
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-wall-damaged-overlay'].height, 96);
     });
 
     it('bridge overlays are NOT in the map (bridge tiles render ground-only)', () => {
@@ -193,12 +193,12 @@ describe('IsoRenderer CASTLE_OVERLAY_CATEGORY_MAP (Req 4.3)', () => {
         assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-bridge-gate-overlay'],  undefined);
     });
 
-    it('tower overlays have height 64', () => {
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-tower-overlay'].height, 64);
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-tower-damaged-overlay'].height, 64);
+    it('tower overlays have height 128', () => {
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-tower-overlay'].height, 128);
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-tower-damaged-overlay'].height, 128);
     });
 
-    it('keep overlays have height 64', () => {
+    it('keep overlays have height 128', () => {
         const keepNames = [
             'castle-keep-tl-overlay', 'castle-keep-tl-damaged-overlay',
             'castle-keep-bl-overlay', 'castle-keep-bl-damaged-overlay',
@@ -206,13 +206,13 @@ describe('IsoRenderer CASTLE_OVERLAY_CATEGORY_MAP (Req 4.3)', () => {
             'castle-keep-center-overlay', 'castle-keep-center-damaged-overlay',
         ];
         for (const kn of keepNames) {
-            assert.equal(CASTLE_OVERLAY_CATEGORY_MAP[kn].height, 64, `${kn} height must be 64`);
+            assert.equal(CASTLE_OVERLAY_CATEGORY_MAP[kn].height, 128, `${kn} height must be 128`);
         }
     });
 
-    it('gatehouse overlays have height 80', () => {
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-gatehouse-overlay'].height, 80);
-        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-gatehouse-damaged-overlay'].height, 80);
+    it('gatehouse overlays have height 160', () => {
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-gatehouse-overlay'].height, 160);
+        assert.equal(CASTLE_OVERLAY_CATEGORY_MAP['castle-gatehouse-damaged-overlay'].height, 160);
     });
 });
 
@@ -397,7 +397,7 @@ describe('IsoRenderer.drawTerrain — tiles with castle overlay (Req 5.1, 5.2, 5
         assert.equal(spriteDrawCalls[0].w, 64, 'Ground width = tileW');
         assert.equal(spriteDrawCalls[0].h, 32, 'Ground height = tileH');
         assert.equal(spriteDrawCalls[1].w, 64, 'Overlay width = 64 (OVERLAY_WIDTH)');
-        assert.equal(spriteDrawCalls[1].h, WALL_OVERLAY_HEIGHT, 'Overlay height = WALL_OVERLAY_HEIGHT (48)');
+        assert.equal(spriteDrawCalls[1].h, WALL_OVERLAY_HEIGHT, 'Overlay height = WALL_OVERLAY_HEIGHT (96)');
     });
 
     it('uses TOWER_OVERLAY_HEIGHT (64) for castle-tower-overlay', () => {
@@ -408,7 +408,7 @@ describe('IsoRenderer.drawTerrain — tiles with castle overlay (Req 5.1, 5.2, 5
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, TOWER_OVERLAY_HEIGHT, 'Tower overlay height = TOWER_OVERLAY_HEIGHT (64)');
+        assert.equal(spriteDrawCalls[1].h, TOWER_OVERLAY_HEIGHT, 'Tower overlay height = TOWER_OVERLAY_HEIGHT (128)');
     });
 
     it('uses KEEP_OVERLAY_HEIGHT (64) for castle-keep-tl-overlay', () => {
@@ -419,7 +419,7 @@ describe('IsoRenderer.drawTerrain — tiles with castle overlay (Req 5.1, 5.2, 5
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, KEEP_OVERLAY_HEIGHT, 'Keep overlay height = KEEP_OVERLAY_HEIGHT (64)');
+        assert.equal(spriteDrawCalls[1].h, KEEP_OVERLAY_HEIGHT, 'Keep overlay height = KEEP_OVERLAY_HEIGHT (128)');
     });
 
     it('uses GATEHOUSE_OVERLAY_HEIGHT (80) for castle-gatehouse-overlay', () => {
@@ -430,7 +430,7 @@ describe('IsoRenderer.drawTerrain — tiles with castle overlay (Req 5.1, 5.2, 5
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, GATEHOUSE_OVERLAY_HEIGHT, 'Gatehouse overlay height = GATEHOUSE_OVERLAY_HEIGHT (80)');
+        assert.equal(spriteDrawCalls[1].h, GATEHOUSE_OVERLAY_HEIGHT, 'Gatehouse overlay height = GATEHOUSE_OVERLAY_HEIGHT (160)');
     });
 
     it('bridge tiles have no overlay — bridge-mm produces exactly 1 draw call', () => {
@@ -481,7 +481,7 @@ describe('IsoRenderer.drawTerrain — damaged variant overlays use correct heigh
 
     beforeEach(() => { spriteDrawCalls = []; });
 
-    it('castle-wall-damaged-overlay uses WALL_OVERLAY_HEIGHT (48)', () => {
+    it('castle-wall-damaged-overlay uses WALL_OVERLAY_HEIGHT (96)', () => {
         const ctx = createMockCtx();
         const camera = createMockCamera();
         const tiles = [{ row: 0, col: 0, sprite: 'castle-wall-damaged', overlay: 'castle-wall-damaged-overlay' }];
@@ -489,10 +489,10 @@ describe('IsoRenderer.drawTerrain — damaged variant overlays use correct heigh
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, 48);
+        assert.equal(spriteDrawCalls[1].h, 96);
     });
 
-    it('castle-tower-damaged-overlay uses TOWER_OVERLAY_HEIGHT (64)', () => {
+    it('castle-tower-damaged-overlay uses TOWER_OVERLAY_HEIGHT (128)', () => {
         spriteDrawCalls = [];
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -501,10 +501,10 @@ describe('IsoRenderer.drawTerrain — damaged variant overlays use correct heigh
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, 64);
+        assert.equal(spriteDrawCalls[1].h, 128);
     });
 
-    it('castle-gatehouse-damaged-overlay uses GATEHOUSE_OVERLAY_HEIGHT (80)', () => {
+    it('castle-gatehouse-damaged-overlay uses GATEHOUSE_OVERLAY_HEIGHT (160)', () => {
         spriteDrawCalls = [];
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -513,10 +513,10 @@ describe('IsoRenderer.drawTerrain — damaged variant overlays use correct heigh
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, 80);
+        assert.equal(spriteDrawCalls[1].h, 160);
     });
 
-    it('castle-keep-center-damaged-overlay uses KEEP_OVERLAY_HEIGHT (64)', () => {
+    it('castle-keep-center-damaged-overlay uses KEEP_OVERLAY_HEIGHT (128)', () => {
         spriteDrawCalls = [];
         const ctx = createMockCtx();
         const camera = createMockCamera();
@@ -525,6 +525,6 @@ describe('IsoRenderer.drawTerrain — damaged variant overlays use correct heigh
 
         IsoRend.drawTerrain(ctx, camera, tiles, state);
 
-        assert.equal(spriteDrawCalls[1].h, 64);
+        assert.equal(spriteDrawCalls[1].h, 128);
     });
 });
