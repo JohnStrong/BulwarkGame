@@ -24,12 +24,16 @@ game-iso.js (Game Loop)
     ├── enemy-manager.js (EnemyManager)
     │       WorldKnowledgeMap — static terrain snapshot built at spawnWave()
     │       LastSeenRegistry  — { playerId → { row, col, turn } } updated each turn
+    │       EngagementZoneRegistry — persistent zone list; accumulates across the wave
     │       spawns / tracks EnemyUnit instances
     │       builds TileGraph from WorldKnowledgeMap (not live tile array)
-    │       builds DynamicCostOverlay from LastSeenRegistry + enemy visible tiles
+    │       evaluates zone strategies (AVOID / ENGAGE) each turn
+    │       builds DynamicCostOverlay from LastSeenRegistry + ZoneThreatOverlay + enemy visible tiles
+    │       assigns Strike Force units when ENGAGE selected
     │       passes overlay to PathfindingEngine for every unit
     │       moves units via PathfindingEngine output
     │       updates LastSeenRegistry when enemy gains sight of player unit
+    │       updates EngagementZoneRegistry from new sightings
     │       purges dead player units from LastSeenRegistry
     │
     └── pathfinding-engine.js (PathfindingEngine)
@@ -256,9 +260,149 @@ _expireStale(currentTurn) {
 - The expiry purge and dead-unit purge are separate operations, both running at the start of `executeTurn`
 - The registry is cleared on `reset()`
 
-### Updated `buildSharedThreatMap`
+### EngagementZoneRegistry
 
-The function signature now takes the `LastSeenRegistry` instead of live `placedUnits`:
+The `EngagementZoneRegistry` is a persistent array of `EngagementZone` objects that accumulates across the entire wave. It is never cleared by sighting expiry — only by `reset()`.
+
+```js
+// Zone shape
+{
+    id:               string,   // stable identifier, e.g. 'zone-1'
+    centreRow:        number,
+    centreCol:        number,
+    observationCount: number,   // total number of sighting events within this zone
+    lastObservedTurn: number,   // turn of the most recent sighting within radius
+    estimatedThreatHP: number,  // sum of health of last-seen player units within radius
+    strategy:         'MONITOR' | 'AVOID' | 'ENGAGE',  // assigned each turn
+}
+
+// Constants (defined at top of enemy-manager.js)
+const ZONE_CLUSTER_RADIUS     = 6;    // hex steps — sightings within this radius cluster into one zone
+const ZONE_AVOIDANCE_COST     = 5;    // extra movement cost through tiles inside an AVOID zone
+const ENGAGE_HP_RATIO         = 1.5;  // enemy commit HP must be ≥ 1.5× estimated defender HP
+const MAX_ARMY_COMMIT_FRACTION = 0.40; // max 40% of total active enemy HP in strike forces
+```
+
+**Zone clustering algorithm (`_updateEngagementZones(lastSeenRegistry, currentTurn)`):**
+
+```
+_updateEngagementZones(lastSeenRegistry, currentTurn):
+  FOR each entry in lastSeenRegistry.values():
+    existingZone = find first zone where hexDistance(zone.centre, entry.pos) <= ZONE_CLUSTER_RADIUS
+    IF existingZone:
+      existingZone.observationCount++
+      existingZone.lastObservedTurn = currentTurn
+    ELSE:
+      create new zone centred on entry.pos, observationCount=1, lastObservedTurn=currentTurn
+
+  // Recompute estimatedThreatHP for every zone from current LastSeenRegistry
+  FOR each zone:
+    zone.estimatedThreatHP = sum of entry.health for all lastSeenRegistry entries
+                              where hexDistance(zone.centre, entry.pos) <= ZONE_CLUSTER_RADIUS
+```
+
+Because `LastSeenRegistry` entries carry the player unit's HP at time of sighting, `estimatedThreatHP` is a best estimate — it reflects what was last observed, not necessarily current state.
+
+**Zone activity classification:**
+
+```
+isActive(zone, currentTurn):
+  return currentTurn - zone.lastObservedTurn <= SIGHTING_EXPIRY_TURNS
+```
+
+Active zones influence pathfinding. Dormant zones are retained for historical tracking but do not apply any overlay penalty.
+
+---
+
+### Engagement Zone Strategy Evaluation
+
+Strategy is evaluated once per turn, after sightings are recorded, before the `DynamicCostOverlay` is built.
+
+```
+_evaluateZoneStrategies(currentTurn, activeEnemyUnits, worldKnowledgeMap, currentOverlay):
+  totalEnemyHP = sum of unit.health for all activeEnemyUnits
+  committedHP  = 0
+  strikeForceAssignments = Map<zoneId, EnemyUnit[]>
+
+  FOR each zone in engagementZoneRegistry WHERE isActive(zone, currentTurn):
+    // Step 1: Try AVOID — apply zone penalty to overlay and re-run A* probe
+    zoneTiles = hexRing(zone.centreRow, zone.centreCol, ZONE_CLUSTER_RADIUS, worldKnowledgeMap)
+    addZonePenalty(currentOverlay, zoneTiles, ZONE_AVOIDANCE_COST)
+
+    probePath = PathfindingEngine.findPath(
+                  'Infantry', zone.centreRow, zone.centreCol,
+                  castlePerimeter, worldKnowledgeMap, currentOverlay)
+    avoidable = probePath does NOT pass through any tile in zoneTiles
+
+    IF avoidable:
+      zone.strategy = 'AVOID'  // overlay penalty already applied — A* will route around
+      CONTINUE
+
+    // Step 2: AVOID failed — check if ENGAGE is viable
+    requiredHP = zone.estimatedThreatHP * ENGAGE_HP_RATIO
+    remainingBudget = (totalEnemyHP * MAX_ARMY_COMMIT_FRACTION) - committedHP
+
+    IF requiredHP <= remainingBudget:
+      // Assign strike force: pick highest-HP units up to requiredHP
+      candidates = activeEnemyUnits sorted by health DESC, not already in a strike force
+      strikeForce = []
+      allocatedHP = 0
+      FOR each candidate:
+        IF allocatedHP >= requiredHP: BREAK
+        strikeForce.push(candidate)
+        allocatedHP += candidate.health
+
+      IF allocatedHP >= requiredHP:
+        zone.strategy = 'ENGAGE'
+        strikeForceAssignments.set(zone.id, strikeForce)
+        committedHP += allocatedHP
+        CONTINUE
+
+    // Step 3: Neither viable — fall back to AVOID (enemies path through zone with penalty, best effort)
+    zone.strategy = 'AVOID'
+
+  RETURN strikeForceAssignments
+```
+
+**Strike force pathfinding override:**
+
+Strike force units have their `targetSet` overridden to `[{ row: zone.centreRow, col: zone.centreCol }]` for the current turn's `findPath` call. All other units use the standard `CastlePerimeter` or `KeepTileSet` target.
+
+**Why the probe uses Infantry as the representative unit type:**
+
+Infantry is the most route-constrained non-tree type — it cannot enter trees, making it the worst-case pathfinder. If even Infantry can avoid the zone, all unit types can. If Infantry cannot, a mixed strike force is warranted.
+
+---
+
+### Updated `buildSharedThreatMap` — Zone Penalties Included
+
+The overlay now incorporates both the last-seen player unit costs and the zone avoidance penalties:
+
+```
+buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph, zoneOverlayPenalties):
+  overlay = new Map()
+
+  // 1. last-seen player unit positions → combat cost 3
+  FOR each entry in lastSeenRegistry.values():
+    overlay.set(tileKey(entry.row, entry.col), COMBAT_COST=3)
+
+  // 2. enemy visible tiles + player threat radii → water penalty 4
+  enemyVisibleSet = union of computeEnemyVisibleTiles for all activeEnemyUnits
+  FOR each entry in lastSeenRegistry.values():
+    FOR each tile in hexRing(entry.row, entry.col, 3, tileGraph):
+      IF tileChar === '~' AND enemyVisibleSet.has(tileKey(tile)):
+        overlay.set(key, max(overlay.get(key) ?? 0, 4))
+
+  // 3. zone avoidance penalties → raises cost by ZONE_AVOIDANCE_COST for AVOID zones
+  FOR each [key, penalty] in zoneOverlayPenalties:
+    baseCost = overlay.get(key) ?? getBaseMovementCost(key, tileGraph)
+    IF baseCost < Infinity:
+      overlay.set(key, baseCost + penalty)   // additive on top of existing costs
+
+  RETURN overlay
+```
+
+Zone penalties are additive — a tile that is already a threat-zone water tile (cost `4`) inside an AVOID zone becomes cost `4 + 5 = 9`. This strongly discourages routes through contested water in a known danger area.
 
 ```
 buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph):
@@ -665,9 +809,6 @@ executeTurn(currentTurn)
 
   2. Expire stale sightings from LastSeenRegistry
      (remove any entry where currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS=10)
-     Note: expiry runs AFTER dead-unit purge and BEFORE the sight pass,
-     so a freshly expired entry cannot be re-activated by the same turn's sightings
-     before the sight pass has a chance to update it.
 
   3. Sight pass — for each EnemyUnit, compute visible tiles and record sightings:
        FOR each enemyUnit:
@@ -675,24 +816,33 @@ executeTurn(currentTurn)
          FOR each visibleTile:
            IF UnitManager.getUnitAt(visibleTile.row, visibleTile.col) is a player unit:
              _recordSighting(playerUnit, currentTurn)
-     (This updates _lastSeenRegistry; a re-sighted unit that was just expired gets a fresh entry)
 
-  4. Build DynamicCostOverlay from updated LastSeenRegistry:
+  4. Update EngagementZoneRegistry from updated LastSeenRegistry
+     _updateEngagementZones(_lastSeenRegistry, currentTurn)
+
+  5. Evaluate zone strategies; build zone overlay penalties and strike force assignments
+     strikeForceAssignments = _evaluateZoneStrategies(
+         currentTurn, _units, worldKnowledgeMap, tempOverlay)
+     zoneOverlayPenalties = Map of zone AVOID tile keys → ZONE_AVOIDANCE_COST
+
+  6. Build DynamicCostOverlay incorporating last-seen costs, water penalties, and zone penalties:
      overlay = PathfindingEngine.buildSharedThreatMap(
-                 _lastSeenRegistry, _units, worldKnowledgeMap)
-     — done ONCE and reused for all units this turn
+                 _lastSeenRegistry, _units, worldKnowledgeMap, zoneOverlayPenalties)
 
-  5. Select targetSet:
+  7. Select standard targetSet:
        castleBreached === false → CastlePerimeter
        castleBreached === true  → KeepTileSet
 
-  6. For each EnemyUnit (in insertion order):
-       a. Call PathfindingEngine.findPath(unit.type, unit.row, unit.col,
+  8. For each EnemyUnit (in insertion order):
+       a. Determine this unit's targetSet:
+          IF unit is in a strikeForceAssignment for zone Z → targetSet = [zone Z centre]
+          ELSE → standard targetSet from step 7
+       b. Call PathfindingEngine.findPath(unit.type, unit.row, unit.col,
                                           targetSet, worldKnowledgeMap, overlay)
-       b. Advance unit along path by 1 tile
-       c. Verify destination terrain is not absolutely impassable before committing move
-       d. Update unit.row, unit.col
-       e. IF destination tile contains a player unit, flag for combat resolution
+       c. Advance unit along path by 1 tile
+       d. Verify destination terrain is not absolutely impassable before committing move
+       e. Update unit.row, unit.col
+       f. IF destination tile contains a player unit, flag for combat resolution
 ```
 
 ### Movement Step Detail
@@ -771,13 +921,21 @@ Per-turn: EnemyManager.executeTurn(currentTurn)
         │         → IF player unit in visible set → _recordSighting(unit, turn)
         │         → _lastSeenRegistry updated / re-sighted entries get fresh expiry clock
         │
-        ├── 4. Build DynamicCostOverlay:
+        ├── 4. Update EngagementZoneRegistry from new sightings
+        │         _updateEngagementZones(_lastSeenRegistry, currentTurn)
+        │
+        ├── 5. Evaluate zone strategies → AVOID / ENGAGE + strike force assignments
+        │         _evaluateZoneStrategies(currentTurn, _units, worldKnowledgeMap)
+        │         AVOID zones → zoneOverlayPenalties (tile → +ZONE_AVOIDANCE_COST)
+        │         ENGAGE zones → strikeForceAssignments (zoneId → EnemyUnit[])
+        │
+        ├── 6. Build DynamicCostOverlay:
         │         PathfindingEngine.buildSharedThreatMap(
         │             _lastSeenRegistry, _units, worldKnowledgeMap)
         │         → last-seen positions → cost 3
         │         → threat-zone water visible to enemies → cost 4
         │
-        └── 5. For each EnemyUnit:
+        └── 7. For each EnemyUnit:
                   PathfindingEngine.findPath(unitType, row, col,
                                             targetSet,
                                             worldKnowledgeMap,   ← static base
@@ -809,6 +967,9 @@ Per-turn: EnemyManager.executeTurn(currentTurn)
 | LastSeenRegistry entry for killed unit persists briefly | Purged at start of next `executeTurn` call |
 | Sighting expires while unit is still alive | Entry removed; tile reverts to base terrain cost; enemies will route through if no new sighting |
 | Sighting expires and unit is re-sighted same turn | `_expireStale` runs before sight pass; re-sighting creates a fresh entry with current turn |
+| Zone probe A* finds no path (fully disconnected) | Zone cannot be avoided or engaged; strategy defaults to AVOID; overlay penalty still applied |
+| ENGAGE HP budget exceeded by first zone evaluated | Subsequent zones cannot use ENGAGE; all fall back to AVOID |
+| All units already assigned to strike forces | No remaining units for standard pathfinding; standard path targets are unreachable — units stay stationary |
 
 ---
 
@@ -1044,6 +1205,38 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
+### Property 27: EngagementZone cluster radius is respected
+
+*For any* two sightings whose positions are within `ZONE_CLUSTER_RADIUS` hex steps of each other, `_updateEngagementZones` assigns them to the same zone (the existing zone's `observationCount` increments). Two sightings more than `ZONE_CLUSTER_RADIUS` steps apart always produce distinct zones.
+
+**Validates: Requirements 15.2**
+
+---
+
+### Property 28: Dormant zones produce no overlay penalty
+
+*For any* zone whose `lastObservedTurn` is more than `SIGHTING_EXPIRY_TURNS` turns in the past, `_evaluateZoneStrategies` does NOT add any `ZoneThreatOverlay` penalty to the `DynamicCostOverlay` for tiles within that zone's radius.
+
+**Validates: Requirements 15.4, 16.9**
+
+---
+
+### Property 29: AVOID strategy always preferred over ENGAGE when a clear route exists
+
+*For any* Active zone, if A* with the zone penalty applied produces a path that does not pass through the zone, the zone's strategy is set to `AVOID` and no strike force is assigned — regardless of the available army HP.
+
+**Validates: Requirements 16.2, 16.4b**
+
+---
+
+### Property 30: MAX_ARMY_COMMIT_FRACTION cap is never exceeded
+
+*For any* turn with multiple Active zones simultaneously selecting ENGAGE, the total HP committed to all strike forces does not exceed `MAX_ARMY_COMMIT_FRACTION × totalEnemyHP`. Zones evaluated later in the turn that would breach the cap fall back to `AVOID`.
+
+**Validates: Requirements 16.6, 16.8**
+
+---
+
 ## Components and Interfaces
 
 ### `pathfinding-engine.js` — PathfindingEngine (browser global)
@@ -1074,6 +1267,7 @@ Because the source files are plain browser globals (no `module.exports`), the te
 | `EnemyManager.getSharedThreatMap` | `() → Map<string, number>` | Returns the DynamicCostOverlay built during the most recent `executeTurn`. |
 | `EnemyManager.getLastSeenRegistry` | `() → Map<string, {row,col,turn}>` | Returns current LastSeenRegistry. For debugging and testing. |
 | `EnemyManager.getWorldKnowledgeMap` | `() → Map<string, tile>` | Returns the static terrain WorldKnowledgeMap. For debugging and testing. |
+| `EnemyManager.getEngagementZoneRegistry` | `() → EngagementZone[]` | Returns the current zone list. For debugging and testing. |
 
 ---
 

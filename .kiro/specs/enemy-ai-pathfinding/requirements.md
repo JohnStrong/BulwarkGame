@@ -24,6 +24,13 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 - **LastSeenRegistry**: A `Map<playerId, { row, col, turn }>` maintained by EnemyManager. Records the last physically observed position and observation turn of every player unit that any enemy unit has ever sighted. Entries persist until a new sighting updates them, the unit is killed, or the entry expires after `SIGHTING_EXPIRY_TURNS` turns of no re-sighting. Cleared on level restart.
 - **SIGHTING_EXPIRY_TURNS**: The number of cost-turns after which a `LastSeenRegistry` entry is considered stale and removed. Default: `10`. At a rate of 1 cost-turn ≈ 1 real-world second, this equals approximately 10 seconds of unconfirmed intelligence.
 - **ObservedKnowledge**: The combined intelligence available to the enemy force at any point: the static WorldKnowledgeMap (terrain) plus the dynamic DynamicCostOverlay built from the LastSeenRegistry (observed player unit positions) and the enemy visible tile set (threat-zone water penalties).
+- **EngagementZoneRegistry**: A persistent list of `EngagementZone` records maintained by EnemyManager across the wave. Each zone tracks a centre tile, observation count, last observed turn, and estimated threat HP. Zones accumulate over the entire wave and are only cleared on `reset()`.
+- **EngagementZone**: A 6-hex-radius cluster of the map representing a recurring area of player-enemy contact. Classified as **Active** (last confirmed within `SIGHTING_EXPIRY_TURNS` turns) or **Dormant** (no recent confirmation).
+- **ZoneThreatOverlay**: Additional movement cost penalties applied to tiles within Active AVOID zones. Raises tile cost by `ZONE_AVOIDANCE_COST` (default `5`), making zone tiles more expensive than combat tiles (cost `3`) or threat-zone water (cost `4`).
+- **Strike Force**: A subset of active enemy units designated by EnemyManager to engage a specific Active zone when the ENGAGE strategy is selected. Strike force units target the zone centre rather than the standard castle target.
+- **ZONE_AVOIDANCE_COST**: Cost penalty added to every tile inside an Active AVOID zone. Default `5`.
+- **ENGAGE_HP_RATIO**: Minimum ratio of committed enemy HP to estimated defender HP required before the ENGAGE strategy is selected. Default `1.5`.
+- **MAX_ARMY_COMMIT_FRACTION**: Maximum fraction of total active enemy HP that can be allocated to strike forces in a single turn. Default `0.40`.
 - **SpawnPoint**: A tile on the enemy-side edge of the map designated as a valid origin for EnemyUnit placement at the start of a wave.
 - **CastlePerimeter**: The set of tiles adjacent to castle structure tiles (W, T, G characters) that are themselves passable — the Phase 1 target ring.
 - **KeepTileSet**: The set of tiles with characters K, j, J, F — the Phase 2 target for enemies after the castle has been breached.
@@ -259,3 +266,56 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 4. WHEN a player unit has been sighted and its position is in the `LastSeenRegistry`, the tile at that position SHALL appear as cost `3` in the `DynamicCostOverlay`, even if no enemy currently has line of sight to it — the last-seen position persists until updated or cleared.
 5. WHEN a tile's key appears in both the `WorldKnowledgeMap` and the `DynamicCostOverlay`, THE `DynamicCostOverlay` value SHALL take precedence, EXCEPT for tiles with base cost `Infinity` (walls, keep, rock) — impassable terrain cannot be overridden by the overlay.
 6. A tile that is passable in the `WorldKnowledgeMap` but blocked by a player unit the enemies have never observed SHALL appear with its normal base terrain cost in `findPath` — enemies route toward it as if it were clear, and discover the blockade only when they gain line of sight.
+
+---
+
+### Requirement 15: Engagement Zone Registry — Persistent Battlefield Memory
+
+**User Story:** As a player, I want the enemy force to remember recurring hotspots of engagement over time, so that repeated defensive successes in the same area cause enemies to intelligently adapt — either routing around the danger zone or committing a larger force to break through it.
+
+#### Acceptance Criteria
+
+1. THE EnemyManager SHALL maintain an `EngagementZoneRegistry` — a persistent list of `EngagementZone` records that accumulates across the lifetime of a wave. Each zone records a centre tile, an observation count, the last turn the zone was confirmed active, and an estimated threat HP for the player units observed inside it.
+2. WHEN a player unit is recorded in the `LastSeenRegistry` (i.e., a sighting occurs), THE EnemyManager SHALL check whether the sighted position falls within `ZONE_CLUSTER_RADIUS` hex steps (default `6`) of any existing zone's centre. If yes, the existing zone SHALL be updated. If no, a new zone SHALL be created centred on the sighted position.
+3. WHEN a zone is updated by a new sighting, THE zone's `observationCount` SHALL be incremented, its `lastObservedTurn` SHALL be set to the current turn, and its `estimatedThreatHP` SHALL be updated to the sum of the `health` values of all currently last-seen player units whose positions fall within the zone's radius.
+4. AN `EngagementZone` SHALL be classified as **Active** if its `lastObservedTurn` is within `SIGHTING_EXPIRY_TURNS` (10) turns of the current turn — meaning it has been recently confirmed. It SHALL be classified as **Dormant** otherwise.
+5. THE `EngagementZoneRegistry` SHALL NOT be cleared when sightings expire from the `LastSeenRegistry`. Zone records persist independently across the wave — they represent accumulated battlefield memory, not current intelligence. Zones are only cleared by `EnemyManager.reset()`.
+6. THE `EngagementZoneRegistry` SHALL be accessible via `EnemyManager.getEngagementZoneRegistry()` for debugging and testing.
+
+---
+
+### Requirement 16: Engagement Zone Strategy — Avoid or Engage
+
+**User Story:** As a player, I want enemy units to react intelligently to known danger zones — routing around them when possible, or sending a coordinated force to break through when avoidance is impossible — so that my defensive positioning creates genuine long-term consequences.
+
+#### Acceptance Criteria
+
+1. AT the start of each `executeTurn()`, AFTER sightings are recorded and the `EngagementZoneRegistry` is updated, THE EnemyManager SHALL evaluate each **Active** zone and assign it one of two strategies: `AVOID` or `ENGAGE`.
+2. THE strategy SHALL default to `AVOID` unless Requirement 16.4 explicitly selects `ENGAGE`. Avoidance is always preferred over engagement when a viable alternative route exists.
+3. FOR each Active zone assigned `AVOID`: THE EnemyManager SHALL add a `ZoneThreatOverlay` penalty to all tiles within the zone's radius in the `DynamicCostOverlay`. The penalty SHALL raise the effective cost of those tiles by `ZONE_AVOIDANCE_COST` (default `5`), making them significantly more expensive to route through than combat tiles (cost `3`) or threat-zone water (cost `4`). If the A* algorithm finds a route that avoids the zone entirely, enemies will take it.
+4. THE strategy SHALL be set to `ENGAGE` for a given zone ONLY when ALL of the following conditions are simultaneously true:
+   - (a) The zone is Active (last confirmed within `SIGHTING_EXPIRY_TURNS` turns).
+   - (b) A viable alternative route that avoids the zone does not exist — determined by running A* with the zone overlay applied and checking whether the returned path passes through the zone. If the cheapest path still traverses the zone even with the `ZONE_AVOIDANCE_COST` penalty, avoidance has failed.
+   - (c) The estimated combined HP of enemy units that would be committed to the engagement is greater than `ENGAGE_HP_RATIO` × `estimatedThreatHP` of the zone (default ratio `1.5` — i.e., the commit force must have 50% more HP than the estimated defender HP to proceed).
+5. WHEN `ENGAGE` is selected for a zone, THE EnemyManager SHALL designate a subset of active enemy units as the **Strike Force** for that zone. The strike force SHALL be selected by choosing the units with the highest `health` values, up to the HP budget required to meet the `ENGAGE_HP_RATIO` threshold.
+6. THE total HP committed to all Strike Forces combined SHALL NOT exceed `MAX_ARMY_COMMIT_FRACTION` (default `0.40`) × the sum of HP of all active enemy units. This cap prevents the entire army from being assigned to a single engagement and leaving other routes undefended.
+7. Strike Force units SHALL have their pathfinding target set to the zone centre tile rather than the standard `CastlePerimeter` or `KeepTileSet` for the duration of that turn. Non-strike-force units continue pathfinding toward the standard target.
+8. IF a zone's strategy is `ENGAGE` but the HP cap in Requirement 16.6 prevents allocating a sufficient strike force, the strategy SHALL fall back to `AVOID` for that turn.
+9. DORMANT zones SHALL NOT influence pathfinding — their `ZoneThreatOverlay` is not added to the `DynamicCostOverlay`. Dormant zones are retained in the registry for historical tracking only.
+10. THE `EngagementZoneRegistry` evaluation and strategy assignment SHALL complete before the `DynamicCostOverlay` is built for the turn, so zone penalties are reflected in all `findPath` calls that turn.
+
+---
+
+### Requirement 17: Engagement Zone Configuration Constants
+
+**User Story:** As a game developer, I want all engagement zone behaviour to be driven by named constants, so that difficulty tuning is straightforward and behaviour is predictable.
+
+#### Acceptance Criteria
+
+1. THE following constants SHALL be defined in `enemy-manager.js` with the given defaults:
+   - `ZONE_CLUSTER_RADIUS = 6` — hex steps within which sightings are clustered into the same zone
+   - `ZONE_AVOIDANCE_COST = 5` — additional movement cost applied to tiles within an Active AVOID zone
+   - `ENGAGE_HP_RATIO = 1.5` — minimum ratio of committed enemy HP to estimated defender HP required to select ENGAGE strategy
+   - `MAX_ARMY_COMMIT_FRACTION = 0.40` — maximum fraction of total active enemy HP that can be committed to strike forces in a single turn
+2. EACH constant SHALL be documented with a comment explaining its tactical meaning.
+3. THE constants SHALL be read by the engagement zone evaluation logic at the start of each `executeTurn()` call — no caching — so they can be modified at runtime for testing purposes.

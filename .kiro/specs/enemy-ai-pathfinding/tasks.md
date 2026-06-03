@@ -287,10 +287,82 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 - [ ] 18. Final checkpoint — full test suite passes including knowledge/sighting integration
   - Ensure all tests pass, ask the user if questions arise.
 
+- [ ] 19. Implement `EngagementZoneRegistry` and zone clustering in `enemy-manager.js`
+  - [ ] 19.1 Define zone constants and `EngagementZone` data shape
+    - Define `ZONE_CLUSTER_RADIUS = 6`, `ZONE_AVOIDANCE_COST = 5`, `ENGAGE_HP_RATIO = 1.5`, `MAX_ARMY_COMMIT_FRACTION = 0.40` as named constants with comments
+    - Document each constant's tactical meaning
+    - Define `EngagementZone` shape: `{ id, centreRow, centreCol, observationCount, lastObservedTurn, estimatedThreatHP, strategy }`
+    - Initialise `_engagementZoneRegistry = []` in EnemyManager
+    - Expose `getEngagementZoneRegistry()` returning the array
+    - Clear `_engagementZoneRegistry` in `reset()`
+    - _Requirements: 15.1, 15.5, 15.6, 17.1, 17.2_
+
+  - [ ] 19.2 Implement `_updateEngagementZones(lastSeenRegistry, currentTurn)`
+    - For each entry in `lastSeenRegistry`: find existing zone within `ZONE_CLUSTER_RADIUS` via `hexDistance`
+    - If found: increment `observationCount`, update `lastObservedTurn`
+    - If not found: create new zone centred on sighting position with `observationCount=1`
+    - Recompute `estimatedThreatHP` for all zones from current `lastSeenRegistry` entries within each zone's radius
+    - _Requirements: 15.2, 15.3_
+
+  - [ ]* 19.3 Write property tests for zone clustering (Property 27)
+    - **Property 27: EngagementZone cluster radius is respected**
+    - **Validates: Requirement 15.2**
+    - Generate random sighting pairs with known hex distances; assert same-zone vs separate-zone outcomes match ZONE_CLUSTER_RADIUS boundary
+    - _File: `tests/enemy-manager.test.js`_
+
+- [ ] 20. Implement zone strategy evaluation in `enemy-manager.js`
+  - [ ] 20.1 Implement `_isZoneActive(zone, currentTurn)` helper
+    - Returns `true` if `currentTurn - zone.lastObservedTurn <= SIGHTING_EXPIRY_TURNS`
+    - _Requirements: 15.4, 16.9_
+
+  - [ ] 20.2 Implement `_evaluateZoneStrategies(currentTurn, activeEnemyUnits, worldKnowledgeMap, overlay)`
+    - For each Active zone: apply AVOID zone penalty probe to temp overlay; run A* probe with Infantry to test if zone is avoidable
+    - If avoidable: set `zone.strategy = 'AVOID'`; add zone penalty to `zoneOverlayPenalties`
+    - If not avoidable: check `ENGAGE_HP_RATIO` and `MAX_ARMY_COMMIT_FRACTION` conditions; assign strike force if viable; else fall back to `AVOID`
+    - Dormant zones: set `zone.strategy = 'MONITOR'`; no overlay penalty
+    - Return `strikeForceAssignments: Map<zoneId, EnemyUnit[]>` and `zoneOverlayPenalties: Map<tileKey, number>`
+    - Guard against assigning all units to strike forces; standard pathfinding must retain at least some units
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.9, 16.10_
+
+  - [ ]* 20.3 Write property tests for zone strategy selection (Properties 28, 29, 30)
+    - **Property 28: Dormant zones produce no overlay penalty**
+    - **Validates: Requirements 15.4, 16.9**
+    - **Property 29: AVOID always preferred when clear route exists**
+    - **Validates: Requirements 16.2, 16.4b**
+    - **Property 30: MAX_ARMY_COMMIT_FRACTION cap never exceeded**
+    - **Validates: Requirements 16.6, 16.8**
+    - Test: dormant zone (last observed 15 turns ago) → no penalty in overlay
+    - Test: zone with alternate clear route → AVOID strategy selected regardless of available HP
+    - Test: three simultaneous ENGAGE-eligible zones → total committed HP stays below 40% of army HP
+    - _File: `tests/enemy-manager.test.js`_
+
+- [ ] 21. Wire zone system into `executeTurn` and update `buildSharedThreatMap`
+  - [ ] 21.1 Update `executeTurn(currentTurn)` to call zone update and strategy evaluation
+    - After sight pass, call `_updateEngagementZones(_lastSeenRegistry, currentTurn)`
+    - Call `_evaluateZoneStrategies(...)` to get `zoneOverlayPenalties` and `strikeForceAssignments`
+    - Pass `zoneOverlayPenalties` to `buildSharedThreatMap`
+    - For each unit in a `strikeForceAssignment`: override `targetSet` with zone centre for that unit's `findPath` call
+    - _Requirements: 15.2, 16.7, 16.10_
+
+  - [ ] 21.2 Update `PathfindingEngine.buildSharedThreatMap` signature to accept `zoneOverlayPenalties`
+    - Add Step 3 to overlay build: for each `[key, penalty]` in `zoneOverlayPenalties`, add penalty to existing cost (additive on top of base and last-seen costs); never override `Infinity`
+    - _Requirements: 16.3, 16.10_
+
+  - [ ]* 21.3 Write integration tests for full zone strategy → pathfinding pipeline
+    - Test: repeated sightings at same location → zone created with observationCount > 1
+    - Test: Active AVOID zone → enemy path routes around zone tiles
+    - Test: zone with no alternative route + sufficient HP → ENGAGE strategy selected → strike force unit targets zone centre
+    - Test: zone with no alternative route + insufficient HP → falls back to AVOID
+    - Test: multiple ENGAGE zones competing for budget → cap enforced, later zones fall back to AVOID
+    - _File: `tests/enemy-manager.test.js`_
+
+- [ ] 22. Final checkpoint — full test suite passes including zone strategy integration
+  - Ensure all tests pass, ask the user if questions arise.
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
-- All 26 correctness properties from the design are covered by property test sub-tasks
+- All 30 correctness properties from the design are covered by property test sub-tasks
 - Both new files follow the existing browser-global singleton pattern (no `module.exports`)
 - Test files use `node:test` + `fast-check@3.23.2` and inline re-implementations of pure logic (no DOM, no `fetch`), matching the pattern in existing `unit-manager.spec.js` and `utils.spec.js`
 - Run tests with: `node --test tests/pathfinding-engine.test.js tests/enemy-manager.test.js`
@@ -313,10 +385,11 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     { "id": 2, "tasks": ["4.2", "6.1", "6.2"] },
     { "id": 3, "tasks": ["6.3", "6.4", "7.1"] },
     { "id": 4, "tasks": ["6.5", "7.2", "12.1", "12.2", "16.1"] },
-    { "id": 5, "tasks": ["8.1", "12.3", "16.2"] },
-    { "id": 6, "tasks": ["8.2", "10.1", "12.4", "12.5", "16.3"] },
-    { "id": 7, "tasks": ["10.2", "14.1", "17.1"] },
-    { "id": 8, "tasks": ["14.2", "17.2"] }
+    { "id": 5, "tasks": ["8.1", "12.3", "16.2", "19.1"] },
+    { "id": 6, "tasks": ["8.2", "10.1", "12.4", "12.5", "16.3", "19.2"] },
+    { "id": 7, "tasks": ["10.2", "14.1", "17.1", "19.3", "20.1", "20.2"] },
+    { "id": 8, "tasks": ["14.2", "17.2", "20.3", "21.1", "21.2"] },
+    { "id": 9, "tasks": ["21.3"] }
   ]
 }
 ```

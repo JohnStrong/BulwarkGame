@@ -33,6 +33,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
   - [How Enemies Navigate the Map](#how-enemies-navigate-the-map)
   - [Tile Movement Costs](#tile-movement-costs)
   - [Shared Enemy Intelligence and the Last-Seen Registry](#shared-enemy-intelligence-and-the-last-seen-registry)
+  - [Engagement Zone Intelligence — The Enemy Learns](#engagement-zone-intelligence--the-enemy-learns)
   - [Enemy View Distance and Woodland Ambushes](#enemy-view-distance-and-woodland-ambushes)
   - [Tree Tiles — Passability and Ambush Potential](#tree-tiles--passability-and-ambush-potential)
   - [Unit-Specific Pathfinding Behaviors](#unit-specific-pathfinding-behaviors)
@@ -536,6 +537,24 @@ However, stale intelligence expires. If a position hasn't been re-confirmed by a
 **Threat-zone water.** Water tiles within 3 hex steps of a last-seen player unit position are penalised to cost `4` — but only if at least one enemy unit currently has line of sight to that water. Enemies behind a forest can't see across the tree line, so they won't penalise water they can't observe.
 
 In practical terms: block both bridges and the enemy column will route toward the water if they can't see why the bridges are expensive. The moment the lead unit crests a hill and spots your defenders, the whole force knows — and adjusts.
+
+---
+
+### Engagement Zone Intelligence — The Enemy Learns
+
+Beyond individual sightings, the enemy force develops a longer-term memory of the battlefield through an **EngagementZoneRegistry**. This is persistent across the entire wave and is never cleared by sighting expiry.
+
+**How zones form.** Every time a player unit is spotted, the EnemyManager checks whether that sighting location falls within 6 hex steps of any existing zone's centre. If yes, it updates that zone — incrementing its observation count and refreshing its timestamp. If no, a new zone is created. Over time, areas where your defenders repeatedly intercept enemy units accumulate into recognised danger zones.
+
+**Two strategies for dealing with a zone.** Each turn, the manager evaluates every active zone (one confirmed within the last 10 turns) and chooses:
+
+**Strategy 1 — Avoid.** The manager applies a heavy cost penalty (`+5`) to all tiles within the zone's radius. A* then naturally routes units around the hotspot if any viable alternative path exists. This is always the preferred strategy. Enemies learn to respect a well-defended chokepoint and hunt for a safer way through.
+
+**Strategy 2 — Engage.** Only triggered when avoidance fails — when the cheapest path still runs through the zone even with the penalty applied. The manager then assesses whether it can commit a strike force large enough to plausibly overpower the estimated defenders. The threshold is 1.5× the estimated combined HP of the player units last observed in the zone. If the math checks out, a subset of the highest-HP enemy units is reassigned as a strike force targeting the zone centre directly.
+
+**Army preservation.** No more than 40% of the total active enemy HP can be committed to strike forces in a single turn. This cap exists to prevent the enemy from feeding its entire army into one engagement and getting outflanked. If multiple zones simultaneously demand engagement forces and the budget runs out, later zones fall back to avoidance instead.
+
+**Dormant zones don't penalise.** Once a zone goes more than 10 turns without a confirmed sighting, it becomes dormant and stops affecting pathfinding. The zone record is retained for historical tracking, but enemies stop routing around it — they'll approach that area again until a new sighting re-activates it. This means a defender who successfully repositions gains a brief window of free movement before the zone is re-established.
 
 ---
 
