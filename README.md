@@ -29,6 +29,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [Elevation Files](#elevation-files)
 - [Enhanced Sprite Pipeline](#enhanced-sprite-pipeline)
 - [Architecture Documentation](#architecture-documentation)
+- [Enemy Goal / Playstyle](#enemy-goal--playstyle)
 
 ---
 
@@ -456,3 +457,77 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 - **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
 - **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
 - **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random
+
+---
+
+## Enemy Goal / Playstyle
+
+### How Enemies Navigate the Map
+
+Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn. The algorithm runs once per unit per turn, taking into account terrain costs, unit type, and any player units currently blocking tiles.
+
+Enemies operate in two distinct phases, separated by a single condition: whether the castle walls have been breached.
+
+**Phase 1 — Assault the perimeter.**
+From spawn, enemies can see the castle in the distance. They set their sights on the outer ring of passable tiles immediately adjacent to the castle walls, towers, and gatehouse. They do not yet know the layout inside — the keep is hidden behind the walls. All units converge on this perimeter ring, probing for the weakest approach.
+
+**Phase 2 — Storm the keep.**
+Once the castle has been breached (a game-state flag flips to `true`), every active enemy immediately re-targets the keep tiles (the `K`, `j`, `J`, `F` tile cluster). The final objective is to destroy the keep. Until breach is triggered, the interior remains invisible to them — the castle walls serve as a genuine information barrier, not just a health pool.
+
+Each turn, A\* computes the lowest-cost path through the hex grid to the nearest reachable target tile. The path respects terrain movement costs and dynamically avoids tiles occupied by player units — meaning an archer placed on the road genuinely forces enemies to go around.
+
+---
+
+### Tile Movement Costs and Passability
+
+| Tile | Character(s) | Movement Cost | Notes |
+|------|-------------|--------------|-------|
+| Grass | `.` | 1 | Standard open terrain |
+| Flowers | `,` | 1 | Same cost as grass |
+| Dirt road | `D` | 1 | Preferred route — roads are fast |
+| Cobblestone bridge | `=` | 1 | River crossing |
+| Castle bridge | `b`, `m`, `g` | 1 | Drawbridge approach — enemies use this |
+| Bailey (courtyard) | `C` | 1 | Interior courtyard tiles |
+| Water | `~` | 2 | Passable but slow — twice the movement cost |
+| Oak / Pine / Shrub | `O`, `P`, `S` | 1 or ∞ | Tree-eligible units only (see below) |
+| Rock | `R` | ∞ | Impassable for all unit types |
+| Castle wall | `W` | ∞ | Cannot be moved onto (combat not yet implemented) |
+| Tower | `T` | ∞ | Impassable — future: destroyable |
+| Gatehouse | `G` | ∞ | Impassable — future: destroyable |
+| Keep tiles | `K`, `j`, `J`, `F` | ∞ | Phase 2 target, not traversable |
+
+A tile occupied by a **player unit** is treated as impassable regardless of its terrain type — placing your troops directly on a road forces enemies to find an alternative route.
+
+---
+
+### Tree Tiles — A Special Hazard
+
+Tree tiles (`O` oak, `P` pine, `S` shrub) represent cover and ambush potential. Enemies treat them differently based on unit type.
+
+The reasoning is tactical: an enemy infantry unit pushing through dense woodland risks walking into an ambush by archers or knights hidden in the undergrowth. Heavy melee units and siege crews are not equipped to deal with that risk — they avoid trees entirely and route around them.
+
+Lighter, more agile unit types (archers and cavalry) have the speed and awareness to move through woodland, and may choose to do so if it represents the shortest route.
+
+| Enemy Type | Tree Tiles (O, P, S) |
+|------------|---------------------|
+| Infantry | **Impassable** — routes around all trees |
+| Archer | **Passable** (cost 1) — can move through woodland |
+| Cavalry | **Passable** (cost 1) — agile enough to navigate cover |
+| Siege Engine | **Impassable** — too slow and bulky for forest terrain |
+
+This creates an interesting dynamic for the player: placing units inside a forest patch is a strong deterrent against infantry and siege engines, but archers and cavalry will still push through. Covering a tree cluster with a player archer can therefore stop all four enemy types — the enemy AI will route around any tile occupied by a player unit, regardless of terrain.
+
+---
+
+### Unit-Specific Pathfinding Behaviors
+
+> 🚧 **Placeholder — to be expanded as combat and AI mechanics are implemented.**
+
+Each enemy unit type will develop distinct tactical behaviors beyond basic pathfinding. This section will document them as they are built out.
+
+| Enemy Type | Movement Points/Turn | Planned Behavior Notes |
+|------------|---------------------|----------------------|
+| Infantry | 2 | — |
+| Archer | 2 | — |
+| Cavalry | 3 | — |
+| Siege Engine | 1 | — |
