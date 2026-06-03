@@ -20,6 +20,10 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 - **SharedThreatMap**: A per-turn `Map<"row,col", number>` built by EnemyManager once from all known player unit positions and broadcast to PathfindingEngine for every unit's pathfinding call that turn. Represents the collective intelligence of the enemy force — any unit's observation is shared with all others.
 - **DirectionalSightRadius**: The per-direction view distance of an EnemyUnit. Defaults to `3` hex steps in each of the six hex directions on open terrain. Reduced to `1` in any direction where the immediate neighbor in that direction is a tree tile. If the enemy unit itself occupies a tree tile, all six directions are capped at `1`.
 - **EnemyVisibleTiles**: The set of tiles an EnemyUnit can observe from its current position, computed by raycasting up to the directional view distance in each of the six hex directions. Used to determine which water tiles receive the ThreatZoneWaterPenalty in the SharedThreatMap.
+- **WorldKnowledgeMap**: A static snapshot of the level's terrain taken at wave spawn time. Contains the position and type of all terrain tiles (grass, road, water, bridge, forest, castle structures). Does NOT include player unit positions, player-built defenses, or any dynamic game object. Used as the base cost graph for pathfinding.
+- **LastSeenRegistry**: A `Map<playerId, { row, col, turn }>` maintained by EnemyManager. Records the last physically observed position and observation turn of every player unit that any enemy unit has ever sighted. Entries persist until a new sighting updates them, the unit is killed, or the entry expires after `SIGHTING_EXPIRY_TURNS` turns of no re-sighting. Cleared on level restart.
+- **SIGHTING_EXPIRY_TURNS**: The number of cost-turns after which a `LastSeenRegistry` entry is considered stale and removed. Default: `10`. At a rate of 1 cost-turn ≈ 1 real-world second, this equals approximately 10 seconds of unconfirmed intelligence.
+- **ObservedKnowledge**: The combined intelligence available to the enemy force at any point: the static WorldKnowledgeMap (terrain) plus the dynamic DynamicCostOverlay built from the LastSeenRegistry (observed player unit positions) and the enemy visible tile set (threat-zone water penalties).
 - **SpawnPoint**: A tile on the enemy-side edge of the map designated as a valid origin for EnemyUnit placement at the start of a wave.
 - **CastlePerimeter**: The set of tiles adjacent to castle structure tiles (W, T, G characters) that are themselves passable — the Phase 1 target ring.
 - **KeepTileSet**: The set of tiles with characters K, j, J, F — the Phase 2 target for enemies after the castle has been breached.
@@ -201,3 +205,57 @@ This feature implements the Enemy AI Pathfinding system for the browser-based is
 8. THE directional view occlusion applies only to tree tiles. Other terrain types (water, road, grass, rock, walls) do not reduce view distance in adjacent directions.
 9. THE `buildSharedThreatMap` function SHALL accept the list of active EnemyUnit positions in addition to placed player units, so it can compute the combined threat map that reflects what enemies can collectively observe.
 
+
+---
+
+### Requirement 12: World Knowledge Map — Static Terrain Briefing
+
+**User Story:** As a game developer, I want enemy units to begin each wave with awareness of the battlefield's static terrain layout, so that they can navigate purposefully toward the castle from the outset rather than wandering blind into unknown territory.
+
+#### Acceptance Criteria
+
+1. THE EnemyManager SHALL initialise a `WorldKnowledgeMap` at the start of each wave (when `spawnWave` is called), derived from the current level's tile array via `LevelLoader`.
+2. THE `WorldKnowledgeMap` SHALL encode the position and type of every static terrain tile — grass, flowers, road, water, cobblestone bridge, castle bridge tiles (`b`, `m`, `g`), forest tiles (`O`, `P`, `S`), bailey tiles (`C`), and all castle structure tiles (`W`, `T`, `G`, `K`, `j`, `J`, `F`) — exactly as they appear in the level file.
+3. THE `WorldKnowledgeMap` SHALL NOT include the position, presence, or type of any player unit, player-built defense, player-placed battlement, or any dynamic game object. Enemy units start with zero knowledge of player deployments.
+4. THE `WorldKnowledgeMap` SHALL NOT be updated during gameplay to reflect player actions such as placing or moving units — it is a static snapshot of the terrain taken at wave spawn time and never modified.
+5. THE PathfindingEngine `findPath` SHALL use the `WorldKnowledgeMap` as its base TileGraph for computing paths when no enemy-observed information overrides a tile. This replaces the previous model where `findPath` received the full live tile array (which included player unit positions).
+6. THE `WorldKnowledgeMap` SHALL treat all bridge tiles (`=`, `b`, `m`, `g`) as passable with cost `1` — the enemy force knows bridges exist and are crossable. It has no knowledge of whether a bridge is currently blocked by a player unit.
+7. THE `WorldKnowledgeMap` SHALL be accessible via `EnemyManager.getWorldKnowledgeMap()` for debugging and testing purposes.
+
+---
+
+### Requirement 13: Last-Seen Registry — Dynamic Player Unit Intelligence
+
+**User Story:** As a player, I want enemy units to remember where they last saw my units but lose track when units move out of sight, so that repositioning defenders mid-battle is a meaningful tactical option.
+
+#### Acceptance Criteria
+
+1. THE EnemyManager SHALL maintain a `LastSeenRegistry` — a `Map<playerId, { row, col, turn }>` — storing the last observed position and observation turn for every player unit that has ever been sighted by any enemy unit.
+2. WHEN any active EnemyUnit's `computeEnemyVisibleTiles` set contains a tile occupied by a player unit (cross-referenced against `UnitManager.getPlacedUnits()`), THE EnemyManager SHALL immediately update the `LastSeenRegistry` entry for that player unit with the current position and current turn number.
+3. THE update in Requirement 13.2 SHALL occur at the start of each enemy unit's movement step, before pathfinding is computed, so fresh sightings inform the current turn's routing.
+4. THE `LastSeenRegistry` SHALL be shared across ALL active enemy units — a sighting by any one enemy unit is immediately known to the entire enemy force via the manager. This is consistent with the SharedThreatMap broadcast established in Requirement 10.
+5. WHEN building the `DynamicCostOverlay` for pathfinding, THE EnemyManager SHALL incorporate `LastSeenRegistry` entries: a tile recorded in the registry SHALL receive the CombatCostTile penalty (cost `3`) in the overlay, regardless of whether any enemy currently has line of sight to that tile.
+6. IF a player unit moves away from its last-seen position between turns, THE `LastSeenRegistry` entry SHALL NOT be automatically updated — it retains the last physically observed position until a new sighting occurs or the entry expires.
+7. IF a player unit is killed (removed from `UnitManager.getPlacedUnits()`), THE EnemyManager SHALL remove that unit's entry from the `LastSeenRegistry` on the next `executeTurn()` call, preventing the enemy force from permanently routing around a ghost position.
+8. THE `LastSeenRegistry` SHALL be cleared (reset to empty) when `EnemyManager.reset()` is called on level restart.
+9. THE `LastSeenRegistry` SHALL be accessible via `EnemyManager.getLastSeenRegistry()` for debugging and testing purposes.
+10. IF a player unit that was previously sighted has since moved away from its last-seen position, the overlay entry for that position SHALL still be present in the `DynamicCostOverlay` (cost `3`) until: (a) a new sighting updates the position, (b) the unit is killed and its registry entry is cleared, or (c) the sighting has expired per Requirement 13.11.
+11. A `LastSeenRegistry` entry SHALL expire and be removed when the current turn number exceeds the entry's recorded observation turn by more than `SIGHTING_EXPIRY_TURNS` (default: `10`). Expiry is checked at the start of each `executeTurn()` call, before the sight pass and before the overlay is built. An expired entry is treated as if the sighting never occurred — the tile reverts to its base terrain cost in the overlay and enemies will no longer avoid it.
+12. THE `SIGHTING_EXPIRY_TURNS` constant SHALL be `10`, representing 10 cost-turns. Because one cost-turn corresponds to one unit movement step at cost `1` (≈ 1 real-world second at the intended game speed), this means stale intelligence expires after approximately 10 seconds of no re-sighting.
+13. IF a sighting is refreshed (the same player unit is re-sighted within the expiry window), THE observation turn in the registry entry SHALL be updated to the current turn, resetting the expiry clock.
+14. THE expiry mechanism SHALL be independent of the dead-unit purge — both checks run at the start of each `executeTurn()`, but they are separate operations: dead-unit purge removes entries for killed units regardless of how recent the sighting was; expiry removes entries for any unit (alive or not yet confirmed dead) whose last sighting is stale.
+
+---
+
+### Requirement 14: Separation of Static and Dynamic Knowledge in Pathfinding
+
+**User Story:** As a game developer, I want the pathfinding system to cleanly separate what enemies know about the terrain from what they have observed about player deployments, so the two knowledge layers can evolve independently without coupling.
+
+#### Acceptance Criteria
+
+1. THE `findPath` function SHALL accept a `WorldKnowledgeMap` (static terrain) and a `DynamicCostOverlay` (observed player unit positions + terrain threat penalties) as separate parameters, applying them in that order: base costs from `WorldKnowledgeMap`, then overlay costs from `DynamicCostOverlay`.
+2. THE `WorldKnowledgeMap` SHALL define passability for static terrain (grass, water, bridge, forest for eligible units, castle structures). It SHALL NOT contain any player unit data.
+3. THE `DynamicCostOverlay` SHALL encode observed player unit positions from the `LastSeenRegistry` as cost `3`, and threat-zone water visible to enemies as cost `4`, as defined in Requirements 9 and 13.
+4. WHEN a player unit has been sighted and its position is in the `LastSeenRegistry`, the tile at that position SHALL appear as cost `3` in the `DynamicCostOverlay`, even if no enemy currently has line of sight to it — the last-seen position persists until updated or cleared.
+5. WHEN a tile's key appears in both the `WorldKnowledgeMap` and the `DynamicCostOverlay`, THE `DynamicCostOverlay` value SHALL take precedence, EXCEPT for tiles with base cost `Infinity` (walls, keep, rock) — impassable terrain cannot be overridden by the overlay.
+6. A tile that is passable in the `WorldKnowledgeMap` but blocked by a player unit the enemies have never observed SHALL appear with its normal base terrain cost in `findPath` — enemies route toward it as if it were clear, and discover the blockade only when they gain line of sight.

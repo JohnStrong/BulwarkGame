@@ -10,6 +10,8 @@ Player-occupied tiles are no longer impassable. Instead they carry a combat cost
 
 Enemy units also have **directional view distance**: in open terrain they can see 3 hex steps in each of the six hex directions. However, if the immediate neighbor in a given direction is a tree tile, that direction is capped at 1 hex step — the forest blocks their line of sight. A unit fully inside woodland (itself on a tree tile) is effectively blind in all directions, seeing only the 6 immediately adjacent tiles. This enables woodland ambushes: enemies only fear player units they can actually see.
 
+The pathfinding knowledge model is split into two layers. Enemies are given a **WorldKnowledgeMap** — a static terrain briefing at wave spawn showing where grass, water, bridges, forests, and the castle are. They route purposefully from the start. They are given no knowledge of player unit placements, built defenses, or ambushes. As enemy units advance and gain line of sight, they spot player units and report positions to the **LastSeenRegistry** in EnemyManager. All active enemies immediately share this intelligence. If a player unit moves out of sight, enemies remember where it was last seen and continue factoring that position into routing — but they cannot track it further. If the unit is killed, the registry entry is cleared and enemies stop routing around a ghost.
+
 ---
 
 ## Architecture
@@ -20,19 +22,22 @@ game-iso.js (Game Loop)
     │  Resolve Phase: EnemyManager.setCastleBreached(true)
     │
     ├── enemy-manager.js (EnemyManager)
+    │       WorldKnowledgeMap — static terrain snapshot built at spawnWave()
+    │       LastSeenRegistry  — { playerId → { row, col, turn } } updated each turn
     │       spawns / tracks EnemyUnit instances
-    │       builds TileGraph from LevelLoader
-    │       builds SharedThreatMap from UnitManager.getPlacedUnits() (once per turn)
-    │       passes SharedThreatMap to PathfindingEngine for every unit
+    │       builds TileGraph from WorldKnowledgeMap (not live tile array)
+    │       builds DynamicCostOverlay from LastSeenRegistry + enemy visible tiles
+    │       passes overlay to PathfindingEngine for every unit
     │       moves units via PathfindingEngine output
+    │       updates LastSeenRegistry when enemy gains sight of player unit
+    │       purges dead player units from LastSeenRegistry
     │
     └── pathfinding-engine.js (PathfindingEngine)
-            pure A* over hex TileGraph
-            MovementCostTable lookup
+            pure A* over hex TileGraph (WorldKnowledgeMap)
             DynamicCostOverlay applied on top of base costs
             hexNeighbors (odd-row-offset)
             hexDistance heuristic
-            buildSharedThreatMap() — sight-radius expansion helper
+            buildSharedThreatMap() — overlay builder from LastSeenRegistry + sight
             computeEnemyVisibleTiles() — directional view distance with tree occlusion
 ```
 
@@ -181,6 +186,110 @@ function buildTileGraph(tiles) {
 
 function tileKey(row, col) { return `${row},${col}`; }
 ```
+
+### WorldKnowledgeMap
+
+The `WorldKnowledgeMap` is built once at `spawnWave()` from `LevelLoader.getCurrentLevel().tiles`. It is a `Map<"row,col", tile>` identical in structure to a TileGraph, but it is:
+
+- **Static** — never updated after construction
+- **Terrain-only** — contains grass, road, water, bridge, forest, castle structures
+- **Player-blind** — player unit positions are never included, even if a tile is currently occupied
+
+```js
+// Built from LevelLoader at wave spawn — not from live game state
+function buildWorldKnowledgeMap(tiles) {
+    const map = new Map();
+    for (const tile of tiles) {
+        map.set(tileKey(tile.row, tile.col), tile);
+    }
+    return map;  // player units not visible here — purely terrain
+}
+```
+
+Pathfinding uses this map as the base graph. Bridges appear passable (cost `1`). Castle structures are impassable (`Infinity`). The enemy force knows the lay of the land — they just don't know where the garrison is deployed.
+
+### LastSeenRegistry
+
+The `LastSeenRegistry` is a `Map<string, { row, col, turn }>` maintained by EnemyManager. It stores the last physically observed position and turn number for every player unit that any enemy has spotted. Entries are keyed by player unit ID (or a stable key derived from `UnitManager.getPlacedUnits()`).
+
+```js
+// EnemyManager internal state
+_lastSeenRegistry: new Map(),  // Map<unitId, { row, col, turn }>
+
+const SIGHTING_EXPIRY_TURNS = 10; // stale after 10 cost-turns ≈ 10 real seconds
+
+// Called when an enemy unit's visible tiles include a player unit
+_recordSighting(playerUnit, currentTurn) {
+    this._lastSeenRegistry.set(playerUnit.id ?? tileKey(playerUnit.row, playerUnit.col), {
+        row: playerUnit.row,
+        col: playerUnit.col,
+        turn: currentTurn,
+    });
+},
+
+// Called at the start of executeTurn() to remove dead player units
+_purgeDead(placedUnits) {
+    const aliveKeys = new Set(
+        placedUnits.map(u => u.id ?? tileKey(u.row, u.col))
+    );
+    for (const key of this._lastSeenRegistry.keys()) {
+        if (!aliveKeys.has(key)) this._lastSeenRegistry.delete(key);
+    }
+},
+
+// Called at the start of executeTurn() to expire stale sightings
+_expireStale(currentTurn) {
+    for (const [key, entry] of this._lastSeenRegistry.entries()) {
+        if (currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS) {
+            this._lastSeenRegistry.delete(key);
+        }
+    }
+},
+```
+
+**Key properties:**
+- A sighting by any one enemy unit is instantly known to all — shared via the registry
+- Refreshing a sighting (re-sighting the same unit) resets its expiry clock to the current turn
+- Moving a player unit out of sight does NOT clear the registry entry — the last-seen position persists for up to `SIGHTING_EXPIRY_TURNS` turns before expiring
+- Killing a player unit clears the entry immediately (at start of next `executeTurn`)
+- Stale entries (not re-sighted within 10 turns) are expired, allowing enemies to route through the last-known position again
+- The expiry purge and dead-unit purge are separate operations, both running at the start of `executeTurn`
+- The registry is cleared on `reset()`
+
+### Updated `buildSharedThreatMap`
+
+The function signature now takes the `LastSeenRegistry` instead of live `placedUnits`:
+
+```
+buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph):
+  overlay = new Map()
+
+  // Step 1: mark last-seen player unit positions as combat cost
+  // These are positions enemies KNOW ABOUT (observed or still remembered)
+  FOR each entry in lastSeenRegistry.values():
+    overlay.set(tileKey(entry.row, entry.col), COMBAT_COST=3)
+
+  // Step 2: build collective enemy visible set
+  enemyVisibleSet = new Set()
+  FOR each enemyUnit in activeEnemyUnits:
+    FOR each tile in computeEnemyVisibleTiles(enemyUnit.row, enemyUnit.col, tileGraph):
+      enemyVisibleSet.add(tileKey(tile.row, tile.col))
+
+  // Step 3: check last-seen positions for threat-zone water
+  // For each last-seen player unit, expand its threat radius and penalise visible water
+  FOR each entry in lastSeenRegistry.values():
+    threatTiles = hexRing(entry.row, entry.col, radius=3, tileGraph)
+    FOR each tile in threatTiles:
+      tileChar = resolveTileChar(tile)
+      IF tileChar === '~' AND enemyVisibleSet.has(tileKey(tile)):
+        currentCost = overlay.get(tileKey(tile)) ?? baseCost(tileChar)
+        IF THREAT_WATER_COST=4 > currentCost:
+          overlay.set(tileKey(tile), THREAT_WATER_COST=4)
+
+  RETURN overlay
+```
+
+The overlay still never overrides `Infinity` base costs — walls remain walls.
 
 ### A* Implementation
 
@@ -550,25 +659,40 @@ const EnemyManager = {
 ### executeTurn() Sequence
 
 ```
-executeTurn()
-  1. Build TileGraph from LevelLoader.getCurrentLevel().tiles
-  2. Build SharedThreatMap from UnitManager.getPlacedUnits() AND EnemyManager._units via
-     PathfindingEngine.buildSharedThreatMap(placedUnits, activeEnemyUnits, tileGraph)
+executeTurn(currentTurn)
+  1. Purge dead player units from LastSeenRegistry
+     (cross-reference _lastSeenRegistry against UnitManager.getPlacedUnits())
+
+  2. Expire stale sightings from LastSeenRegistry
+     (remove any entry where currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS=10)
+     Note: expiry runs AFTER dead-unit purge and BEFORE the sight pass,
+     so a freshly expired entry cannot be re-activated by the same turn's sightings
+     before the sight pass has a chance to update it.
+
+  3. Sight pass — for each EnemyUnit, compute visible tiles and record sightings:
+       FOR each enemyUnit:
+         visibleTiles = computeEnemyVisibleTiles(unit.row, unit.col, worldKnowledgeMap)
+         FOR each visibleTile:
+           IF UnitManager.getUnitAt(visibleTile.row, visibleTile.col) is a player unit:
+             _recordSighting(playerUnit, currentTurn)
+     (This updates _lastSeenRegistry; a re-sighted unit that was just expired gets a fresh entry)
+
+  4. Build DynamicCostOverlay from updated LastSeenRegistry:
+     overlay = PathfindingEngine.buildSharedThreatMap(
+                 _lastSeenRegistry, _units, worldKnowledgeMap)
      — done ONCE and reused for all units this turn
-     — enemy directional sight is applied here: water near player units is only penalised
-       if at least one enemy unit has line of sight to that water
-  3. Select targetSet:
-       castleBreached === false → CastlePerimeter (re-computed from current level)
+
+  5. Select targetSet:
+       castleBreached === false → CastlePerimeter
        castleBreached === true  → KeepTileSet
-  4. For each EnemyUnit (in insertion order):
+
+  6. For each EnemyUnit (in insertion order):
        a. Call PathfindingEngine.findPath(unit.type, unit.row, unit.col,
-                                          targetSet, tileGraph, sharedThreatMap)
-       b. Advance unit along path by 1 tile (or up to movePts tiles if design
-          evolves — currently 1 tile/turn per Req 5.2)
+                                          targetSet, worldKnowledgeMap, overlay)
+       b. Advance unit along path by 1 tile
        c. Verify destination terrain is not absolutely impassable before committing move
        d. Update unit.row, unit.col
-       e. IF destination tile contains a player unit (overlay cost 3), flag for combat
-          resolution in the Resolve Phase (combat mechanics are a future feature)
+       e. IF destination tile contains a player unit, flag for combat resolution
 ```
 
 ### Movement Step Detail
@@ -625,40 +749,47 @@ All interactions with `LevelLoader` and `UnitManager` go through their public AP
 ## Data Flow Diagram
 
 ```
-LevelLoader.getCurrentLevel().tiles
+LevelLoader.getCurrentLevel().tiles (at wave spawn — once)
         │
         ▼
-buildTileGraph()  →  Map<"row,col", tile>
+buildWorldKnowledgeMap()  →  Map<"row,col", tile>   ← STATIC — terrain only, no player units
         │
         ├── computeCastlePerimeter() → [{row,col}, ...]   ← Phase 1 targets
         ├── computeKeepTileSet()     → [{row,col}, ...]   ← Phase 2 targets
         └── identifySpawnPoints()   → [{row,col}, ...]
 
-UnitManager.getPlacedUnits()
+Per-turn: EnemyManager.executeTurn(currentTurn)
         │
-        ▼
-buildSharedThreatMap(placedUnits, tileGraph)
+        ├── 1. Purge dead units from LastSeenRegistry
+        │         UnitManager.getPlacedUnits() → alive player unit keys
         │
-        └── SharedThreatMap: Map<"row,col", number>
-              combat tiles  → cost 3
-              threat-zone water → cost 4
-
+        ├── 2. Expire stale sightings from LastSeenRegistry
+        │         remove entries where currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS (10)
         │
-        ▼
-EnemyManager.spawnWave()  →  [EnemyUnit, EnemyUnit, ...]
-        │  (per-turn, all units share the same SharedThreatMap)
-        ▼
-  PathfindingEngine.findPath(unitType, row, col,
-                             targetSet, tileGraph,
-                             sharedThreatMap)   ← overlay replaces getUnitAt
+        ├── 3. Sight pass — for each EnemyUnit:
+        │         computeEnemyVisibleTiles(row, col, worldKnowledgeMap)
+        │         → IF player unit in visible set → _recordSighting(unit, turn)
+        │         → _lastSeenRegistry updated / re-sighted entries get fresh expiry clock
         │
-        ▼
-       path: [{row,col}, ...]
+        ├── 4. Build DynamicCostOverlay:
+        │         PathfindingEngine.buildSharedThreatMap(
+        │             _lastSeenRegistry, _units, worldKnowledgeMap)
+        │         → last-seen positions → cost 3
+        │         → threat-zone water visible to enemies → cost 4
         │
-        ▼
-       moveUnit(unit, path)
-       → update unit.row, unit.col
-       → flag combat if destination was a CombatCostTile
+        └── 5. For each EnemyUnit:
+                  PathfindingEngine.findPath(unitType, row, col,
+                                            targetSet,
+                                            worldKnowledgeMap,   ← static base
+                                            dynamicCostOverlay)  ← observed costs
+                        │
+                        ▼
+                  path: [{row,col}, ...]
+                        │
+                        ▼
+                  moveUnit(unit, path)
+                  → update unit.row, unit.col
+                  → flag combat if destination is occupied
 ```
 
 ---
@@ -669,11 +800,15 @@ EnemyManager.spawnWave()  →  [EnemyUnit, EnemyUnit, ...]
 |-----------|-----------|
 | No path to target exists | `findPath` returns `[]`; unit stays stationary |
 | Target tile set is empty | `findPath` returns `[]` immediately |
-| `getPlacedUnits` throws during overlay build | Wrapped in try/catch; overlay treated as empty Map; units path on base costs only |
+| `getPlacedUnits` throws during sight pass | Wrapped in try/catch; sighting skipped; LastSeenRegistry unchanged |
 | Level has no F tile | `identifySpawnPoints` returns `[]`; wave spawn no-ops |
 | Level has fewer than 2 spawn candidates | Use all available candidates |
 | Unknown tile character | `getMovementCost` returns `Infinity` (treat as wall) |
 | `dynamicCostOverlay` is `null` or `undefined` | `findPath` treats it as an empty Map |
+| Player unit ID not available | Fall back to `tileKey(row,col)` as registry key |
+| LastSeenRegistry entry for killed unit persists briefly | Purged at start of next `executeTurn` call |
+| Sighting expires while unit is still alive | Entry removed; tile reverts to base terrain cost; enemies will route through if no new sighting |
+| Sighting expires and unit is re-sighted same turn | `_expireStale` runs before sight pass; re-sighting creates a fresh entry with current turn |
 
 ---
 
@@ -869,6 +1004,46 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
+### Property 22: WorldKnowledgeMap contains no player unit data
+
+*For any* game state where player units are placed, `buildWorldKnowledgeMap(tiles)` returns a map whose entries match only terrain tiles. No entry in the WorldKnowledgeMap encodes player unit positions, player-placed structures, or dynamic game objects.
+
+**Validates: Requirements 12.2, 12.3**
+
+---
+
+### Property 23: Pathfinding over WorldKnowledgeMap ignores unseen player units
+
+*When* a tile is occupied by a player unit that has never been sighted (no entry in LastSeenRegistry), `findPath` routes through that tile using its base terrain cost — treating it as if unoccupied. The tile only acquires combat cost `3` in the overlay after at least one enemy unit gains line of sight.
+
+**Validates: Requirements 12.6, 14.6**
+
+---
+
+### Property 24: LastSeenRegistry persists last-seen position after player unit moves
+
+*Given* a player unit that was sighted at position A on turn N, if the unit moves to position B on turn N+1 without being re-sighted, the LastSeenRegistry entry for that unit still records position A on turn N+1. The entry is only updated when the unit is newly observed by an enemy.
+
+**Validates: Requirements 13.6, 13.10**
+
+---
+
+### Property 25: LastSeenRegistry is cleared of dead player units
+
+*After* a player unit is removed from `UnitManager.getPlacedUnits()` (killed), the start of the next `executeTurn` call removes that unit's entry from the LastSeenRegistry. Subsequent pathfinding calls produce a DynamicCostOverlay that no longer penalises the dead unit's last-seen tile.
+
+**Validates: Requirements 13.7**
+
+---
+
+### Property 26: LastSeenRegistry entries expire after SIGHTING_EXPIRY_TURNS
+
+*For any* registry entry with observation turn `T`, at the start of `executeTurn(currentTurn)` where `currentTurn - T > SIGHTING_EXPIRY_TURNS`, `_expireStale` removes that entry. The subsequent `buildSharedThreatMap` call produces an overlay that assigns the expired tile its base terrain cost rather than cost `3`. If the same unit is re-sighted during the sight pass of that same turn, a fresh entry is created with the current turn.
+
+**Validates: Requirements 13.11, 13.12, 13.13**
+
+---
+
 ## Components and Interfaces
 
 ### `pathfinding-engine.js` — PathfindingEngine (browser global)
@@ -890,13 +1065,15 @@ Because the source files are plain browser globals (no `module.exports`), the te
 | Export | Signature | Description |
 |--------|-----------|-------------|
 | `EnemyManager.init` | `() → void` | Builds tile graph and spawn points from current level. |
-| `EnemyManager.spawnWave` | `(waveConfig: [{type, count}]) → void` | Places enemy units at spawn points per wave definition. |
-| `EnemyManager.executeTurn` | `() → void` | Enemy Phase: builds SharedThreatMap, then recomputes paths and advances all units. |
+| `EnemyManager.spawnWave` | `(waveConfig: [{type, count}]) → void` | Builds WorldKnowledgeMap from level tiles, then places enemy units at spawn points. |
+| `EnemyManager.executeTurn` | `(currentTurn: number) → void` | Enemy Phase: purge dead, sight pass, update LastSeenRegistry, build overlay, pathfind and advance all units. |
 | `EnemyManager.setCastleBreached` | `(value: boolean) → void` | Updates `castleBreached` flag; called by Resolve Phase. |
-| `EnemyManager.reset` | `() → void` | Clears all units, resets `castleBreached` to `false`. |
+| `EnemyManager.reset` | `() → void` | Clears all units, resets `castleBreached`, clears `LastSeenRegistry`. |
 | `EnemyManager.getEnemyUnits` | `() → EnemyUnit[]` | Returns active units for rendering. |
 | `EnemyManager.getEnemyUnitAt` | `(row, col) → EnemyUnit \| null` | Finds unit at a position. |
-| `EnemyManager.getSharedThreatMap` | `() → Map<string, number>` | Returns the SharedThreatMap built during the most recent `executeTurn` call. For debugging and testing. |
+| `EnemyManager.getSharedThreatMap` | `() → Map<string, number>` | Returns the DynamicCostOverlay built during the most recent `executeTurn`. |
+| `EnemyManager.getLastSeenRegistry` | `() → Map<string, {row,col,turn}>` | Returns current LastSeenRegistry. For debugging and testing. |
+| `EnemyManager.getWorldKnowledgeMap` | `() → Map<string, tile>` | Returns the static terrain WorldKnowledgeMap. For debugging and testing. |
 
 ---
 

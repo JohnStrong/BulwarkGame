@@ -32,7 +32,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [Enemy Goal / Playstyle](#enemy-goal--playstyle)
   - [How Enemies Navigate the Map](#how-enemies-navigate-the-map)
   - [Tile Movement Costs](#tile-movement-costs)
-  - [Shared Enemy Intelligence](#shared-enemy-intelligence)
+  - [Shared Enemy Intelligence and the Last-Seen Registry](#shared-enemy-intelligence-and-the-last-seen-registry)
   - [Enemy View Distance and Woodland Ambushes](#enemy-view-distance-and-woodland-ambushes)
   - [Tree Tiles — Passability and Ambush Potential](#tree-tiles--passability-and-ambush-potential)
   - [Unit-Specific Pathfinding Behaviors](#unit-specific-pathfinding-behaviors)
@@ -470,17 +470,18 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 
 ### How Enemies Navigate the Map
 
-Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn. The algorithm runs once per unit per turn, weighing terrain costs, unit type, and the positions of all player units on the map.
+Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn.
 
-Enemies operate in two distinct phases, separated by a single condition: whether the castle walls have been breached.
+**What enemies know from the start.** At the beginning of each wave, every enemy unit is given a **terrain briefing** — a static snapshot of the battlefield showing where the grass, roads, water, bridges, forests, and castle structures are. They know roughly where to go from the moment they spawn. This is the `WorldKnowledgeMap`, and it never changes during play. Crucially, it contains zero information about player deployments: no unit positions, no built defenses, no blocked bridges.
 
-**Phase 1 — Assault the perimeter.**
-From spawn, enemies can see the castle in the distance. They set their sights on the outer ring of passable tiles immediately adjacent to the castle walls, towers, and gatehouse. They do not yet know the layout inside — the keep is hidden behind the walls. All units converge on this perimeter ring, probing for the cheapest approach.
+**What enemies discover as they advance.** Player unit positions are unknown until an enemy gets close enough to see them (subject to the view distance rules below). The first enemy to spot a player unit reports it to the whole force — from that point every active enemy knows the last observed location of that unit and routes accordingly.
 
-**Phase 2 — Storm the keep.**
-Once the castle has been breached (a game-state flag flips to `true`), every active enemy immediately re-targets the keep tiles (the `K`, `j`, `J`, `F` tile cluster). The final objective is to destroy the keep. Until breach is triggered, the interior remains invisible to them — the castle walls serve as a genuine information barrier, not just a health pool.
+**Two-phase assault.** Enemies operate in two phases separated by the castle breach state.
 
-Each turn, A\* computes the lowest-cost path through the hex grid to the nearest reachable target tile. Crucially, **player units are no longer hard walls** — they carry a movement cost of `3`, making them expensive to move through but not impossible. If every uncontested route to the castle is more costly than fighting, enemies will choose to engage. Your unit placement creates genuine tactical pressure rather than an impenetrable blockade.
+- **Phase 1 — Assault the perimeter.** Enemies path toward the outer ring of passable tiles adjacent to the castle walls, towers, and gatehouse. The interior is not yet a target.
+- **Phase 2 — Storm the keep.** Once the castle is breached, every unit immediately retargets the keep tiles. Until then, the castle walls serve as a genuine information barrier — enemies know the castle is there but cannot route to the keep until they've broken through.
+
+Each turn, A\* uses the WorldKnowledgeMap as the base cost graph, then applies a **DynamicCostOverlay** layered on top — encoding everything the enemy force has observed. Player units they have spotted add a combat cost of `3` at their last known position. Water near those units adds cost `4` if visible to at least one enemy. Terrain with no observed threats uses its base cost.
 
 ---
 
@@ -518,18 +519,23 @@ walls / keep / rock          = ∞   ← never passable
 
 ---
 
-### Shared Enemy Intelligence
+### Shared Enemy Intelligence and the Last-Seen Registry
 
-Enemies act as a coordinated force. Before each turn begins, the **EnemyManager** pools the positions of every player unit on the map into a single shared cost map — but with a twist: it also factors in what the enemy units themselves can see.
+Enemies act as a coordinated force, but their collective intelligence is limited to what they have physically observed.
 
-**Every enemy unit has a directional view distance** (see the section below). When `buildSharedThreatMap` runs, it computes the union of all tiles visible to all active enemy units, then applies threat penalties only to tiles inside that combined view. A player archer hiding deep in the forest generates no water penalty on the far side of the trees if no enemy unit has line of sight to that water — enemies can't fear a threat they haven't spotted.
+**Terrain is pre-briefed.** Every enemy knows the static layout of the battlefield from the moment they spawn — where grass, roads, water, bridges, and forests are, and where the castle is. They use this to navigate purposefully from the start.
 
-What this means in practice:
-- If an archer guards bridge 1 and a knight guards bridge 2, every enemy knows about both blockades — as long as at least one enemy unit can see each bridge.
-- Water tiles within 3 hex steps of a player unit are penalised to cost `4` — but only if they're visible to at least one enemy.
-- The only tiles where the cost drops below the combat option (cost `3`) are uncontested open terrain (cost `1`) and open water outside the combined threat zone (cost `2`).
+**Player units must be spotted.** Enemy units have no advance knowledge of where the player's garrison is deployed. A bridge may look clear in their terrain briefing — they'll route toward it assuming it's passable. If an enemy gets close enough to see a player unit blocking the bridge, it reports that position to the entire enemy force. From that turn onward, every active enemy routes with that blockade in mind.
 
-Block both bridges, keep your units hidden in the trees, and enemies marching through open ground won't "see" your ambush — they'll just walk closer before your archers open fire.
+**Last-seen positions persist — but not forever.** If the player moves a unit out of the enemy's line of sight between turns, the enemy force remembers where it was *last seen*. They continue factoring that position into their cost calculations — they can't know it has moved. Only a fresh sighting updates their information. This makes repositioning defenders mid-battle genuinely useful: enemies may keep routing around a ghost for a turn or two before adjusting.
+
+However, stale intelligence expires. If a position hasn't been re-confirmed by any enemy sighting for **10 cost-turns** (roughly 10 real seconds at game speed), the registry entry is removed. Enemies stop treating that tile as dangerous and will risk routing through it again. A defending unit that successfully hides for 10 turns can re-emerge somewhere unexpected — or the player can exploit the intelligence gap to make a gap in enemy routing that the enemy eventually stops respecting.
+
+**Deaths clear the record.** If a player unit is killed, the enemy force immediately stops treating its last-known tile as dangerous. Dead units generate no lingering threat.
+
+**Threat-zone water.** Water tiles within 3 hex steps of a last-seen player unit position are penalised to cost `4` — but only if at least one enemy unit currently has line of sight to that water. Enemies behind a forest can't see across the tree line, so they won't penalise water they can't observe.
+
+In practical terms: block both bridges and the enemy column will route toward the water if they can't see why the bridges are expensive. The moment the lead unit crests a hill and spots your defenders, the whole force knows — and adjusts.
 
 ---
 
