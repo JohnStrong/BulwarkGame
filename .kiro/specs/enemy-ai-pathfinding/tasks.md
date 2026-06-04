@@ -125,7 +125,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 
 - [ ] 8. Implement `EnemyManager.executeTurn()` — sighting, registry, pathfinding and movement
   - [ ] 8.1 Implement the `executeTurn(currentTurn)` movement loop
-    - Purge dead player units from `_lastSeenRegistry` by cross-referencing `UnitManager.getPlacedUnits()`
+    - Safety fallback purge: call `_safetyPurgeDead(UnitManager.getPlacedUnits())` at the start of each turn (catches any deaths where `notifyUnitKilled` was not yet called)
     - Sight pass: for each EnemyUnit, compute `computeEnemyVisibleTiles` and call `_recordSighting` for any player unit in visible tiles
     - Call `PathfindingEngine.buildSharedThreatMap(_lastSeenRegistry, this._units, _worldKnowledgeMap)` ONCE per turn; store as `_sharedThreatMap`
     - Select `targetSet`: `computeCastlePerimeter` when `_castleBreached === false`, `computeKeepTileSet` when `true`
@@ -238,17 +238,20 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Called inside `spawnWave()` before units are placed
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-  - [ ] 16.2 Implement `_lastSeenRegistry`, `_recordSighting(playerUnit, currentTurn)`, `_purgeDead(placedUnits)`, and `_expireStale(currentTurn)`
-    - `_lastSeenRegistry`: `Map<string, { row, col, turn }>` — keyed by `unit.id ?? tileKey(unit.row, unit.col)`
-    - `_recordSighting`: upserts `{ row, col, turn }` for the given player unit; refreshes expiry clock for re-sightings
-    - `_purgeDead`: removes any registry entries whose key is not present in the alive-unit key set from `UnitManager.getPlacedUnits()`
+  - [ ] 16.2 Implement `_lastSeenRegistry`, `_stableKeyFor`, `_recordSighting`, `notifyUnitKilled`, `_safetyPurgeDead`, and `_expireStale`
+    - `_lastSeenRegistry`: `Map<stableUnitKey, { row, col, turn, health }>` — keyed by stable unit identity, NOT by position
+    - `_stableKeyFor`: resolves key priority: `unit.id` → `unit.def.name + ':' + index` → cached `unit-idx-N`; NEVER uses `tileKey(row, col)` as the key
+    - `_unitKeyCache`: `Map<unitIndex, stableKey>` — cached on first sighting; cleared on `reset()`
+    - `_recordSighting`: calls `Map.set(stableKey, { row, col, turn, health })` — overwrites existing entry in-place; does NOT create a second entry
+    - `notifyUnitKilled(killedUnit, unitIndex)`: derives stable key via `_stableKeyFor`; immediately deletes from `_lastSeenRegistry` and `_unitKeyCache`; designed to be called by Resolve Phase at point of death
+    - `_safetyPurgeDead(placedUnits)`: fallback sweep; cross-references registry against alive units; intended to be a no-op once `notifyUnitKilled` is wired; does NOT clean `_unitKeyCache`
     - `_expireStale(currentTurn)`: removes any entry where `currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS` (default `10`)
-    - Define `SIGHTING_EXPIRY_TURNS = 10` as a named constant — not a magic number
+    - Define `SIGHTING_EXPIRY_TURNS = 10` as a named constant
     - Expose `getLastSeenRegistry()` returning the Map directly for testing
-    - Clear `_lastSeenRegistry` inside `reset()`
-    - _Requirements: 13.1, 13.2, 13.4, 13.7, 13.8, 13.9, 13.11, 13.12, 13.13_
+    - Clear `_lastSeenRegistry` and `_unitKeyCache` inside `reset()`
+    - _Requirements: 13.1, 13.2, 13.4, 13.7, 13.7a, 13.8, 13.9, 13.11, 13.12, 13.13, 13.15_
 
-  - [ ]* 16.3 Write unit and property tests for `WorldKnowledgeMap`, `LastSeenRegistry`, and sighting expiry (Properties 22, 23, 24, 25, 26)
+  - [ ]* 16.3 Write unit and property tests for `WorldKnowledgeMap`, `LastSeenRegistry`, sighting expiry, and stable key upsert (Properties 22, 23, 24, 25, 26, 31)
     - **Property 22: WorldKnowledgeMap contains no player unit data**
     - **Validates: Requirements 12.2, 12.3**
     - **Property 23: Pathfinding ignores unseen player units**
@@ -259,16 +262,20 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Validates: Requirement 13.7**
     - **Property 26: LastSeenRegistry entries expire after SIGHTING_EXPIRY_TURNS**
     - **Validates: Requirements 13.11, 13.12, 13.13**
+    - **Property 31: Re-sighting a moved unit updates the existing entry, not creates a duplicate**
+    - **Validates: Requirements 13.2, 13.15**
     - Test: `findPath` routes through a player-unit tile at base terrain cost when no registry entry exists
     - Test: `findPath` applies cost 3 to that tile after a sighting is recorded
     - Test: after player unit is removed, cost 3 is no longer applied to its last-seen tile
     - Test: entry with `turn=0` is expired at `currentTurn=11`, not at `currentTurn=10`
     - Test: re-sighting a unit on the same turn it would expire resets the clock to current turn
+    - Test: player unit moves from tile A to tile B; re-sighted at B → registry has exactly 1 entry for that unit at B; no entry at A
+    - Test: two different player units sighted → registry has exactly 2 entries (not 1, not 3)
     - _File: `tests/enemy-manager.test.js`_
 
 - [ ] 17. Wire sight pass and LastSeenRegistry into `executeTurn` and validate integration
   - [ ] 17.1 Integrate sight pass, expiry, and LastSeenRegistry into `executeTurn(currentTurn)`
-    - Call `_purgeDead(UnitManager.getPlacedUnits())` at the start of each turn
+    - Call `_safetyPurgeDead(UnitManager.getPlacedUnits())` at the start of each turn (fallback; `notifyUnitKilled` handles deaths at point of death)
     - Call `_expireStale(currentTurn)` after purge, before sight pass
     - For each EnemyUnit, call `computeEnemyVisibleTiles` and cross-reference with `UnitManager.getPlacedUnits()` to find sightings
     - Call `_recordSighting` for each spotted player unit
@@ -278,7 +285,9 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
   - [ ]* 17.2 Write integration tests for the full sight→registry→expiry→overlay→pathfinding pipeline
     - Test: enemy on open terrain with player unit in sight → registry updated → overlay gets cost 3 → path routes around
     - Test: player unit moves out of sight → registry retains old position → overlay still shows cost 3 at last-seen tile
-    - Test: player unit killed → purge removes registry entry → overlay no longer penalises that tile
+    - Test: player unit killed → `notifyUnitKilled` called → registry entry removed immediately → overlay no longer penalises that tile on the same turn
+    - Test: player unit killed without calling `notifyUnitKilled` → `_safetyPurgeDead` removes entry at start of next `executeTurn`
+    - Test: `notifyUnitKilled` called with a unit not in the registry → no error thrown
     - Test: enemy in woodland (all directions capped at 1) → player unit 2 hex away → NOT sighted → registry NOT updated
     - Test: sighting recorded at turn 5 → not re-sighted → at turn 16 (`5 + 10 + 1`) entry is expired → overlay reverts to base cost
     - Test: sighting at turn 5, re-sighted at turn 14 → expiry clock resets to turn 14 → not expired until turn 25
@@ -362,7 +371,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP
-- All 30 correctness properties from the design are covered by property test sub-tasks
+- All 31 correctness properties from the design are covered by property test sub-tasks
 - Both new files follow the existing browser-global singleton pattern (no `module.exports`)
 - Test files use `node:test` + `fast-check@3.23.2` and inline re-implementations of pure logic (no DOM, no `fetch`), matching the pattern in existing `unit-manager.spec.js` and `utils.spec.js`
 - Run tests with: `node --test tests/pathfinding-engine.test.js tests/enemy-manager.test.js`

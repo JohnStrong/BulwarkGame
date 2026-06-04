@@ -218,27 +218,69 @@ The `LastSeenRegistry` is a `Map<string, { row, col, turn }>` maintained by Enem
 
 ```js
 // EnemyManager internal state
-_lastSeenRegistry: new Map(),  // Map<unitId, { row, col, turn }>
+_lastSeenRegistry: new Map(),  // Map<stableUnitKey, { row, col, turn }>
+_unitKeyCache:     new Map(),  // Map<UnitManager index, stableUnitKey> — cached on first sighting
 
 const SIGHTING_EXPIRY_TURNS = 10; // stale after 10 cost-turns ≈ 10 real seconds
 
-// Called when an enemy unit's visible tiles include a player unit
-_recordSighting(playerUnit, currentTurn) {
-    this._lastSeenRegistry.set(playerUnit.id ?? tileKey(playerUnit.row, playerUnit.col), {
-        row: playerUnit.row,
-        col: playerUnit.col,
-        turn: currentTurn,
+/**
+ * Derive a stable key for a player unit that does NOT depend on its current position.
+ * Priority: unit.id → unit.name+':'+unit.def.name → cached index-based key.
+ * The key must be identical across turns for the same unit regardless of where it has moved.
+ */
+_stableKeyFor(playerUnit, unitIndex) {
+    if (playerUnit.id)                        return String(playerUnit.id);
+    if (playerUnit.def && playerUnit.def.name) return `${playerUnit.def.name}:${unitIndex}`;
+    // Fallback: use the UnitManager placed-array index cached on first sighting
+    if (!this._unitKeyCache.has(unitIndex))
+        this._unitKeyCache.set(unitIndex, `unit-idx-${unitIndex}`);
+    return this._unitKeyCache.get(unitIndex);
+},
+
+/**
+ * Record or update a sighting. Always updates the SAME registry entry for the same unit.
+ * If the unit has moved since the last sighting, { row, col } is updated in place —
+ * no duplicate entry is created.
+ */
+_recordSighting(playerUnit, unitIndex, currentTurn) {
+    const key = this._stableKeyFor(playerUnit, unitIndex);
+    this._lastSeenRegistry.set(key, {
+        row:    playerUnit.row,
+        col:    playerUnit.col,
+        turn:   currentTurn,
+        health: playerUnit.currentHealth ?? playerUnit.def?.health ?? 0,
     });
 },
 
-// Called at the start of executeTurn() to remove dead player units
-_purgeDead(placedUnits) {
+/**
+ * Called by the Resolve Phase immediately when a player unit dies.
+ * Removes the unit's registry entry at the moment of death — the enemy
+ * force stops routing around this position on the very next pathfinding call.
+ */
+notifyUnitKilled(killedUnit, unitIndex) {
+    const key = this._stableKeyFor(killedUnit, unitIndex);
+    this._lastSeenRegistry.delete(key);
+    this._unitKeyCache.delete(unitIndex);
+},
+
+/**
+ * Safety-net fallback: cross-references all registry keys against the
+ * current placed-unit list and removes any orphaned entries.
+ * Runs at the start of each executeTurn() to catch deaths that occurred
+ * before notifyUnitKilled was wired up (e.g., during pre-combat development).
+ * Once the Resolve Phase reliably calls notifyUnitKilled, this sweep is a no-op.
+ */
+_safetyPurgeDead(placedUnits) {
     const aliveKeys = new Set(
-        placedUnits.map(u => u.id ?? tileKey(u.row, u.col))
+        placedUnits.map((u, i) => this._stableKeyFor(u, i))
     );
     for (const key of this._lastSeenRegistry.keys()) {
-        if (!aliveKeys.has(key)) this._lastSeenRegistry.delete(key);
+        if (!aliveKeys.has(key)) {
+            this._lastSeenRegistry.delete(key);
+        }
     }
+    // Note: _unitKeyCache entries for dead units will have already been cleared
+    // by notifyUnitKilled; this sweep does not need to clean the cache.
 },
 
 // Called at the start of executeTurn() to expire stale sightings
@@ -252,13 +294,14 @@ _expireStale(currentTurn) {
 ```
 
 **Key properties:**
+- The stable key never uses position (`tileKey`) — a unit moving from tile A to tile B always resolves to the same key, so the registry entry is updated in-place, not duplicated
 - A sighting by any one enemy unit is instantly known to all — shared via the registry
-- Refreshing a sighting (re-sighting the same unit) resets its expiry clock to the current turn
-- Moving a player unit out of sight does NOT clear the registry entry — the last-seen position persists for up to `SIGHTING_EXPIRY_TURNS` turns before expiring
-- Killing a player unit clears the entry immediately (at start of next `executeTurn`)
-- Stale entries (not re-sighted within 10 turns) are expired, allowing enemies to route through the last-known position again
-- The expiry purge and dead-unit purge are separate operations, both running at the start of `executeTurn`
-- The registry is cleared on `reset()`
+- Refreshing a sighting (re-sighting the same unit at a new position) updates `{ row, col, turn }` and resets the expiry clock — **the old position is overwritten, not retained alongside the new one**
+- Moving a player unit out of sight does NOT clear the registry entry — the last-seen position persists for up to `SIGHTING_EXPIRY_TURNS` turns
+- Killing a player unit triggers `notifyUnitKilled` at the point of death — the entry and cache entry are removed immediately, not deferred to the next turn
+- `_safetyPurgeDead` runs each `executeTurn` as a fallback; it is a no-op once `notifyUnitKilled` is reliably called for every death
+- Stale entries (not re-sighted within 10 turns) are expired by `_expireStale`, allowing enemies to route through the last-known position again
+- The registry and `_unitKeyCache` are both fully cleared on `reset()`
 
 ### EngagementZoneRegistry
 
@@ -804,8 +847,9 @@ const EnemyManager = {
 
 ```
 executeTurn(currentTurn)
-  1. Purge dead player units from LastSeenRegistry
-     (cross-reference _lastSeenRegistry against UnitManager.getPlacedUnits())
+  1. Safety fallback purge — remove any registry entries for player units no longer in
+     UnitManager.getPlacedUnits() (catches deaths not yet handled by notifyUnitKilled)
+     _safetyPurgeDead(UnitManager.getPlacedUnits())
 
   2. Expire stale sightings from LastSeenRegistry
      (remove any entry where currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS=10)
@@ -910,8 +954,9 @@ buildWorldKnowledgeMap()  →  Map<"row,col", tile>   ← STATIC — terrain onl
 
 Per-turn: EnemyManager.executeTurn(currentTurn)
         │
-        ├── 1. Purge dead units from LastSeenRegistry
-        │         UnitManager.getPlacedUnits() → alive player unit keys
+        ├── 1. Safety fallback purge (notifyUnitKilled handles deaths at point of death;
+        │         this sweep catches any that slipped through before that was wired up)
+        │         _safetyPurgeDead(UnitManager.getPlacedUnits())
         │
         ├── 2. Expire stale sightings from LastSeenRegistry
         │         remove entries where currentTurn - entry.turn > SIGHTING_EXPIRY_TURNS (10)
@@ -963,8 +1008,10 @@ Per-turn: EnemyManager.executeTurn(currentTurn)
 | Level has fewer than 2 spawn candidates | Use all available candidates |
 | Unknown tile character | `getMovementCost` returns `Infinity` (treat as wall) |
 | `dynamicCostOverlay` is `null` or `undefined` | `findPath` treats it as an empty Map |
-| Player unit ID not available | Fall back to `tileKey(row,col)` as registry key |
-| LastSeenRegistry entry for killed unit persists briefly | Purged at start of next `executeTurn` call |
+| Player unit has no `id` or `def.name` field | `_stableKeyFor` falls back to cached index-based key `unit-idx-N`; same unit always resolves to same key |
+| Player unit moves between sightings | `_recordSighting` overwrites `{ row, col, turn }` at the existing stable key — no duplicate entry created |
+| LastSeenRegistry entry for killed unit — `notifyUnitKilled` not yet called | `_safetyPurgeDead` catches it at start of next `executeTurn` |
+| `notifyUnitKilled` called with a unit not in the registry | No-op — `Map.delete` on a missing key is safe |
 | Sighting expires while unit is still alive | Entry removed; tile reverts to base terrain cost; enemies will route through if no new sighting |
 | Sighting expires and unit is re-sighted same turn | `_expireStale` runs before sight pass; re-sighting creates a fresh entry with current turn |
 | Zone probe A* finds no path (fully disconnected) | Zone cannot be avoided or engaged; strategy defaults to AVOID; overlay penalty still applied |
@@ -1237,6 +1284,14 @@ Because the source files are plain browser globals (no `module.exports`), the te
 
 ---
 
+### Property 31: Re-sighting a moved player unit updates the existing registry entry, not creates a duplicate
+
+*Given* a player unit with stable key `K` last sighted at position A, when the unit moves to position B and is re-sighted by any enemy unit on a subsequent turn, `_lastSeenRegistry` contains exactly one entry for key `K` with `{ row: B.row, col: B.col }`. No entry for key `K` at position A remains. The total number of entries in the registry does not increase due to a unit moving.
+
+**Validates: Requirements 13.2, 13.15**
+
+---
+
 ## Components and Interfaces
 
 ### `pathfinding-engine.js` — PathfindingEngine (browser global)
@@ -1259,7 +1314,8 @@ Because the source files are plain browser globals (no `module.exports`), the te
 |--------|-----------|-------------|
 | `EnemyManager.init` | `() → void` | Builds tile graph and spawn points from current level. |
 | `EnemyManager.spawnWave` | `(waveConfig: [{type, count}]) → void` | Builds WorldKnowledgeMap from level tiles, then places enemy units at spawn points. |
-| `EnemyManager.executeTurn` | `(currentTurn: number) → void` | Enemy Phase: purge dead, sight pass, update LastSeenRegistry, build overlay, pathfind and advance all units. |
+| `EnemyManager.executeTurn` | `(currentTurn: number) → void` | Enemy Phase: safety purge fallback, expire stale, sight pass, update registries, build overlay, pathfind and advance all units. |
+| `EnemyManager.notifyUnitKilled` | `(killedUnit, unitIndex: number) → void` | Called by Resolve Phase at moment of player unit death. Immediately removes the unit's registry entry and key cache entry. |
 | `EnemyManager.setCastleBreached` | `(value: boolean) → void` | Updates `castleBreached` flag; called by Resolve Phase. |
 | `EnemyManager.reset` | `() → void` | Clears all units, resets `castleBreached`, clears `LastSeenRegistry`. |
 | `EnemyManager.getEnemyUnits` | `() → EnemyUnit[]` | Returns active units for rendering. |
