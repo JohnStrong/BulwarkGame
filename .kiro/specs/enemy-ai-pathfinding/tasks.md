@@ -2,12 +2,12 @@
 
 ## Overview
 
-Implement the enemy AI pathfinding system as two new plain JavaScript files (`js/game-logic/pathfinding-engine.js` and `js/game-logic/enemy-manager.js`) loaded as browser globals, then wire them into the existing game loop via two `<script>` tags in `index.html` and one call to `EnemyManager.executeTurn()` in `game-iso.js`. No existing files require structural changes.
+Implement the enemy AI pathfinding system as two new plain JavaScript files (`js/game-logic/lib/ai/pathfinding-engine.js` and `js/game-logic/lib/ai/enemy-manager.js`) loaded as browser globals, then wire them into the existing game loop via two `<script>` tags in `index.html` and one call to `EnemyManager.executeTurn()` in `game-iso.js`. No existing files require structural changes.
 
 ## Tasks
 
-- [ ] 1. Create `js/game-logic/pathfinding-engine.js` — core data structures and helpers
-  - [ ] 1.1 Implement `resolveTileChar(tile)` and `getMovementCost(tileChar, unitType)`
+- [x] 1. Create `js/game-logic/lib/ai/pathfinding-engine.js` — core data structures and helpers
+  - [x] 1.1 Implement `resolveTileChar(tile)` and `getMovementCost(tileChar, unitType)`
     - Write the sprite-to-character mapping table derived from `LevelLoader.parseLevelText`
     - Handle the `overlay` field first (tree detection) before falling back to `sprite`
     - Implement `MOVEMENT_COST`, `TREE_CHARS`, `TREE_ELIGIBLE` constants and `getMovementCost`
@@ -20,16 +20,16 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 2: Tree tile cost depends on unit tree-eligibility**
     - **Validates: Requirements 1.5, 1.6**
     - Use `fast-check` arbitrary for tile char and unit type; assert costs match spec
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
   - [ ]* 1.3 Write property test for `resolveTileChar` (Property 13)
     - **Property 13: Sprite-to-character mapping is a total function over LevelLoader output**
     - **Validates: Requirements 7.2**
     - Generate arbitrary tile objects matching LevelLoader output shape; assert non-empty single char
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
-- [ ] 2. Implement hex topology helpers in `pathfinding-engine.js`
-  - [ ] 2.1 Implement `hexNeighbors(row, col)` and `hexDistance(r1, c1, r2, c2)`
+- [x] 2. Implement hex topology helpers in `pathfinding-engine.js`
+  - [x] 2.1 Implement `hexNeighbors(row, col)` and `hexDistance(r1, c1, r2, c2)`
     - Use odd-row-offset topology identical to `hexToPixel` in `utils.js`
     - Implement cube-coordinate conversion for `hexDistance` (admissible heuristic)
     - Expose both on `PathfindingEngine`
@@ -42,20 +42,20 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Validates: Requirements 2.4**
     - Generate random (row, col) within [0,32]×[0,39]; assert 6 unique neighbors
     - Generate random tile pairs; assert hexDistance ≤ actual path cost for unit with min-cost-1 steps
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
-- [ ] 3. Implement `buildTileGraph` and `MinHeap` in `pathfinding-engine.js`
-  - [ ] 3.1 Implement `buildTileGraph(tiles)` returning `Map<"row,col", tile>`
+- [x] 3. Implement `buildTileGraph` and `MinHeap` in `pathfinding-engine.js`
+  - [x] 3.1 Implement `buildTileGraph(tiles)` returning `Map<"row,col", tile>`
     - Expose on `PathfindingEngine`
     - _Requirements: 1.7, 7.1_
 
-  - [ ] 3.2 Implement `MinHeap` class (binary min-heap keyed on `f`)
+  - [x] 3.2 Implement `MinHeap` class (binary min-heap keyed on `f`)
     - Implement `push(item)` (sift-up) and `pop()` (sift-down) and `isEmpty()`
     - Keep self-contained inside `pathfinding-engine.js`
     - _Requirements: 2.1, 8.3_
 
-- [ ] 4. Implement A* `findPath` in `pathfinding-engine.js`
-  - [ ] 4.1 Implement `PathfindingEngine.findPath(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay)`
+- [x] 4. Implement A* `findPath` in `pathfinding-engine.js`
+  - [x] 4.1 Implement `PathfindingEngine.findPath(unitType, startRow, startCol, targetSet, tileGraph, dynamicCostOverlay)`
     - Use `MinHeap` for the open set, `Map` for gScore and parent
     - Compute heuristic as minimum `hexDistance` to any target tile
     - Skip tiles where base `getMovementCost === Infinity` (walls, rock, keep)
@@ -75,18 +75,18 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 12: Pathfinding is deterministic**
     - **Validates: Requirements 8.5**
     - Generate random grids; verify A* picks the lower-cost route when a combat tile (cost 3) and an open route (cost 1) both lead to the target
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
-- [ ] 5. Checkpoint — validate `pathfinding-engine.js` in isolation
+- [x] 5. Checkpoint — validate `pathfinding-engine.js` in isolation
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Create `js/game-logic/enemy-manager.js` — unit definitions and map analysis
-  - [ ] 6.1 Implement `UNIT_DEFS` and `EnemyUnit` factory in `enemy-manager.js`
+- [x] 6. Create `js/game-logic/lib/ai/enemy-manager.js` — unit definitions and map analysis
+  - [x] 6.1 Implement `UNIT_DEFS` and `EnemyUnit` factory in `enemy-manager.js`
     - Define `Infantry`, `Archer`, `Cavalry`, `SiegeEngine` with `movePts` and `health`
     - Write `createUnit(type, row, col, id)` returning a plain EnemyUnit object
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-  - [ ] 6.2 Implement `computeCastlePerimeter(tiles, tileGraph)` and `computeKeepTileSet(tiles)`
+  - [x] 6.2 Implement `computeCastlePerimeter(tiles, tileGraph)` and `computeKeepTileSet(tiles)`
     - Use `CASTLE_STRUCTURE_CHARS` and `KEEP_CHARS` sets from the design
     - Deduplicate perimeter results; use `getMovementCost` (Infantry as representative type) to filter passable neighbors
     - Expose helpers internally; used by `executeTurn`
@@ -96,9 +96,9 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 9: CastlePerimeter tiles are passable and adjacent to castle structure**
     - **Validates: Requirements 3.3**
     - Generate random level tile arrays; assert every perimeter tile is passable and has a castle-structure neighbor
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-  - [ ] 6.4 Implement `identifySpawnPoints(tiles, tileGraph)`
+  - [x] 6.4 Implement `identifySpawnPoints(tiles, tileGraph)`
     - Find the row furthest from the `F` tile by absolute row distance
     - Filter to Infantry-passable tiles on that row; select evenly spaced columns (min 2)
     - _Requirements: 4.1, 4.2_
@@ -107,7 +107,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 10: SpawnPoints are on the correct row**
     - **Validates: Requirements 4.1**
     - Generate level grids with F tile at varying rows; assert all spawn points share the furthest row
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 7. Implement `EnemyManager` spawn and state API in `enemy-manager.js`
   - [ ] 7.1 Implement `EnemyManager.init()`, `EnemyManager.reset()`, and `EnemyManager.setCastleBreached(value)`
@@ -144,14 +144,14 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Validates: Requirements 5.2, 5.4**
     - Construct minimal tile graphs with known perimeter/keep tiles; assert path terminations per phase
     - Assert unit row/col equals `path[0]` after move; assert `getEnemyUnitAt` lookups are consistent
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 9. Checkpoint — validate `enemy-manager.js` in isolation
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 10. Wire both files into the game and add integration test scaffolding
   - [ ] 10.1 Add `<script>` tags to `index.html` and the `executeTurn` call to `game-iso.js`
-    - Insert `<script src="js/game-logic/pathfinding-engine.js"></script>` and `<script src="js/game-logic/enemy-manager.js"></script>` after `unit-manager.js` in `index.html`
+    - Insert `<script src="js/game-logic/lib/ai/pathfinding-engine.js"></script>` and `<script src="js/game-logic/lib/ai/enemy-manager.js"></script>` after `unit-manager.js` in `index.html`
     - Add `EnemyManager.init()` call inside `Game.startLevel()` after `LevelLoader` is ready
     - Add `EnemyManager.reset()` call inside `Game.startLevel()` for level restarts
     - Add `EnemyManager.executeTurn()` call inside `Game.update()` during the Enemy Phase (after player input, before resolve)
@@ -161,7 +161,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test that `EnemyManager.getEnemyUnits()` is populated after `spawnWave`
     - Test that `EnemyManager.reset()` leaves `getEnemyUnits()` empty
     - Test that `setCastleBreached(true)` followed by `executeTurn()` targets KeepTileSet
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 11. Final checkpoint — full test suite passes
   - Ensure all tests pass, ask the user if questions arise.
@@ -200,7 +200,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 20: Unit on tree tile sees at most 6 immediate neighbors**
     - **Validates: Requirement 11.7**
     - Build minimal tile graphs with known tree positions; assert returned tile sets match expected sight cones
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
   - [ ]* 12.5 Write property tests for updated `buildSharedThreatMap` (Properties 15, 16, 21)
     - **Property 15 (updated): Threat-zone water costs 4 only when visible to enemies**
@@ -210,7 +210,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 21: Water penalty only on enemy-visible tiles**
     - **Validates: Requirements 11.5, 11.6**
     - Generate grids where player unit threat radius overlaps water both inside and outside enemy sight; assert only visible water gets cost 4
-    - _File: `tests/pathfinding-engine.test.js`_
+    - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
 - [ ] 13. Checkpoint — validate `computeEnemyVisibleTiles`, `buildSharedThreatMap`, and updated `findPath` in isolation
   - Ensure all tests pass, ask the user if questions arise.
@@ -225,7 +225,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Validates: Requirements 10.3, 10.5**
     - Spy on `PathfindingEngine.findPath` calls within one `executeTurn`; assert all receive the same overlay Map reference
     - Assert `getSharedThreatMap()` reflects the most recent turn's player unit positions
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 15. Final checkpoint — full test suite passes with all new overlay and threat-map tests
   - Ensure all tests pass, ask the user if questions arise.
@@ -271,7 +271,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: re-sighting a unit on the same turn it would expire resets the clock to current turn
     - Test: player unit moves from tile A to tile B; re-sighted at B → registry has exactly 1 entry for that unit at B; no entry at A
     - Test: two different player units sighted → registry has exactly 2 entries (not 1, not 3)
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 17. Wire sight pass and LastSeenRegistry into `executeTurn` and validate integration
   - [ ] 17.1 Integrate sight pass, expiry, and LastSeenRegistry into `executeTurn(currentTurn)`
@@ -291,7 +291,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: enemy in woodland (all directions capped at 1) → player unit 2 hex away → NOT sighted → registry NOT updated
     - Test: sighting recorded at turn 5 → not re-sighted → at turn 16 (`5 + 10 + 1`) entry is expired → overlay reverts to base cost
     - Test: sighting at turn 5, re-sighted at turn 14 → expiry clock resets to turn 14 → not expired until turn 25
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 18. Final checkpoint — full test suite passes including knowledge/sighting integration
   - Ensure all tests pass, ask the user if questions arise.
@@ -317,7 +317,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - **Property 27: EngagementZone cluster radius is respected**
     - **Validates: Requirement 15.2**
     - Generate random sighting pairs with known hex distances; assert same-zone vs separate-zone outcomes match ZONE_CLUSTER_RADIUS boundary
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 20. Implement zone strategy evaluation in `enemy-manager.js`
   - [ ] 20.1 Implement `_isZoneActive(zone, currentTurn)` helper
@@ -343,7 +343,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: dormant zone (last observed 15 turns ago) → no penalty in overlay
     - Test: zone with alternate clear route → AVOID strategy selected regardless of available HP
     - Test: three simultaneous ENGAGE-eligible zones → total committed HP stays below 40% of army HP
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 21. Wire zone system into `executeTurn` and update `buildSharedThreatMap`
   - [ ] 21.1 Update `executeTurn(currentTurn)` to call zone update and strategy evaluation
@@ -363,7 +363,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: zone with no alternative route + sufficient HP → ENGAGE strategy selected → strike force unit targets zone centre
     - Test: zone with no alternative route + insufficient HP → falls back to AVOID
     - Test: multiple ENGAGE zones competing for budget → cap enforced, later zones fall back to AVOID
-    - _File: `tests/enemy-manager.test.js`_
+    - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
 - [ ] 22. Final checkpoint — full test suite passes including zone strategy integration
   - Ensure all tests pass, ask the user if questions arise.
@@ -374,7 +374,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
 - All 31 correctness properties from the design are covered by property test sub-tasks
 - Both new files follow the existing browser-global singleton pattern (no `module.exports`)
 - Test files use `node:test` + `fast-check@3.23.2` and inline re-implementations of pure logic (no DOM, no `fetch`), matching the pattern in existing `unit-manager.spec.js` and `utils.spec.js`
-- Run tests with: `node --test tests/pathfinding-engine.test.js tests/enemy-manager.test.js`
+- Run tests with: `node --test tests/game-logic/lib/ai/pathfinding-engine.test.js tests/game-logic/lib/ai/enemy-manager.test.js`
 - Cavalry is classified as tree-eligible in `TREE_ELIGIBLE` but `UNIT_DEFS` shows `treeEligible: false` — the authoritative source is `TREE_ELIGIBLE` inside `pathfinding-engine.js` (see design note)
 - **Key behavioural change from original spec**: player-occupied tiles are no longer impassable (cost ∞). They carry a combat cost of `3` via the DynamicCostOverlay, allowing enemies to choose to fight when routing is costlier. The `findPath` signature changed from `getUnitAt` callback to `dynamicCostOverlay` Map — update any existing test stubs accordingly.
 - ThreatSightRadius is defined as 3 hex steps (BFS radius = 3), producing up to 18 surrounding tiles — matching the "immediate 18 pixels" intent expressed in hex-grid terms.
