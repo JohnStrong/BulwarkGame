@@ -553,21 +553,30 @@ const THREAT_WATER_COST = 4;
  * 2. Compute the union of tiles visible to all active enemy units.
  * 3. For each last-seen player unit, expand a 3-hex ring; any water tile
  *    in that ring that is also enemy-visible receives THREAT_WATER_COST (4).
+ * 4. Apply zone overlay penalties additively on top of existing costs.
+ *    Infinity base costs are never overridden (walls, keep, rock remain walls).
  *
  * The overlay never overrides Infinity base costs (walls, keep, rock remain walls).
  *
- * @param {Map}   lastSeenRegistry  - Map<stableKey, { row, col, turn, health }>
- * @param {Array} activeEnemyUnits  - Array of enemy unit objects with { row, col }
- * @param {Map}   tileGraph         - Map<"row,col", tile>
+ * @param {Map}        lastSeenRegistry      - Map<stableKey, { row, col, turn, health }>
+ * @param {Array}      activeEnemyUnits      - Array of enemy unit objects with { row, col }
+ * @param {Map}        tileGraph             - Map<"row,col", tile>
+ * @param {Map|null}   [zoneOverlayPenalties] - Optional Map<tileKey, number> of additive
+ *                                              zone avoidance penalties from
+ *                                              _evaluateZoneStrategies. When provided,
+ *                                              each penalty is added on top of the
+ *                                              existing cost (steps 1–3). Tiles with
+ *                                              Infinity base costs are never modified.
  * @returns {Map<string, number>} Overlay map.
  */
-function buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph) {
+function buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph, zoneOverlayPenalties) {
     const overlay = new Map();
 
     const registry = lastSeenRegistry || new Map();
     const enemies = activeEnemyUnits || [];
+    const zonePenalties = zoneOverlayPenalties || new Map();
 
-    if (registry.size === 0 && enemies.length === 0) return overlay;
+    if (registry.size === 0 && enemies.length === 0 && zonePenalties.size === 0) return overlay;
 
     // Step 1: last-seen player unit positions → combat cost 3
     for (const entry of registry.values()) {
@@ -595,6 +604,20 @@ function buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph) {
                 }
             }
         }
+    }
+
+    // Step 4: zone avoidance penalties — additive on top of steps 1–3 costs.
+    // Never override Infinity base costs (walls, keep, rock remain impassable).
+    for (const [key, penalty] of zonePenalties) {
+        // Check the base terrain cost to ensure we never modify Infinity tiles
+        const tile = tileGraph.get(key);
+        if (tile) {
+            const tChar = resolveTileChar(tile);
+            const baseCost = getMovementCost(tChar, 'Infantry'); // Infantry = most restrictive non-tree
+            if (baseCost === Infinity) continue; // impassable terrain — never override
+        }
+        const existingCost = overlay.get(key) ?? 0;
+        overlay.set(key, existingCost + penalty);
     }
 
     return overlay;

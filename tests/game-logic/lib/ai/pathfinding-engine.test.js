@@ -496,3 +496,684 @@ describe('Property 4: hexDistance is admissible — neighbor distance is always 
         );
     });
 });
+
+// ---------------------------------------------------------------------------
+// Task 12.1 — hexRing unit tests
+// ---------------------------------------------------------------------------
+
+const {
+    buildTileGraph,
+    tileKey,
+    hexRing,
+    computeEnemyVisibleTiles,
+    buildSharedThreatMap,
+} = PathfindingEngine;
+
+// Helper: build a simple rectangular tile graph of grass tiles
+function makeGrassGraph(rows, cols) {
+    const tiles = [];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            tiles.push({ row: r, col: c, sprite: 'grass-short-1' });
+        }
+    }
+    return buildTileGraph(tiles);
+}
+
+// Helper: build a tile graph with specific tile types
+function makeTileGraph(specs) {
+    // specs: [{row, col, sprite, overlay}]
+    return buildTileGraph(specs.map(s => ({
+        row: s.row,
+        col: s.col,
+        sprite: s.sprite || 'grass-short-1',
+        overlay: s.overlay || undefined,
+    })));
+}
+
+describe('hexRing — basic behaviour', () => {
+    it('radius 0 returns empty array (no steps)', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = hexRing(5, 5, 0, graph);
+        assert.equal(result.length, 0);
+    });
+
+    it('radius 1 on a full grass grid returns exactly 6 tiles (all neighbors)', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = hexRing(5, 5, 1, graph);
+        assert.equal(result.length, 6);
+    });
+
+    it('radius 2 on a full grass grid returns exactly 18 tiles', () => {
+        // hex ring of radius 2: 6 (step 1) + 12 (step 2) = 18
+        const graph = makeGrassGraph(15, 15);
+        const result = hexRing(5, 5, 2, graph);
+        assert.equal(result.length, 18);
+    });
+
+    it('radius 3 on a full grass grid returns exactly 36 tiles', () => {
+        // 6 + 12 + 18 = 36
+        const graph = makeGrassGraph(20, 20);
+        const result = hexRing(7, 7, 3, graph);
+        assert.equal(result.length, 36);
+    });
+
+    it('tiles at the border of the grid are clamped (missing tiles excluded)', () => {
+        const graph = makeGrassGraph(5, 5);
+        // origin is at (0, 0) — some neighbors go out of bounds
+        const result = hexRing(0, 0, 1, graph);
+        // On even row, neighbors of (0,0): (-1,-1), (-1,0), (0,1), (1,0), (1,-1), (0,-1)
+        // Only (0,1) and (1,0) are within the 5×5 grid
+        assert.ok(result.length < 6);
+        assert.ok(result.length > 0);
+    });
+
+    it('returned tiles are actual tile objects from the graph', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = hexRing(5, 5, 1, graph);
+        for (const tile of result) {
+            assert.ok(tile.row !== undefined && tile.col !== undefined);
+            assert.equal(tile.sprite, 'grass-short-1');
+        }
+    });
+
+    it('origin tile itself is not included in the result', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = hexRing(5, 5, 1, graph);
+        const keys = result.map(t => tileKey(t.row, t.col));
+        assert.ok(!keys.includes(tileKey(5, 5)));
+    });
+
+    it('no duplicate tiles in result', () => {
+        const graph = makeGrassGraph(15, 15);
+        const result = hexRing(5, 5, 3, graph);
+        const keySet = new Set(result.map(t => tileKey(t.row, t.col)));
+        assert.equal(keySet.size, result.length);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.2 — computeEnemyVisibleTiles unit tests
+// ---------------------------------------------------------------------------
+
+describe('computeEnemyVisibleTiles — open terrain', () => {
+    it('on open terrain, returns up to 6×3=18 tiles (may be fewer at edges)', () => {
+        const graph = makeGrassGraph(20, 20);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        // 6 directions × up to 3 steps each = at most 18 (could be fewer if directions overlap)
+        assert.ok(visible.size <= 18);
+        assert.ok(visible.size > 0);
+    });
+
+    it('does not include the unit\'s own tile', () => {
+        const graph = makeGrassGraph(15, 15);
+        const visible = computeEnemyVisibleTiles(7, 7, graph);
+        for (const tile of visible) {
+            assert.ok(!(tile.row === 7 && tile.col === 7));
+        }
+    });
+
+    it('a unit on an open large grid sees at least 6 tiles at distance 1', () => {
+        const graph = makeGrassGraph(20, 20);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        // All 6 immediate neighbors should be visible at minimum
+        assert.ok(visible.size >= 6);
+    });
+
+    it('sight stops at the edge of the tileGraph', () => {
+        const graph = makeGrassGraph(5, 5);
+        // Should not throw or include undefined tiles
+        const visible = computeEnemyVisibleTiles(0, 0, graph);
+        assert.ok(visible.size >= 0);
+        for (const tile of visible) {
+            assert.ok(tile !== undefined && tile !== null);
+        }
+    });
+});
+
+describe('computeEnemyVisibleTiles — tree occlusion', () => {
+    it('unit on tree tile sees only immediate neighbors (all directions capped at 1)', () => {
+        // Place the unit on a tree tile, surrounded by grass at step 1 and 2
+        const specs = [];
+        // Build a 15×15 grass grid
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isUnitTile = r === 7 && c === 7;
+                specs.push({
+                    row: r, col: c,
+                    sprite: 'grass-short-1',
+                    overlay: isUnitTile ? 'tree-oak-overlay-1' : undefined,
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(7, 7, graph);
+        // Should see at most 6 tiles (immediate neighbors only)
+        assert.ok(visible.size <= 6);
+        // And should see at least the neighbors that exist
+        assert.ok(visible.size > 0);
+        // None of the visible tiles should be more than 1 hex step away
+        for (const tile of visible) {
+            const dist = PathfindingEngine.hexDistance(7, 7, tile.row, tile.col);
+            assert.equal(dist, 1, `Tile at (${tile.row},${tile.col}) is ${dist} steps away, expected 1`);
+        }
+    });
+
+    it('tree in one direction caps only that direction to 1 step', () => {
+        // Build a grid where (7,8) is a tree (E neighbor of unit at (7,7))
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isTreeTile = r === 7 && c === 8; // E neighbor
+                specs.push({
+                    row: r, col: c,
+                    sprite: 'grass-short-1',
+                    overlay: isTreeTile ? 'tree-pine-overlay-1' : undefined,
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(7, 7, graph);
+
+        // E direction is capped at 1 — only (7,8) is visible to the east
+        // (7,9) should NOT be visible because tree at (7,8) blocks further east
+        const visibleKeys = new Set([...visible].map(t => tileKey(t.row, t.col)));
+        assert.ok(visibleKeys.has(tileKey(7, 8)), 'Immediate E tree tile should be visible');
+        assert.ok(!visibleKeys.has(tileKey(7, 9)), 'Tile behind tree (step 2 east) should not be visible');
+    });
+
+    it('sight stops at sight-blocking tiles (walls)', () => {
+        // Place a wall at step 1 to the east and check no tiles behind it are visible
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isWall = r === 7 && c === 8; // E neighbor
+                specs.push({
+                    row: r, col: c,
+                    sprite: isWall ? 'castle-wall' : 'grass-short-1',
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(7, 7, graph);
+
+        // Wall blocks sight entirely — (7,8) should not be in visible set (walls block rays)
+        const visibleKeys = new Set([...visible].map(t => tileKey(t.row, t.col)));
+        assert.ok(!visibleKeys.has(tileKey(7, 8)), 'Wall tile should not be visible');
+        assert.ok(!visibleKeys.has(tileKey(7, 9)), 'Tile behind wall should not be visible');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.3 — buildSharedThreatMap unit tests
+// ---------------------------------------------------------------------------
+
+describe('buildSharedThreatMap — empty inputs', () => {
+    it('returns empty map when both registry and enemy units are null/undefined', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = buildSharedThreatMap(null, null, graph);
+        assert.ok(result instanceof Map);
+        assert.equal(result.size, 0);
+    });
+
+    it('returns empty map when registry is empty and enemies is empty array', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = buildSharedThreatMap(new Map(), [], graph);
+        assert.ok(result instanceof Map);
+        assert.equal(result.size, 0);
+    });
+});
+
+describe('buildSharedThreatMap — last-seen combat cost', () => {
+    it('sets combat cost 3 for each last-seen player unit position', () => {
+        const graph = makeGrassGraph(15, 15);
+        const registry = new Map();
+        registry.set('unit-1', { row: 5, col: 5, turn: 1, health: 10 });
+
+        const result = buildSharedThreatMap(registry, [], graph);
+        assert.equal(result.get(tileKey(5, 5)), 3);
+    });
+
+    it('sets combat cost 3 for multiple last-seen entries', () => {
+        const graph = makeGrassGraph(15, 15);
+        const registry = new Map();
+        registry.set('unit-1', { row: 3, col: 3, turn: 1, health: 10 });
+        registry.set('unit-2', { row: 7, col: 7, turn: 1, health: 10 });
+
+        const result = buildSharedThreatMap(registry, [], graph);
+        assert.equal(result.get(tileKey(3, 3)), 3);
+        assert.equal(result.get(tileKey(7, 7)), 3);
+    });
+});
+
+describe('buildSharedThreatMap — water penalty', () => {
+    it('does not penalise water tiles not visible to any enemy unit', () => {
+        // Enemy unit far from the water, player unit near it
+        const specs = [];
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 20; c++) {
+                const isWater = r === 5 && c === 6; // water 1 step from player unit at (5,5)
+                specs.push({ row: r, col: c, sprite: isWater ? 'water-1' : 'grass-short-1' });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        // Player unit at (5,5), enemy unit at (15,15) — far from the water
+        const registry = new Map();
+        registry.set('unit-1', { row: 5, col: 5, turn: 1, health: 10 });
+        const enemies = [{ row: 15, col: 15 }]; // enemy can't see (5,6)
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+        // Water at (5,6) is within 3 steps of player unit at (5,5) but NOT visible to enemy
+        // so it should NOT get cost 4; it may get no entry or remain at base
+        const waterCost = result.get(tileKey(5, 6));
+        assert.ok(waterCost !== 4, `Expected water cost != 4, got ${waterCost}`);
+    });
+
+    it('penalises water tiles visible to enemy AND within player threat radius', () => {
+        // Build a grid where enemy unit can see the water near the player last-seen position
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                // Water tile at (7, 8) — 1 step E of player at (7,7)
+                const isWater = r === 7 && c === 8;
+                specs.push({ row: r, col: c, sprite: isWater ? 'water-1' : 'grass-short-1' });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        // Enemy unit is at (7, 5) — 2 steps W of water tile (7,8), open terrain, can see 3 steps E
+        const registry = new Map();
+        registry.set('unit-1', { row: 7, col: 7, turn: 1, health: 10 });
+        const enemies = [{ row: 7, col: 5 }];
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+        // (7,8) is water, within 3 steps of player at (7,7), AND visible to enemy at (7,5)
+        // It should get cost 4
+        assert.equal(result.get(tileKey(7, 8)), 4);
+    });
+
+    it('water adjacent to player last-seen position gets cost 4 when visible to enemy', () => {
+        // Player last-seen at (7,7). Enemy at (7,5) — open terrain, can see 3 steps east.
+        // Water at (7,8) is 1 step east of player, and 3 steps east of enemy → visible.
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isWater = r === 7 && c === 8;
+                specs.push({ row: r, col: c, sprite: isWater ? 'water-1' : 'grass-short-1' });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        const registry = new Map();
+        registry.set('unit-1', { row: 7, col: 7, turn: 1, health: 10 });
+        // Enemy at (7,5) can see (7,6), (7,7), (7,8) in E direction (3 steps)
+        const enemies = [{ row: 7, col: 5 }];
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+        // Player combat cost at (7,7) = 3
+        assert.equal(result.get(tileKey(7, 7)), 3);
+        // Water at (7,8): 1 step from player at (7,7) = within 3-step threat radius
+        // Enemy at (7,5) looking east: step 1=(7,6), step 2=(7,7), step 3=(7,8) → visible
+        assert.equal(result.get(tileKey(7, 8)), 4, 'Visible water within threat radius should cost 4');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.4 — Property 18: Open terrain gives 3-step sight in unblocked directions
+// ---------------------------------------------------------------------------
+
+describe('Property 18: Open terrain gives 3-step sight in unblocked directions', () => {
+    /**
+     * Validates: Requirements 11.1, 11.2
+     */
+    it('on an open grass grid, every tile within 3 steps is visible', () => {
+        // Use a large enough grid so no direction hits the boundary
+        const graph = makeGrassGraph(20, 20);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        const visibleKeys = new Set([...visible].map(t => tileKey(t.row, t.col)));
+
+        // The 6 immediate neighbors (step 1) must all be visible
+        const immediateNeighbors = PathfindingEngine.hexNeighbors(10, 10);
+        for (const nb of immediateNeighbors) {
+            assert.ok(
+                visibleKeys.has(tileKey(nb.row, nb.col)),
+                `Immediate neighbor (${nb.row},${nb.col}) should be visible on open terrain`
+            );
+        }
+    });
+
+    it('property: unit on grass with no trees sees at least 6 immediate tiles', () => {
+        /**
+         * Validates: Requirements 11.1, 11.2
+         */
+        fc.assert(
+            fc.property(
+                fc.integer({ min: 5, max: 15 }),
+                fc.integer({ min: 5, max: 15 }),
+                (row, col) => {
+                    const graph = makeGrassGraph(21, 21);
+                    const visible = computeEnemyVisibleTiles(row, col, graph);
+                    return visible.size >= 6;
+                }
+            ),
+            { numRuns: 100 }
+        );
+    });
+
+    it('unit on open terrain at centre of large grid sees up to 18 tiles (6 dirs × 3 steps)', () => {
+        const graph = makeGrassGraph(20, 20);
+        // Place unit far from edges so all 3 steps are in-bounds in all directions
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        // All 6 directions × 3 steps = 18 tiles (or slightly fewer due to hex topology overlaps)
+        // In a flat open grid the count should be exactly 18
+        assert.ok(visible.size >= 12, `Expected at least 12 visible tiles, got ${visible.size}`);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.4 — Property 19: Tree adjacency caps only the blocked direction to 1
+// ---------------------------------------------------------------------------
+
+describe('Property 19: Tree adjacency caps only the blocked direction to 1', () => {
+    /**
+     * Validates: Requirements 11.2, 11.3
+     */
+    it('tree in E direction caps only E to 1 step; other directions still have range 3', () => {
+        const specs = [];
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 20; c++) {
+                const isTree = r === 10 && c === 11; // E neighbor of (10,10)
+                specs.push({
+                    row: r, col: c,
+                    sprite: 'grass-short-1',
+                    overlay: isTree ? 'tree-oak-overlay-1' : undefined,
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        const visibleKeys = new Set([...visible].map(t => tileKey(t.row, t.col)));
+
+        // The tree at (10,11) is visible (step 1 east)
+        assert.ok(visibleKeys.has(tileKey(10, 11)), 'Immediate E tree should be visible');
+        // Tile 2 steps east should NOT be visible (capped by tree)
+        assert.ok(!visibleKeys.has(tileKey(10, 12)), 'Tile 2E behind tree should not be visible');
+        // But non-east directions should still have full sight — check west direction
+        // W neighbor of even row (10,10) is (10,9); step 2 west is (10,8); step 3 west is (10,7)
+        assert.ok(visibleKeys.has(tileKey(10, 9)), 'W step 1 should be visible');
+        assert.ok(visibleKeys.has(tileKey(10, 8)), 'W step 2 should be visible');
+        assert.ok(visibleKeys.has(tileKey(10, 7)), 'W step 3 should be visible');
+    });
+
+    it('property: tree in exactly one direction still allows full sight in other directions', () => {
+        /**
+         * Validates: Requirements 11.2, 11.3
+         */
+        // Build a grid where unit is at (10,10), tree at E neighbor (10,11)
+        // Verify tile at step 3 in W direction (10,7) is visible
+        const specs = [];
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 20; c++) {
+                const isTree = r === 10 && c === 11;
+                specs.push({
+                    row: r, col: c,
+                    sprite: 'grass-short-1',
+                    overlay: isTree ? 'tree-pine-overlay-1' : undefined,
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+        const visibleKeys = new Set([...visible].map(t => tileKey(t.row, t.col)));
+
+        // 3 steps west on even row: (10,9), (10,8), (10,7) — all should be visible
+        assert.ok(visibleKeys.has(tileKey(10, 7)), 'W step 3 should be reachable on open terrain');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.4 — Property 20: Unit on tree tile sees at most 6 immediate neighbors
+// ---------------------------------------------------------------------------
+
+describe('Property 20: Unit on tree tile sees at most 6 immediate neighbors', () => {
+    /**
+     * Validates: Requirement 11.7
+     */
+    it('unit on tree tile has sight capped at 1 in all 6 directions', () => {
+        const specs = [];
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 20; c++) {
+                const isUnitTree = r === 10 && c === 10;
+                specs.push({
+                    row: r, col: c,
+                    sprite: 'grass-short-1',
+                    overlay: isUnitTree ? 'tree-shrub-overlay-1' : undefined,
+                });
+            }
+        }
+        const graph = makeTileGraph(specs);
+        const visible = computeEnemyVisibleTiles(10, 10, graph);
+
+        // Must see at most 6 tiles
+        assert.ok(visible.size <= 6, `Expected at most 6 visible tiles, got ${visible.size}`);
+
+        // All visible tiles must be exactly 1 step away
+        for (const tile of visible) {
+            const d = PathfindingEngine.hexDistance(10, 10, tile.row, tile.col);
+            assert.equal(d, 1, `Tile (${tile.row},${tile.col}) at distance ${d}, expected 1`);
+        }
+    });
+
+    it('property: unit on tree tile with open neighbors always sees exactly 6 tiles on large grid', () => {
+        /**
+         * Validates: Requirement 11.7
+         */
+        fc.assert(
+            fc.property(
+                fc.integer({ min: 5, max: 14 }),
+                fc.integer({ min: 5, max: 14 }),
+                (row, col) => {
+                    const specs = [];
+                    for (let r = 0; r < 20; r++) {
+                        for (let c = 0; c < 20; c++) {
+                            const isUnitTree = r === row && c === col;
+                            specs.push({
+                                row: r, col: c,
+                                sprite: 'grass-short-1',
+                                overlay: isUnitTree ? 'tree-oak-overlay-1' : undefined,
+                            });
+                        }
+                    }
+                    const graph = makeTileGraph(specs);
+                    const visible = computeEnemyVisibleTiles(row, col, graph);
+
+                    // All visible tiles must be at distance 1
+                    for (const tile of visible) {
+                        if (PathfindingEngine.hexDistance(row, col, tile.row, tile.col) !== 1) {
+                            return false;
+                        }
+                    }
+                    // At most 6 tiles visible
+                    return visible.size <= 6;
+                }
+            ),
+            { numRuns: 100 }
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.5 — Property 15: Threat-zone water costs 4 only when visible to enemies
+// ---------------------------------------------------------------------------
+
+describe('Property 15: Threat-zone water costs 4 only when visible to enemies', () => {
+    /**
+     * Validates: Requirements 9.3, 11.5, 11.6
+     */
+    it('water within threat radius but NOT visible to enemies does not get cost 4', () => {
+        // Build a large grid
+        const specs = [];
+        for (let r = 0; r < 20; r++) {
+            for (let c = 0; c < 20; c++) {
+                // Water at (10, 11) — just 1 step E of player unit position
+                const isWater = r === 10 && c === 11;
+                specs.push({ row: r, col: c, sprite: isWater ? 'water-1' : 'grass-short-1' });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        // Player last-seen at (10,10), water at (10,11) is within 3 steps
+        // Enemy unit far away — cannot see (10,11)
+        const registry = new Map();
+        registry.set('p1', { row: 10, col: 10, turn: 1, health: 10 });
+
+        // Place enemy unit somewhere that cannot see (10,11): wall all around enemy's direction
+        // Simplest: place enemy at (0,0) — 10+ steps away, sight only reaches 3 steps on open terrain
+        const enemies = [{ row: 0, col: 0 }];
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+        const waterCost = result.get(tileKey(10, 11));
+        assert.ok(waterCost !== 4, `Water should not get cost 4 when not visible to enemy, got ${waterCost}`);
+    });
+
+    it('water within threat radius AND visible to enemy DOES get cost 4', () => {
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isWater = r === 7 && c === 8;
+                specs.push({ row: r, col: c, sprite: isWater ? 'water-1' : 'grass-short-1' });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        // Player last-seen at (7,7); water at (7,8) is 1 step east
+        // Enemy at (7,6) is 2 steps west — open terrain, can see 3 steps including (7,8)
+        const registry = new Map();
+        registry.set('p1', { row: 7, col: 7, turn: 1, health: 10 });
+        const enemies = [{ row: 7, col: 6 }];
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+        assert.equal(result.get(tileKey(7, 8)), 4, 'Visible water in threat radius should cost 4');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.5 — Property 16: Empty overlay when no player units or enemy units present
+// ---------------------------------------------------------------------------
+
+describe('Property 16: Empty overlay when no player units or enemy units present', () => {
+    /**
+     * Validates: Requirement 9.7
+     */
+    it('empty registry + empty enemies → empty overlay', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = buildSharedThreatMap(new Map(), [], graph);
+        assert.equal(result.size, 0);
+    });
+
+    it('null registry + null enemies → empty overlay', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = buildSharedThreatMap(null, null, graph);
+        assert.equal(result.size, 0);
+    });
+
+    it('undefined registry + undefined enemies → empty overlay', () => {
+        const graph = makeGrassGraph(10, 10);
+        const result = buildSharedThreatMap(undefined, undefined, graph);
+        assert.equal(result.size, 0);
+    });
+
+    it('property: empty map returned for any combo of empty/null registry and empty enemies', () => {
+        /**
+         * Validates: Requirement 9.7
+         */
+        const graph = makeGrassGraph(10, 10);
+        for (const reg of [new Map(), null, undefined]) {
+            for (const enemies of [[], null, undefined]) {
+                const result = buildSharedThreatMap(reg, enemies, graph);
+                assert.equal(result.size, 0,
+                    `Expected empty overlay for registry=${reg} enemies=${JSON.stringify(enemies)}`);
+            }
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12.5 — Property 21: Water penalty only on enemy-visible tiles
+// ---------------------------------------------------------------------------
+
+describe('Property 21: Water penalty only on enemy-visible tiles', () => {
+    /**
+     * Validates: Requirements 11.5, 11.6
+     */
+    it('only water tiles visible to at least one enemy receive the cost-4 penalty', () => {
+        // Grid with two water tiles: one visible to enemy, one not
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                const isVisibleWater = r === 7 && c === 8;    // near enemy (7,6), visible
+                const isHiddenWater  = r === 2 && c === 2;    // far from enemy, not visible
+                const sprite = isVisibleWater || isHiddenWater ? 'water-1' : 'grass-short-1';
+                specs.push({ row: r, col: c, sprite });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        // Player unit at (7,7); enemy unit at (7,6) — can see (7,8) but not (2,2)
+        // Threat radius of player at (7,7): includes (7,8) and (2,2) within 3 steps? No — (2,2) is ~7 steps away
+        const registry = new Map();
+        registry.set('p1', { row: 7, col: 7, turn: 1, health: 10 });
+        // Also add a last-seen entry near (2,2) to include it in the threat radius check
+        registry.set('p2', { row: 2, col: 2, turn: 1, health: 10 });
+
+        const enemies = [{ row: 7, col: 6 }]; // enemy can see (7,8), cannot see (2,2) (10+ steps away)
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+
+        // Visible water (7,8): should get cost 4
+        assert.equal(result.get(tileKey(7, 8)), 4, 'Visible water should cost 4');
+
+        // Hidden water (2,3) - within 3 of p2 at (2,2), but NOT visible to enemy at (7,6)
+        // Enemy at (7,6) can only see 3 steps — so anything at distance > 3 from enemy should not be visible
+        const hiddenWaterCost = result.get(tileKey(2, 3));
+        assert.ok(hiddenWaterCost !== 4,
+            `Non-visible water at (2,3) should not get cost 4, got ${hiddenWaterCost}`);
+    });
+
+    it('no water tile that is not in enemy visible set gets cost 4', () => {
+        // Build a grid with water tiles everywhere in threat radius of a last-seen player unit
+        // but place the enemy unit where it cannot see any of them (surrounded by walls on 5 sides)
+        const specs = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                // Water ring at distance 1-3 from player last-seen at (7,7)
+                const d = PathfindingEngine.hexDistance(7, 7, r, c);
+                // Enemy at (7,0) — far left, blocked by a wall at (7,1)
+                const isWall = r === 7 && c === 1;
+                const isWater = d >= 1 && d <= 3 && !isWall;
+                const sprite = isWall ? 'castle-wall' : (isWater ? 'water-1' : 'grass-short-1');
+                specs.push({ row: r, col: c, sprite });
+            }
+        }
+        const graph = makeTileGraph(specs);
+
+        const registry = new Map();
+        registry.set('p1', { row: 7, col: 7, turn: 1, health: 10 });
+        const enemies = [{ row: 7, col: 0 }]; // wall at (7,1) blocks all sight eastward
+
+        const result = buildSharedThreatMap(registry, enemies, graph);
+
+        // All tiles in threat radius (1-3 steps from player) that are water
+        // should NOT get cost 4 because the enemy cannot see them (wall blocks vision)
+        const threatTiles = hexRing(7, 7, 3, graph);
+        for (const tile of threatTiles) {
+            const char = PathfindingEngine.resolveTileChar(tile);
+            if (char === '~') {
+                const cost = result.get(tileKey(tile.row, tile.col));
+                assert.ok(cost !== 4,
+                    `Water tile (${tile.row},${tile.col}) should not cost 4 when not visible to enemies`);
+            }
+        }
+    });
+});

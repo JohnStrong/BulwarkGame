@@ -83,10 +83,24 @@ const Game = {
     },
 
     startLevel() {
+        // Reset enemy state for level restart before loading new level data.
+        try {
+            EnemyManager.reset();
+        } catch (e) {
+            console.warn('[Game] EnemyManager.reset() failed:', e);
+        }
+
         const level = LevelLoader.getCurrentLevel();
         IsoCamera.setMapSize(level.width, level.height);
         IsoCamera.elevation = level.elevation || {};
         this.centerOnFlag();
+
+        // Initialise enemy AI after level data is ready.
+        try {
+            EnemyManager.init();
+        } catch (e) {
+            console.warn('[Game] EnemyManager.init() failed:', e);
+        }
     },
 
     centerOnFlag() {
@@ -174,6 +188,9 @@ const Game = {
         requestAnimationFrame(() => this.loop());
     },
 
+    // Turn counter for enemy AI (incremented each game loop update)
+    _turnCounter: 0,
+
     update() {
         // Camera scroll from held keys
         const { dx, dy } = IsoInput.getScrollDir();
@@ -192,6 +209,14 @@ const Game = {
         const hudSpeed = 12;
         if (this.hudWidth < this.hudTargetWidth) this.hudWidth = Math.min(this.hudTargetWidth, this.hudWidth + hudSpeed);
         else if (this.hudWidth > this.hudTargetWidth) this.hudWidth = Math.max(this.hudTargetWidth, this.hudWidth - hudSpeed);
+
+        // Enemy Phase — execute AI turns after player input, before resolve.
+        try {
+            EnemyManager.executeTurn(this._turnCounter);
+        } catch (e) {
+            console.warn('[Game] EnemyManager.executeTurn() failed:', e);
+        }
+        this._turnCounter++;
     },
 
     render() {

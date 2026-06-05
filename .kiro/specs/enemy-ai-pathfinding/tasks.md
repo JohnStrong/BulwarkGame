@@ -109,22 +109,22 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Generate level grids with F tile at varying rows; assert all spawn points share the furthest row
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 7. Implement `EnemyManager` spawn and state API in `enemy-manager.js`
-  - [ ] 7.1 Implement `EnemyManager.init()`, `EnemyManager.reset()`, and `EnemyManager.setCastleBreached(value)`
+- [x] 7. Implement `EnemyManager` spawn and state API in `enemy-manager.js`
+  - [x] 7.1 Implement `EnemyManager.init()`, `EnemyManager.reset()`, and `EnemyManager.setCastleBreached(value)`
     - `init()` builds tile graph from level tiles and calls `identifySpawnPoints`
     - `reset()` clears `_units`, sets `_castleBreached = false`, clears `_lastSeenRegistry`, clears `_worldKnowledgeMap`
     - `setCastleBreached(value)` coerces to boolean and stores on `_castleBreached`
     - Expose `getEnemyUnits()`, `getEnemyUnitAt(row, col)`, `getLastSeenRegistry()`, `getWorldKnowledgeMap()`, `getSharedThreatMap()`
     - _Requirements: 3.5, 7.3, 7.6, 12.7, 13.8, 13.9_
 
-  - [ ] 7.2 Implement `EnemyManager.spawnWave(waveConfig)`
+  - [x] 7.2 Implement `EnemyManager.spawnWave(waveConfig)`
     - Build `_worldKnowledgeMap` from `LevelLoader.getCurrentLevel().tiles` (terrain only — no player unit data)
     - Place units at spawn points in round-robin order per wave composition
     - If designated spawn point is occupied, BFS to find nearest unoccupied passable tile (Req 4.4)
     - _Requirements: 4.3, 4.4, 4.5, 6.5, 12.1, 12.2, 12.3, 12.4, 12.5_
 
-- [ ] 8. Implement `EnemyManager.executeTurn()` — sighting, registry, pathfinding and movement
-  - [ ] 8.1 Implement the `executeTurn(currentTurn)` movement loop
+- [x] 8. Implement `EnemyManager.executeTurn()` — sighting, registry, pathfinding and movement
+  - [x] 8.1 Implement the `executeTurn(currentTurn)` movement loop
     - Safety fallback purge: call `_safetyPurgeDead(UnitManager.getPlacedUnits())` at the start of each turn (catches any deaths where `notifyUnitKilled` was not yet called)
     - Sight pass: for each EnemyUnit, compute `computeEnemyVisibleTiles` and call `_recordSighting` for any player unit in visible tiles
     - Call `PathfindingEngine.buildSharedThreatMap(_lastSeenRegistry, this._units, _worldKnowledgeMap)` ONCE per turn; store as `_sharedThreatMap`
@@ -146,11 +146,11 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Assert unit row/col equals `path[0]` after move; assert `getEnemyUnitAt` lookups are consistent
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 9. Checkpoint — validate `enemy-manager.js` in isolation
+- [x] 9. Checkpoint — validate `enemy-manager.js` in isolation
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Wire both files into the game and add integration test scaffolding
-  - [ ] 10.1 Add `<script>` tags to `index.html` and the `executeTurn` call to `game-iso.js`
+- [x] 10. Wire both files into the game and add integration test scaffolding
+  - [x] 10.1 Add `<script>` tags to `index.html` and the `executeTurn` call to `game-iso.js`
     - Insert `<script src="js/game-logic/lib/ai/pathfinding-engine.js"></script>` and `<script src="js/game-logic/lib/ai/enemy-manager.js"></script>` after `unit-manager.js` in `index.html`
     - Add `EnemyManager.init()` call inside `Game.startLevel()` after `LevelLoader` is ready
     - Add `EnemyManager.reset()` call inside `Game.startLevel()` for level restarts
@@ -163,18 +163,18 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test that `setCastleBreached(true)` followed by `executeTurn()` targets KeepTileSet
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 11. Final checkpoint — full test suite passes
+- [x] 11. Final checkpoint — full test suite passes
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Implement `PathfindingEngine.hexRing`, `computeEnemyVisibleTiles`, and `buildSharedThreatMap`
-  - [ ] 12.1 Implement `hexRing(row, col, radius, tileGraph)` in `pathfinding-engine.js`
+- [x] 12. Implement `PathfindingEngine.hexRing`, `computeEnemyVisibleTiles`, and `buildSharedThreatMap`
+  - [x] 12.1 Implement `hexRing(row, col, radius, tileGraph)` in `pathfinding-engine.js`
     - BFS from `(row, col)` up to `radius` hex steps using `hexNeighbors`
     - Skip tiles not present in `tileGraph` (out-of-bounds guard)
     - Return array of tile objects within the ring (all steps 1 through `radius`)
     - Expose on `PathfindingEngine`
     - _Requirements: 9.2_
 
-  - [ ] 12.2 Implement `PathfindingEngine.computeEnemyVisibleTiles(row, col, tileGraph)`
+  - [x] 12.2 Implement `PathfindingEngine.computeEnemyVisibleTiles(row, col, tileGraph)`
     - Check if the enemy unit's own tile is a tree (`O`, `P`, `S`) — if so, all 6 directions capped at 1
     - For each of the 6 hex directions: check if immediate neighbor is a tree tile; if so, cap that direction at 1; otherwise use 3
     - Raycast along each direction up to its sight distance, stopping at impassable tiles (W, T, G, K, j, J, F, R)
@@ -182,7 +182,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Expose on `PathfindingEngine`
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.7, 11.8_
 
-  - [ ] 12.3 Implement `PathfindingEngine.buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph)`
+  - [x] 12.3 Implement `PathfindingEngine.buildSharedThreatMap(lastSeenRegistry, activeEnemyUnits, tileGraph)`
     - For each entry in `lastSeenRegistry.values()`: set `overlay.set(tileKey(entry.row, entry.col), 3)` (last-seen combat cost)
     - Build collective enemy visible set: union of `computeEnemyVisibleTiles` for all `activeEnemyUnits`
     - Expand `hexRing(entry.row, entry.col, 3, tileGraph)` for each last-seen entry
@@ -212,11 +212,11 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Generate grids where player unit threat radius overlaps water both inside and outside enemy sight; assert only visible water gets cost 4
     - _File: `tests/game-logic/lib/ai/pathfinding-engine.test.js`_
 
-- [ ] 13. Checkpoint — validate `computeEnemyVisibleTiles`, `buildSharedThreatMap`, and updated `findPath` in isolation
+- [x] 13. Checkpoint — validate `computeEnemyVisibleTiles`, `buildSharedThreatMap`, and updated `findPath` in isolation
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. Add `getSharedThreatMap()` to EnemyManager and write SharedThreatMap integration tests
-  - [ ] 14.1 Add `EnemyManager.getSharedThreatMap()` returning `_sharedThreatMap` (the Map built during last `executeTurn`)
+- [x] 14. Add `getSharedThreatMap()` to EnemyManager and write SharedThreatMap integration tests
+  - [x] 14.1 Add `EnemyManager.getSharedThreatMap()` returning `_sharedThreatMap` (the Map built during last `executeTurn`)
     - Returns `null` before the first `executeTurn` call
     - _Requirements: 10.6_
 
@@ -227,18 +227,18 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Assert `getSharedThreatMap()` reflects the most recent turn's player unit positions
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 15. Final checkpoint — full test suite passes with all new overlay and threat-map tests
+- [x] 15. Final checkpoint — full test suite passes with all new overlay and threat-map tests
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 16. Implement `WorldKnowledgeMap` and `LastSeenRegistry` in `enemy-manager.js`
-  - [ ] 16.1 Implement `buildWorldKnowledgeMap(tiles)` as a static terrain-only TileGraph
+- [x] 16. Implement `WorldKnowledgeMap` and `LastSeenRegistry` in `enemy-manager.js`
+  - [x] 16.1 Implement `buildWorldKnowledgeMap(tiles)` as a static terrain-only TileGraph
     - Copy all terrain tiles from `LevelLoader.getCurrentLevel().tiles` into a `Map<"row,col", tile>`
     - Include grass, road, water, bridge, forest, castle structures — no filtering needed since tiles never contain player unit data directly
     - Store as `EnemyManager._worldKnowledgeMap`; expose via `getWorldKnowledgeMap()`
     - Called inside `spawnWave()` before units are placed
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-  - [ ] 16.2 Implement `_lastSeenRegistry`, `_stableKeyFor`, `_recordSighting`, `notifyUnitKilled`, `_safetyPurgeDead`, and `_expireStale`
+  - [x] 16.2 Implement `_lastSeenRegistry`, `_stableKeyFor`, `_recordSighting`, `notifyUnitKilled`, `_safetyPurgeDead`, and `_expireStale`
     - `_lastSeenRegistry`: `Map<stableUnitKey, { row, col, turn, health }>` — keyed by stable unit identity, NOT by position
     - `_stableKeyFor`: resolves key priority: `unit.id` → `unit.def.name + ':' + index` → cached `unit-idx-N`; NEVER uses `tileKey(row, col)` as the key
     - `_unitKeyCache`: `Map<unitIndex, stableKey>` — cached on first sighting; cleared on `reset()`
@@ -273,8 +273,8 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: two different player units sighted → registry has exactly 2 entries (not 1, not 3)
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 17. Wire sight pass and LastSeenRegistry into `executeTurn` and validate integration
-  - [ ] 17.1 Integrate sight pass, expiry, and LastSeenRegistry into `executeTurn(currentTurn)`
+- [x] 17. Wire sight pass and LastSeenRegistry into `executeTurn` and validate integration
+  - [x] 17.1 Integrate sight pass, expiry, and LastSeenRegistry into `executeTurn(currentTurn)`
     - Call `_safetyPurgeDead(UnitManager.getPlacedUnits())` at the start of each turn (fallback; `notifyUnitKilled` handles deaths at point of death)
     - Call `_expireStale(currentTurn)` after purge, before sight pass
     - For each EnemyUnit, call `computeEnemyVisibleTiles` and cross-reference with `UnitManager.getPlacedUnits()` to find sightings
@@ -293,11 +293,11 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: sighting at turn 5, re-sighted at turn 14 → expiry clock resets to turn 14 → not expired until turn 25
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 18. Final checkpoint — full test suite passes including knowledge/sighting integration
+- [x] 18. Final checkpoint — full test suite passes including knowledge/sighting integration
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 19. Implement `EngagementZoneRegistry` and zone clustering in `enemy-manager.js`
-  - [ ] 19.1 Define zone constants and `EngagementZone` data shape
+- [x] 19. Implement `EngagementZoneRegistry` and zone clustering in `enemy-manager.js`
+  - [x] 19.1 Define zone constants and `EngagementZone` data shape
     - Define `ZONE_CLUSTER_RADIUS = 6`, `ZONE_AVOIDANCE_COST = 5`, `ENGAGE_HP_RATIO = 1.5`, `MAX_ARMY_COMMIT_FRACTION = 0.40` as named constants with comments
     - Document each constant's tactical meaning
     - Define `EngagementZone` shape: `{ id, centreRow, centreCol, observationCount, lastObservedTurn, estimatedThreatHP, strategy }`
@@ -306,7 +306,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Clear `_engagementZoneRegistry` in `reset()`
     - _Requirements: 15.1, 15.5, 15.6, 17.1, 17.2_
 
-  - [ ] 19.2 Implement `_updateEngagementZones(lastSeenRegistry, currentTurn)`
+  - [x] 19.2 Implement `_updateEngagementZones(lastSeenRegistry, currentTurn)`
     - For each entry in `lastSeenRegistry`: find existing zone within `ZONE_CLUSTER_RADIUS` via `hexDistance`
     - If found: increment `observationCount`, update `lastObservedTurn`
     - If not found: create new zone centred on sighting position with `observationCount=1`
@@ -319,12 +319,12 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Generate random sighting pairs with known hex distances; assert same-zone vs separate-zone outcomes match ZONE_CLUSTER_RADIUS boundary
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 20. Implement zone strategy evaluation in `enemy-manager.js`
-  - [ ] 20.1 Implement `_isZoneActive(zone, currentTurn)` helper
+- [x] 20. Implement zone strategy evaluation in `enemy-manager.js`
+  - [x] 20.1 Implement `_isZoneActive(zone, currentTurn)` helper
     - Returns `true` if `currentTurn - zone.lastObservedTurn <= SIGHTING_EXPIRY_TURNS`
     - _Requirements: 15.4, 16.9_
 
-  - [ ] 20.2 Implement `_evaluateZoneStrategies(currentTurn, activeEnemyUnits, worldKnowledgeMap, overlay)`
+  - [x] 20.2 Implement `_evaluateZoneStrategies(currentTurn, activeEnemyUnits, worldKnowledgeMap, overlay)`
     - For each Active zone: apply AVOID zone penalty probe to temp overlay; run A* probe with Infantry to test if zone is avoidable
     - If avoidable: set `zone.strategy = 'AVOID'`; add zone penalty to `zoneOverlayPenalties`
     - If not avoidable: check `ENGAGE_HP_RATIO` and `MAX_ARMY_COMMIT_FRACTION` conditions; assign strike force if viable; else fall back to `AVOID`
@@ -345,15 +345,15 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: three simultaneous ENGAGE-eligible zones → total committed HP stays below 40% of army HP
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 21. Wire zone system into `executeTurn` and update `buildSharedThreatMap`
-  - [ ] 21.1 Update `executeTurn(currentTurn)` to call zone update and strategy evaluation
+- [x] 21. Wire zone system into `executeTurn` and update `buildSharedThreatMap`
+  - [x] 21.1 Update `executeTurn(currentTurn)` to call zone update and strategy evaluation
     - After sight pass, call `_updateEngagementZones(_lastSeenRegistry, currentTurn)`
     - Call `_evaluateZoneStrategies(...)` to get `zoneOverlayPenalties` and `strikeForceAssignments`
     - Pass `zoneOverlayPenalties` to `buildSharedThreatMap`
     - For each unit in a `strikeForceAssignment`: override `targetSet` with zone centre for that unit's `findPath` call
     - _Requirements: 15.2, 16.7, 16.10_
 
-  - [ ] 21.2 Update `PathfindingEngine.buildSharedThreatMap` signature to accept `zoneOverlayPenalties`
+  - [x] 21.2 Update `PathfindingEngine.buildSharedThreatMap` signature to accept `zoneOverlayPenalties`
     - Add Step 3 to overlay build: for each `[key, penalty]` in `zoneOverlayPenalties`, add penalty to existing cost (additive on top of base and last-seen costs); never override `Infinity`
     - _Requirements: 16.3, 16.10_
 
@@ -365,7 +365,7 @@ Implement the enemy AI pathfinding system as two new plain JavaScript files (`js
     - Test: multiple ENGAGE zones competing for budget → cap enforced, later zones fall back to AVOID
     - _File: `tests/game-logic/lib/ai/enemy-manager.test.js`_
 
-- [ ] 22. Final checkpoint — full test suite passes including zone strategy integration
+- [x] 22. Final checkpoint — full test suite passes including zone strategy integration
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
