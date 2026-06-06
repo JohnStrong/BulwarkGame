@@ -2,7 +2,9 @@
 
 ## Overview
 
-This feature adds a per-turn wallclock countdown to the active phase, sequential enemy unit movement (one unit per 800 ms by default), and a timed resolve pause (10 s by default) before the next player turn begins.
+This feature adds a per-turn wallclock countdown to the active phase, sequential enemy unit movement (one unit per **1 second**), and a timed resolve pause (10 s by default) before the next player turn begins.
+
+Each enemy unit move occupies a 1-second tick — long enough for the player to track what is happening on the battlefield before the next unit steps. Future enhancements such as highlighting the currently moving unit and adding a recognisable movement sound cue are explicitly out of scope for v1 and will be addressed in a follow-up spec.
 
 The work touches two existing files and introduces no new modules:
 
@@ -143,7 +145,7 @@ turnDurationMs:      number,         // 45_000 ms default
 
 // ── Enemy sequential movement ──────────────────────────────────────────────
 enemyUnitQueue:      string[],       // unit IDs yet to move this turn (FIFO)
-unitStepIntervalMs:  number,         // delay between moves, 800 ms default
+unitStepIntervalMs:  number,         // delay between moves, 1_000 ms default (1 second)
 unitStepStartMs:     number | null,  // performance.now() when current step began
 pendingMoveId:       string | null,  // transient: unit ID to move this frame
 
@@ -159,7 +161,7 @@ lastActiveTurnRects: { endTurnButtonRect: Object | null } | null,
 
 ```js
 const TURN_DURATION_MS      = 45_000;  // player turn length
-const UNIT_STEP_INTERVAL_MS =    800;  // ms between enemy unit moves
+const UNIT_STEP_INTERVAL_MS =  1_000;  // 1 second per unit move (v1 baseline)
 const RESOLVE_DURATION_MS   = 10_000;  // resolve pause length
 ```
 

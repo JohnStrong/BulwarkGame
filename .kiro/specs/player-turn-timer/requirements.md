@@ -17,7 +17,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
 - **EndTurnButton**: The HUD button the player may click during the PlayerTurn to close it early and begin the enemy phase immediately.
 - **EnemyPhase**: The portion of each turn during which enemy units move, one unit at a time. Spans from when `turnPhase` enters `'enemy'` until all units in the `enemyUnitQueue` have been processed.
 - **EnemyUnitQueue**: An ordered list of enemy unit IDs to be moved this turn, consumed one entry per `UnitStepIntervalMs`. Stored in `GameState`.
-- **UnitStepIntervalMs**: The configurable wallclock delay between successive enemy unit moves during the EnemyPhase. Default: **800 ms**. Stored in `GameState`.
+- **UnitStepIntervalMs**: The configurable wallclock delay between successive enemy unit moves during the EnemyPhase. Default: **1000 ms (1 second)**. One second per unit gives the player enough time to track each move on the battlefield without the phase feeling sluggish. Future enhancements (unit highlight, sound cue) are explicitly out of scope for v1. Stored in `GameState`.
 - **UnitStepStartMs**: The `performance.now()` value when the current unit step began. Stored in `GameState`.
 - **ResolvePhase**: A timed pause after all enemy units have moved, during which damage is applied and the HUD displays a message telling the player the turn is closing. Duration is `ResolveDurationMs`.
 - **ResolveDurationMs**: The configurable length of the ResolvePhase countdown. Default: **10 seconds** (10 000 ms). Stored in `GameState`.
@@ -45,7 +45,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
    - `turnTimerStartMs: number | null` — `performance.now()` when the current player turn began; `null` when inactive
    - `turnDurationMs: number` — player turn duration in ms; defaults to `45_000`
    - `enemyUnitQueue: string[]` — ordered list of enemy unit IDs yet to move this EnemyPhase; empty outside the enemy phase
-   - `unitStepIntervalMs: number` — delay between successive enemy unit moves in ms; defaults to `800`
+   - `unitStepIntervalMs: number` — delay between successive enemy unit moves in ms; defaults to `1_000` (1 second)
    - `unitStepStartMs: number | null` — `performance.now()` when the current unit step began; `null` when no step is in progress
    - `resolveDurationMs: number` — duration of the ResolvePhase countdown in ms; defaults to `10_000`
    - `resolveTimerStartMs: number | null` — `performance.now()` when the ResolvePhase began; `null` when inactive
@@ -56,7 +56,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
    - `turnTimerStartMs: null`
    - `turnDurationMs: 45_000`
    - `enemyUnitQueue: []`
-   - `unitStepIntervalMs: 800`
+   - `unitStepIntervalMs: 1_000`
    - `unitStepStartMs: null`
    - `resolveDurationMs: 10_000`
    - `resolveTimerStartMs: null`
@@ -102,7 +102,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
 1. WHEN `turnPhase` transitions to `'enemy'`, `GameState.enemyUnitQueue` SHALL be populated with the IDs of all currently active enemy units in the order `EnemyManager.getEnemyUnits()` returns them. `unitStepStartMs` SHALL be set to `nowMs`.
 2. ON each frame while `turnPhase === 'enemy'` and `enemyUnitQueue` is non-empty, THE `TickTransitions._checkEnemyStep` sub-transition SHALL check whether `nowMs - unitStepStartMs >= unitStepIntervalMs`. IF the interval has elapsed, it SHALL dequeue the first unit ID from `enemyUnitQueue`, call `EnemyManager.moveUnit(unitId)` as a side effect (in `Game.loop()`), and set `unitStepStartMs` to `nowMs`.
 3. WHEN `enemyUnitQueue` becomes empty (all units have moved), THE `TickTransitions._checkEnemyStep` sub-transition SHALL transition `turnPhase` to `'resolve'` and set `resolveTimerStartMs` to `nowMs`.
-4. THE `unitStepIntervalMs` default of **800 ms** SHALL be declared as a module-level constant `UNIT_STEP_INTERVAL_MS` in `game-iso.js`, separate from `turnDurationMs`, so it can be tuned independently.
+4. THE `unitStepIntervalMs` default of **1000 ms (1 second)** SHALL be declared as a module-level constant `UNIT_STEP_INTERVAL_MS` in `game-iso.js`, separate from `turnDurationMs`, so it can be tuned independently. One second per unit is the v1 baseline — it gives the player enough time to visually track each unit move without the enemy phase feeling sluggish. Visual enhancements (highlighting the currently moving unit) and audio cues (a recognisable movement sound) are explicitly deferred to a future version and are out of scope for this spec.
 5. `EnemyManager.moveUnit(unitId)` SHALL move exactly one unit one step along its path. It is called once per dequeue, not once per full-turn `executeTurn`. The existing `EnemyManager.executeTurn()` is **not called** during this phase; sequential movement replaces it for visual purposes.
 6. WHILE `turnPhase === 'enemy'`, THE HUD SHALL display `"Enemy turn — watching N units move"` (where N is the remaining queue length) centred in the active-phase top bar, with no End Turn button.
 
