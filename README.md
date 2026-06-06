@@ -299,7 +299,13 @@ Bulwark/
 ├── assets/
 │   └── sprites/                # Isometric PNGs (64×32 terrain/castle, 32×32 units)
 ├── tests/
-│   ├── game-logic/             # Unit tests for browser game logic
+│   ├── game-logic/             # Unit tests mirroring js/game-logic/ structure
+│   │   ├── *.spec.js           # Tests for game-iso.js, level-loader.js, unit-manager.js, etc.
+│   │   └── lib/
+│   │       ├── *.spec.js       # Tests for iso-camera, iso-input, iso-renderer, hud, overlay-utils
+│   │       └── ai/             # Tests for enemy AI system
+│   │           ├── pathfinding-engine.test.js  # A*, hex topology, movement costs, sight lines
+│   │           └── enemy-manager.test.js        # Registry, zones, sighting, strategy, integration
 │   └── level-generators/
 │       ├── *.spec.js           # Unit tests for each generator script
 │       └── lib/
@@ -341,7 +347,16 @@ Bulwark/
     │   ├── game.js             # Top-down hex renderer
     │   ├── animation-controller.js  # Shared frame-cycling timers for animated sprite types
     │   ├── pixi-renderer.js    # PixiJS WebGL/Canvas renderer with atlas loading + draw-call budgeting
-    │   └── game-iso.js         # Isometric 2.5D renderer (default)
+    │   ├── game-iso.js         # Isometric 2.5D renderer (default)
+    │   └── lib/
+    │       ├── hud.js              # All HUD panels: top bar, unit bar, tile info, unit detail
+    │       ├── iso-camera.js       # Camera: scroll, zoom, viewpoint rotation, iso projection
+    │       ├── iso-input.js        # Input: keyboard, mouse, wheel with decoupled callbacks
+    │       ├── iso-renderer.js     # Two-pass terrain + unit rendering, overlay constants
+    │       ├── overlay-utils.js    # Overlay allowlist + draw closure resolver
+    │       └── ai/                 # Enemy AI system (see js/game-logic/lib/ai/README.md)
+    │           ├── pathfinding-engine.js  # A* on hex grid, movement costs, sight lines, overlay builder
+    │           └── enemy-manager.js       # Spawning, sighting registry, engagement zones, turn execution
     └── level-generators/
         ├── generate-iso-sprites-br-tl.js  # Terrain sprites (BR→TL viewpoint) + tree/castle overlay generators
         ├── generate-castle-sprites.js     # Castle structure sprites
@@ -379,7 +394,13 @@ npm test
 # Run property-based tests
 npm run test:properties
 
+# Run AI system tests only
+node --test tests/game-logic/lib/ai/pathfinding-engine.test.js \
+           tests/game-logic/lib/ai/enemy-manager.test.js
+
 # Run a single test file
+node --test tests/level-generators/lib/palette.spec.js
+```# Run a single test file
 node --test tests/level-generators/lib/palette.spec.js
 ```
 
@@ -461,7 +482,8 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 ## Architecture Documentation
 
 - **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: PixiJS renderer initialisation, sprite atlas loading, animation controller, SpriteManager delegation, level loader, unit manager, game loop, and how they connect
-- **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
+- **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, HUD system, and overlay utilities
+- **[js/game-logic/lib/ai/README.md](js/game-logic/lib/ai/README.md)** — Enemy AI system: A\* pathfinding on the hex grid, movement costs, directional enemy sight, last-seen registry, engagement zones, sighting expiry, and the full turn lifecycle
 - **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
 - **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random
 
