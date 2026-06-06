@@ -29,6 +29,14 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [Elevation Files](#elevation-files)
 - [Enhanced Sprite Pipeline](#enhanced-sprite-pipeline)
 - [Architecture Documentation](#architecture-documentation)
+- [Enemy Goal / Playstyle](#enemy-goal--playstyle)
+  - [How Enemies Navigate the Map](#how-enemies-navigate-the-map)
+  - [Tile Movement Costs](#tile-movement-costs)
+  - [Shared Enemy Intelligence and the Last-Seen Registry](#shared-enemy-intelligence-and-the-last-seen-registry)
+  - [Engagement Zone Intelligence — The Enemy Learns](#engagement-zone-intelligence--the-enemy-learns)
+  - [Enemy View Distance and Woodland Ambushes](#enemy-view-distance-and-woodland-ambushes)
+  - [Tree Tiles — Passability and Ambush Potential](#tree-tiles--passability-and-ambush-potential)
+  - [Unit-Specific Pathfinding Behaviors](#unit-specific-pathfinding-behaviors)
 
 ---
 
@@ -456,3 +464,155 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 - **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
 - **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
 - **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random
+
+---
+
+## Enemy Goal / Playstyle
+
+### How Enemies Navigate the Map
+
+Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn.
+
+**What enemies know from the start.** At the beginning of each wave, every enemy unit is given a **terrain briefing** — a static snapshot of the battlefield showing where the grass, roads, water, bridges, forests, and castle structures are. They know roughly where to go from the moment they spawn. This is the `WorldKnowledgeMap`, and it never changes during play. Crucially, it contains zero information about player deployments: no unit positions, no built defenses, no blocked bridges.
+
+**What enemies discover as they advance.** Player unit positions are unknown until an enemy gets close enough to see them (subject to the view distance rules below). The first enemy to spot a player unit reports it to the whole force — from that point every active enemy knows the last observed location of that unit and routes accordingly.
+
+**Two-phase assault.** Enemies operate in two phases separated by the castle breach state.
+
+- **Phase 1 — Assault the perimeter.** Enemies path toward the outer ring of passable tiles adjacent to the castle walls, towers, and gatehouse. The interior is not yet a target.
+- **Phase 2 — Storm the keep.** Once the castle is breached, every unit immediately retargets the keep tiles. Until then, the castle walls serve as a genuine information barrier — enemies know the castle is there but cannot route to the keep until they've broken through.
+
+Each turn, A\* uses the WorldKnowledgeMap as the base cost graph, then applies a **DynamicCostOverlay** layered on top — encoding everything the enemy force has observed. Player units they have spotted add a combat cost of `3` at their last known position. Water near those units adds cost `4` if visible to at least one enemy. Terrain with no observed threats uses its base cost.
+
+---
+
+### Tile Movement Costs
+
+Every tile has a base movement cost. The pathfinder always takes the cheapest available route, so the cost table directly shapes where enemies walk.
+
+| Tile | Character(s) | Base Cost | Notes |
+|------|-------------|----------|-------|
+| Grass | `.` | 1 | Standard open terrain |
+| Flowers | `,` | 1 | Same cost as grass |
+| Dirt road | `D` | 1 | Preferred route |
+| Cobblestone bridge | `=` | 1 | River crossing |
+| Castle bridge | `b`, `m`, `g` | 1 | Drawbridge approach |
+| Bailey (courtyard) | `C` | 1 | Interior courtyard tiles |
+| Water | `~` | 2 | Passable but slow |
+| Water under fire | `~` (in threat zone) | 4 | See Shared Intelligence below |
+| Player unit (combat) | any terrain | 3 | Enemies can choose to fight |
+| Oak / Pine / Shrub | `O`, `P`, `S` | 1 or ∞ | Tree-eligible units only (see below) |
+| Rock | `R` | ∞ | Impassable for all |
+| Castle wall | `W` | ∞ | Cannot be moved onto |
+| Tower | `T` | ∞ | Impassable — future: destroyable |
+| Gatehouse | `G` | ∞ | Impassable — future: destroyable |
+| Keep tiles | `K`, `j`, `J`, `F` | ∞ | Phase 2 target, not traversable |
+
+**The cost ordering the enemies reason with:**
+
+```
+open ground / road / bridge  = 1   ← always preferred
+open water                   = 2   ← tolerable if necessary
+fight a player unit          = 3   ← chosen when routing costs more
+water under player fire      = 4   ← last resort
+walls / keep / rock          = ∞   ← never passable
+```
+
+---
+
+### Shared Enemy Intelligence and the Last-Seen Registry
+
+Enemies act as a coordinated force, but their collective intelligence is limited to what they have physically observed.
+
+**Terrain is pre-briefed.** Every enemy knows the static layout of the battlefield from the moment they spawn — where grass, roads, water, bridges, and forests are, and where the castle is. They use this to navigate purposefully from the start.
+
+**Player units must be spotted.** Enemy units have no advance knowledge of where the player's garrison is deployed. A bridge may look clear in their terrain briefing — they'll route toward it assuming it's passable. If an enemy gets close enough to see a player unit blocking the bridge, it reports that position to the entire enemy force. From that turn onward, every active enemy routes with that blockade in mind.
+
+**Last-seen positions persist — but not forever.** If the player moves a unit out of the enemy's line of sight between turns, the enemy force remembers where it was *last seen*. They continue factoring that position into their cost calculations — they can't know it has moved. Only a fresh sighting updates their information. This makes repositioning defenders mid-battle genuinely useful: enemies may keep routing around a ghost for a turn or two before adjusting.
+
+However, stale intelligence expires. If a position hasn't been re-confirmed by any enemy sighting for **10 cost-turns** (roughly 10 real seconds at game speed), the registry entry is removed. Enemies stop treating that tile as dangerous and will risk routing through it again. A defending unit that successfully hides for 10 turns can re-emerge somewhere unexpected — or the player can exploit the intelligence gap to make a gap in enemy routing that the enemy eventually stops respecting.
+
+**Deaths clear the record.** If a player unit is killed, the enemy force immediately stops treating its last-known tile as dangerous. Dead units generate no lingering threat.
+
+**Threat-zone water.** Water tiles within 3 hex steps of a last-seen player unit position are penalised to cost `4` — but only if at least one enemy unit currently has line of sight to that water. Enemies behind a forest can't see across the tree line, so they won't penalise water they can't observe.
+
+In practical terms: block both bridges and the enemy column will route toward the water if they can't see why the bridges are expensive. The moment the lead unit crests a hill and spots your defenders, the whole force knows — and adjusts.
+
+---
+
+### Engagement Zone Intelligence — The Enemy Learns
+
+Beyond individual sightings, the enemy force develops a longer-term memory of the battlefield through an **EngagementZoneRegistry**. This is persistent across the entire wave and is never cleared by sighting expiry.
+
+**How zones form.** Every time a player unit is spotted, the EnemyManager checks whether that sighting location falls within 6 hex steps of any existing zone's centre. If yes, it updates that zone — incrementing its observation count and refreshing its timestamp. If no, a new zone is created. Over time, areas where your defenders repeatedly intercept enemy units accumulate into recognised danger zones.
+
+**Two strategies for dealing with a zone.** Each turn, the manager evaluates every active zone (one confirmed within the last 10 turns) and chooses:
+
+**Strategy 1 — Avoid.** The manager applies a heavy cost penalty (`+5`) to all tiles within the zone's radius. A* then naturally routes units around the hotspot if any viable alternative path exists. This is always the preferred strategy. Enemies learn to respect a well-defended chokepoint and hunt for a safer way through.
+
+**Strategy 2 — Engage.** Only triggered when avoidance fails — when the cheapest path still runs through the zone even with the penalty applied. The manager then assesses whether it can commit a strike force large enough to plausibly overpower the estimated defenders. The threshold is 1.5× the estimated combined HP of the player units last observed in the zone. If the math checks out, a subset of the highest-HP enemy units is reassigned as a strike force targeting the zone centre directly.
+
+**Army preservation.** No more than 40% of the total active enemy HP can be committed to strike forces in a single turn. This cap exists to prevent the enemy from feeding its entire army into one engagement and getting outflanked. If multiple zones simultaneously demand engagement forces and the budget runs out, later zones fall back to avoidance instead.
+
+**Dormant zones don't penalise.** Once a zone goes more than 10 turns without a confirmed sighting, it becomes dormant and stops affecting pathfinding. The zone record is retained for historical tracking, but enemies stop routing around it — they'll approach that area again until a new sighting re-activates it. This means a defender who successfully repositions gains a brief window of free movement before the zone is re-established.
+
+---
+
+### Enemy View Distance and Woodland Ambushes
+
+Each enemy unit sees up to **3 hex steps in each of the six hex directions** when on open terrain. This is the range at which they spot player units, identify dangerous water, and reason about their costs.
+
+**Tree tiles shorten sight.** If the immediate neighbor in a given direction is a tree tile (oak, pine, or shrub), the enemy can only see **1 hex step** in that direction — the canopy blocks their view. Each direction is checked independently:
+
+- An enemy moving along a road with forest to its northwest and northeast can still see 3 steps in the other four directions, but only 1 step toward the trees.
+- An enemy unit that has entered a tree tile (archers and cavalry can do this) is moving **blind in all directions** — sight is capped at 1 hex in every direction. They see only their immediate 6 neighbors.
+
+**What this enables for the player:**
+
+Forests are natural ambush positions. Place an archer inside a tree cluster and the enemy column marching past on the road won't register the threat in their cost calculations — the trees block the sight line. Your archer fires; the enemies see the unit now that it's 1 hex away, but by then it may be too late to reroute.
+
+The same logic applies to the water penalty: enemy units in or near woodland can't see across the tree line, so they won't penalise water on the far side. A river crossing that looks safe to a blind enemy column becomes a kill zone once they step into the clearing.
+
+**Summary by terrain context:**
+
+| Enemy context | Sight in open directions | Sight toward a tree-adjacent direction |
+|---|---|---|
+| On open terrain, no adjacent trees | 3 hex steps | — |
+| On open terrain, tree in one direction | 3 hex steps | 1 hex step |
+| Inside a tree tile | 1 hex step (all directions) | 1 hex step |
+
+---
+
+### Tree Tiles — Passability and Ambush Potential
+
+Tree tiles (`O` oak, `P` pine, `S` shrub) interact with the AI in two distinct ways: **passability** (can the enemy move there?) and **sight occlusion** (can the enemy see past them?).
+
+**Passability** depends on unit type, for the same tactical reason described above — infantry and siege engines avoid trees to reduce ambush risk; archers and cavalry are agile enough to push through.
+
+| Enemy Type | Tree Tiles (O, P, S) |
+|------------|---------------------|
+| Infantry | **Impassable** — routes around all trees |
+| Archer | **Passable** (cost 1) — can move through woodland |
+| Cavalry | **Passable** (cost 1) — agile enough to navigate cover |
+| Siege Engine | **Impassable** — too slow and bulky for forest terrain |
+
+**Sight occlusion** applies to all enemy types. A tree tile in a given direction reduces sight in that direction from 3 hex steps to 1 — regardless of whether the enemy can actually enter the tree. An infantry unit marching past a forest can only see 1 step *into* the tree line; it can still see 3 steps across open ground on its other sides.
+
+This means player unit placement inside forests is genuinely hidden from approaching enemies until they get within 1 hex — at which point the ambush fires. The enemy AI won't penalise water on the far side of a forest it can't see through, and it won't reroute away from an archer it hasn't spotted yet.
+
+Note that tree passability stacks with the combat cost system. If a player unit is inside a forest, archers and cavalry will still path through trees — but they must be within sight range to "know" the unit is there. If they can't see it, the tile appears to them as ordinary woodland (cost 1), not a combat tile (cost 3).
+
+---
+
+### Unit-Specific Pathfinding Behaviors
+
+> 🚧 **Placeholder — to be expanded as combat and AI mechanics are implemented.**
+
+Each enemy unit type will develop distinct tactical behaviors beyond basic pathfinding. This section will document them as they are built out.
+
+| Enemy Type | Movement Points/Turn | Planned Behavior Notes |
+|------------|---------------------|----------------------|
+| Infantry | 2 | — |
+| Archer | 2 | — |
+| Cavalry | 3 | — |
+| Siege Engine | 1 | — |
