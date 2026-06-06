@@ -1,6 +1,6 @@
 # Bulwark - A turn-based isometric tower defense browser game
 
-> ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the isometric map rendering, level generation, and camera systems are functional.
+> ⚠️ **WORK IN PROGRESS** — Win/fail conditions and full combat resolution are not yet implemented. The isometric renderer, camera, HUD, unit placement, enemy AI pathfinding, and the main game loop are functional. Enemy turns execute each frame tick during the active phase.
 
 ![Level 1 Preview](docs/snapshots/iso-viewpoint-map-level-01-v0-02.png)
 

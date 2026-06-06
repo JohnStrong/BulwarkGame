@@ -351,9 +351,15 @@ Game.init()
   → Game._renderDamagedCastleIntegrationTest()   // startup visual smoke test (Req 9.7)
   → LevelLoader.loadLevelList()
   → UnitManager.loadResources()
-  → Game.startLevel()
+  → Game.startLevel()                            // reset enemy state, centre camera, init AI
+  → Game.state = 'playing'
   → Game.loop()
 ```
+
+`startLevel()` handles everything needed when (re)loading a level:
+1. `EnemyManager.reset()` — clears enemy state from any previous run
+2. `IsoCamera.setMapSize()` / `.elevation` / `.centerOn()` — fits camera to new level
+3. `EnemyManager.init()` — seeds the AI with the fresh level data
 
 #### PixiJS initialisation detail
 
@@ -379,6 +385,9 @@ Game.loop()
 - Reads zoom keys → adjusts zoom
 - Animates tile lift (smooth 0→3px when selected)
 - Animates HUD panel width (smooth slide-in/out)
+- Executes one enemy AI turn via `EnemyManager.executeTurn(_turnCounter)`, then increments `_turnCounter`
+
+> The enemy turn runs every frame tick (not once per player action). This mirrors a real-time update loop — the AI advances continuously while the game is in the `'playing'` state. A proper turn-gating mechanism (pausing enemy turns while waiting for player input) is planned as part of the phase machine introduced in the Defensive Phase HUD spec.
 
 ### Render step
 
@@ -404,6 +413,20 @@ When the player clicks:
 ### Right-click
 
 Removes any unit on the clicked tile (restores quantity).
+
+### Concurrency model
+
+JavaScript is single-threaded. The `rAF` game loop runs atomically — no DOM event handler can interrupt it mid-execution. This means:
+
+- `EnemyManager.executeTurn()` and an `onClick` handler can never interleave.
+- Multiple clicks queued between two frames execute serially; each handler reads the output of the previous one.
+- Classic multi-thread race conditions do not apply here.
+
+Two narrower risks (re-entrant init and stale render rects) are noted in the file header of `game-iso.js` and analysed in full in `.kiro/specs/defensive-phase-hud/design.md`.
+
+### Planned refactor — GameState monad
+
+The mutable fields on the `Game` object (`state`, `hoveredTile`, `selectedTile`, etc.) will be consolidated into a single frozen `GameState` value in the Defensive Phase HUD feature. Every state update becomes a pure function `GameState → GameState`. The `Game` object will shrink to a thin orchestrator that owns only the canvas, context, and a single `_state` reference. See the design doc at `.kiro/specs/defensive-phase-hud/design.md` for the full planned architecture.
 
 ---
 

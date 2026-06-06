@@ -11,6 +11,25 @@
  *
  * Usage:
  *   HUD.render(ctx, state);
+ *
+ * ─── Synchrony contract ──────────────────────────────────────────────────────
+ * All render functions in this module MUST remain fully synchronous.
+ *
+ * Game._render() (game-iso.js) calls these functions and then immediately writes
+ * the bounding rects they return back into the game state. Because JS is
+ * single-threaded, no event handler can fire between the render call and the
+ * rect write-back as long as both are synchronous. If any render function here
+ * were made async, a player click could arrive between render and write-back;
+ * the subsequent shallow-merge would overwrite the click's state changes with a
+ * stale snapshot, silently losing it.
+ *
+ * Rule: never add await — or call any function that returns a Promise — inside
+ * renderBriefingScreen, renderPlacementHUD, renderTopBar, renderUnitBar,
+ * renderUnitDetail, or renderTilePanel.
+ *
+ * See: .kiro/specs/defensive-phase-hud/design.md
+ *      § "The shallow-merge erasure pattern — why it's safe here but fragile by assumption"
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 const HUD = {

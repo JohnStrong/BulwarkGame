@@ -1,6 +1,24 @@
 /**
  * Isometric Game — main orchestrator.
  * Delegates to lib/ modules for camera, input, rendering, and HUD.
+ *
+ * ─── Concurrency model ───────────────────────────────────────────────────────
+ * JavaScript is single-threaded. The browser event loop runs one callback at a
+ * time to completion before the next starts. This means:
+ *
+ *   • The rAF game loop (loop/update/render) runs atomically — no DOM event
+ *     handler can interrupt it mid-execution.
+ *   • EnemyManager.executeTurn() and an onClick handler can never interleave.
+ *   • Multiple clicks queued between two frames execute serially; each handler
+ *     reads the output of the previous one, so all updates accumulate correctly.
+ *
+ * Classic multi-thread race conditions therefore do not exist here.
+ *
+ * Two narrower risks DO exist and are mitigated below — see the inline comments
+ * on init() and render() / _render() for details, and the full analysis in:
+ *   .kiro/specs/defensive-phase-hud/design.md
+ *   § "Concurrency Model and State Erasure Analysis"
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 const Game = {
@@ -29,23 +47,53 @@ const Game = {
         // Init camera
         IsoCamera.init(this.canvas, { tileW: 64, tileH: 32, zoom: 0.7 });
 
-        // Init input
+        // ── RISK: async gap — input handlers registered before _state is ready ──
+        // IsoInput is wired here, before any await, so the DOM event listeners are
+        // live from this point on. Every await below is a yield point where the
+        // browser can process queued events (clicks, mouse moves) before _state has
+        // been initialised. If a handler fires during that window it will read
+        // this._state as null and crash.
+        //
+        // MITIGATION: every input callback below must null-check this._state before
+        // calling any transition. Handlers that fire before _state is set are silently
+        // dropped — the player hasn't seen the game yet, so no input is meaningful.
+        //
+        // See: .kiro/specs/defensive-phase-hud/design.md
+        //      § "The one real risk: async/await in init()"
         IsoInput.init(this.canvas, {
             onMouseMove: (x, y) => {
+                // Guard: drop events that arrive before _state is initialised.
+                if (!this._state) return;
                 const level = LevelLoader.getCurrentLevel();
                 this.hoveredTile = IsoCamera.screenToGrid(x, y, level.width, level.height);
             },
-            onClick: (x, y) => this.handleClick(x, y),
-            onRightClick: (x, y) => this.handleRightClick(x, y),
+            onClick: (x, y) => {
+                // Guard: drop clicks that arrive before _state is initialised.
+                if (!this._state) return;
+                this.handleClick(x, y);
+            },
+            onRightClick: (x, y) => {
+                // Guard: drop right-clicks that arrive before _state is initialised.
+                if (!this._state) return;
+                this.handleRightClick(x, y);
+            },
             onViewpointToggle: () => {
                 IsoCamera.toggleViewpoint();
                 this.centerOnFlag();
             },
             onZoom: (dir) => IsoCamera.applyZoom(dir * IsoCamera.zoomSpeed * 2),
-            onMouseLeave: () => { this.hoveredTile = null; },
+            onMouseLeave: () => {
+                // Guard: harmless to skip if _state is null, but kept consistent.
+                if (!this._state) return;
+                this.hoveredTile = null;
+            },
         });
 
         // ── PixiJS initialisation (Req 5.5, 6.4) ────────────────────────────
+        // Each await below is a yield point. Input events queued by the browser
+        // during these awaits will be processed when control returns to the event
+        // loop — but the null-guards above ensure they are dropped safely.
+        //
         // Step 1: Initialise PixiJS with the existing canvas element.
         const pixiRenderer = await PixiRenderer.initPixiRenderer(this.canvas);
 
@@ -183,6 +231,14 @@ const Game = {
     },
 
     loop() {
+        // The rAF callback runs atomically to completion. No DOM event handler
+        // (onClick, onMouseMove, etc.) can interrupt execution between update()
+        // and render() — the browser will only process queued events after this
+        // entire function returns. This is the fundamental property that makes the
+        // sequential update → render → requestAnimationFrame pattern safe.
+        //
+        // See: .kiro/specs/defensive-phase-hud/design.md
+        //      § "What the event loop schedule actually looks like"
         this.update();
         this.render();
         requestAnimationFrame(() => this.loop());
@@ -220,6 +276,25 @@ const Game = {
     },
 
     render() {
+        // ── INVARIANT: render() must remain synchronous ───────────────────────
+        // render() reads game state and immediately writes back the bounding rects
+        // produced by HUD functions (via applyRenderRects / _lastBriefingRects etc.).
+        // Both steps execute back-to-back in the same synchronous call stack, so no
+        // event handler can fire between them and no state write can be lost.
+        //
+        // If render() were ever made async (e.g. by adding an await inside it or
+        // inside any HUD render function it calls), that guarantee breaks: a click
+        // could fire between the render call and the rect write-back, and the
+        // shallow-merge would silently overwrite the click's state changes with a
+        // stale snapshot.
+        //
+        // DO NOT add await to this function or to any function it calls
+        // synchronously. If a genuinely async canvas operation is needed in future,
+        // the rect write-back must be moved to happen BEFORE the await, not after.
+        //
+        // See: .kiro/specs/defensive-phase-hud/design.md
+        //      § "The shallow-merge erasure pattern — why it's safe here but fragile by assumption"
+        //      § "Property 8: Render idempotence"
         const ctx = this.ctx;
         ctx.fillStyle = '#1a2a12';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
