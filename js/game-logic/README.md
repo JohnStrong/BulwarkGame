@@ -342,6 +342,13 @@ The entry point. Initializes everything, runs the game loop, and handles player 
 
 All mutable game logic state is stored in a single frozen `GameState` value (the state monad). Every update is a pure function `GameState → GameState`. The `Game` object is a thin orchestrator that owns only the canvas, context, and a single `_state` reference.
 
+`Game` also holds two **out-of-band instance properties** that are intentionally kept off `GameState` because they are either infrastructure-level or would introduce frame-ordering dependencies if they lived inside the pure state:
+
+| Property | Type | Reset by | Purpose |
+|----------|------|----------|---------|
+| `_state` | `GameState \| null` | `init()` | The single frozen game-logic snapshot for the current frame |
+| `_waveSpawned` | `boolean` | `_setupLevel()` sets it to `false` | One-shot flag: `true` after the first enemy wave is spawned. Kept on `Game` (not `GameState`) so the spawn check in `loop()` is independent of `turnCounter` ordering relative to `TickTransitions.tick()`. Reset to `false` by `_setupLevel()` so every page reload or level restart re-spawns the wave cleanly. |
+
 ### GameState — the state monad
 
 `GameState` is a frozen plain object that holds the complete snapshot of all game logic for one frame. Nothing mutates it in place — every operation calls `update(state, patch)` and returns a new frozen object.
@@ -454,12 +461,12 @@ Game.loop()
   2. IsoCamera scroll / zoom                     // side effect, gated to 'placement' or 'active' phases
   3. Enemy phase (gated to 'active'):
      3a. if !_waveSpawned → _waveSpawned = true; EnemyManager.spawnWave({ units: [...] }, tiles)
-                                  // one-shot flag on Game (not GameState) ensures the initial
-                                  // wave spawns exactly once on the first active-phase iteration,
-                                  // independent of turnCounter ordering relative to tick():
+                                  // _waveSpawned is declared on Game (not GameState) so the check
+                                  // is independent of turnCounter ordering relative to tick().
+                                  // _setupLevel() resets it to false so every page reload or
+                                  // level restart re-spawns the wave.
                                   //   4× Infantry, 2× Archer, 1× Cavalry, 1× SiegeEngine
-     3b. EnemyManager.executeTurn(turnCounter, placedUnits)
-                                  // move + act every frame; _waveSpawned guards the spawn
+     3b. EnemyManager.executeTurn(turnCounter, placedUnits)  // move + act every frame
   4. _render(state)                              // pure read → returns rectPatch
   5. applyRenderRects(state, rectPatch)          // write click-target rects back into state
   6. requestAnimationFrame(loop)
