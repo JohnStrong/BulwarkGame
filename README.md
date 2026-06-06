@@ -1,6 +1,6 @@
 # Bulwark - A turn-based isometric tower defense browser game
 
-> ⚠️ **WORK IN PROGRESS** — Win/fail conditions and full combat resolution are not yet implemented. The isometric renderer, camera, HUD, unit placement, enemy AI pathfinding, and the main game loop are functional. Enemy turns execute each frame tick during the active phase.
+> ⚠️ **WORK IN PROGRESS** — Win/fail conditions and full combat resolution are not yet implemented. The isometric renderer, camera, HUD, unit placement, enemy AI pathfinding, and the main game loop are functional. When the active phase begins, a `_waveSpawned` one-shot flag triggers the initial enemy wave (4 Infantry, 2 Archers, 1 Cavalry, 1 Siege Engine) on the very first active-phase iteration, then enemy turns execute each subsequent frame tick.
 
 ![Level 1 Preview](docs/snapshots/iso-viewpoint-map-level-01-v0-02.png)
 
@@ -110,7 +110,7 @@ The briefing screen shown at game start before the first wave. The "More ▲" pa
 
 ![Phase 4 — Active gameplay: units on map with HUD](docs/snapshots/ready-phase/phase-4-active-gameplay-units-hud-v0.1.png)
 
-Active gameplay phase after all units have been placed and the placement window has closed. The bottom unit bar shows available garrison types with remaining counts, the tile info panel is open on the lower left, and enemy turns are executing each frame tick. Camera scroll and zoom are fully enabled.
+Active gameplay phase after all units have been placed and the placement window has closed. The bottom unit bar shows available garrison types with remaining counts, the tile info panel is open on the lower left. When the active phase begins, a one-shot `_waveSpawned` flag spawns the enemy wave (4 Infantry, 2 Archers, 1 Cavalry, 1 Siege Engine) on the first active-phase iteration — independent of the turn counter — then enemy turns execute each subsequent frame tick. Camera scroll and zoom are fully enabled.
 
 ---
 
