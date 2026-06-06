@@ -452,7 +452,14 @@ All phase transitions are guarded and idempotent. Calling a transition in the wr
 Game.loop()
   1. TickTransitions.tick(state, { nowMs })      // pure: animate, check timer
   2. IsoCamera scroll / zoom                     // side effect, gated to 'placement' or 'active' phases
-  3. EnemyManager.executeTurn(turnCounter)       // side effect, gated to 'active' phase
+  3. Enemy phase (gated to 'active'):
+     3a. if !_waveSpawned → _waveSpawned = true; EnemyManager.spawnWave({ units: [...] }, tiles)
+                                  // one-shot flag on Game (not GameState) ensures the initial
+                                  // wave spawns exactly once on the first active-phase iteration,
+                                  // independent of turnCounter ordering relative to tick():
+                                  //   4× Infantry, 2× Archer, 1× Cavalry, 1× SiegeEngine
+     3b. EnemyManager.executeTurn(turnCounter, placedUnits)
+                                  // move + act every frame; _waveSpawned guards the spawn
   4. _render(state)                              // pure read → returns rectPatch
   5. applyRenderRects(state, rectPatch)          // write click-target rects back into state
   6. requestAnimationFrame(loop)

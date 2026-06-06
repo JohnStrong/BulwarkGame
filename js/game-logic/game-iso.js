@@ -725,6 +725,8 @@ const Game = {
     },
 
     _setupLevel() {
+        this._waveSpawned = false;
+
         // Reset enemy state for level restart before loading new level data.
         try {
             EnemyManager.reset();
@@ -788,6 +790,26 @@ const Game = {
 
         // 3. Enemy phase — gated by phase
         if (this._state.phase === 'active') {
+            // Spawn the first wave once, on the first active-phase frame.
+            // We use a dedicated _waveSpawned flag on Game (not GameState) to
+            // avoid any dependency on turnCounter ordering relative to tick().
+            if (!this._waveSpawned) {
+                this._waveSpawned = true;
+                try {
+                    const level = LevelLoader.getCurrentLevel();
+                    EnemyManager.spawnWave({
+                        units: [
+                            { type: 'Infantry',    count: 4 },
+                            { type: 'Archer',      count: 2 },
+                            { type: 'Cavalry',     count: 1 },
+                            { type: 'SiegeEngine', count: 1 },
+                        ],
+                    }, level.tiles);
+                    console.log('[Game] Wave 1 spawned:', EnemyManager.getEnemyUnits().length, 'enemy units');
+                } catch (e) {
+                    console.warn('[Game] EnemyManager.spawnWave() failed:', e);
+                }
+            }
             try {
                 EnemyManager.executeTurn(this._state.turnCounter, this._state.placedUnits);
             } catch (e) {
@@ -874,6 +896,21 @@ const Game = {
         ctx.save();
         IsoCamera.applyTransform(ctx);
         IsoRenderer.drawUnits(ctx, IsoCamera, state.placedUnits);
+        // Enemy units — map AI type names to sprite atlas keys
+        const ENEMY_SPRITE = {
+            Infantry:    'enemy-spearman',
+            Archer:      'enemy-archer',
+            Cavalry:     'enemy-knight',
+            SiegeEngine: 'enemy-siege',
+        };
+        const enemyUnits = EnemyManager.getEnemyUnits();
+        if (enemyUnits && enemyUnits.length > 0) {
+            IsoRenderer.drawUnits(ctx, IsoCamera, enemyUnits.map(u => ({
+                sprite: ENEMY_SPRITE[u.type] || 'enemy-militia',
+                row:    u.row,
+                col:    u.col,
+            })));
+        }
         ctx.restore();
 
         // Placement HUD
