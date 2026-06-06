@@ -1,6 +1,6 @@
 # Bulwark - A turn-based isometric tower defense browser game
 
-> ⚠️ **WORK IN PROGRESS** — Game mechanics, win/fail states, and AI are not yet implemented. Currently the isometric map rendering, level generation, and camera systems are functional.
+> ⚠️ **WORK IN PROGRESS** — Win/fail conditions and full combat resolution are not yet implemented. The isometric renderer, camera, HUD, unit placement, enemy AI pathfinding, and the main game loop are functional. Enemy turns execute each frame tick during the active phase.
 
 ![Level 1 Preview](docs/snapshots/iso-viewpoint-map-level-01-v0-02.png)
 
@@ -14,6 +14,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [The Game](#the-game)
 - [Controls](#controls-isometric-view)
 - [HUD Layout](#hud-layout)
+- [Game Screenshots](#game-screenshots)
 - [Your Army](#your-army)
 - [Enemy Forces](#enemy-forces)
 - [Visual Style](#visual-style)
@@ -80,6 +81,43 @@ Win/fail conditions: TBC
 - **Bottom center**: Unit bar — shows all available unit types with sprite, name, and remaining count. Click to select.
 - **Detail panel** (above unit bar): Appears when a unit type is selected. Shows sprite, name, HP, ATK, Armour %, available count, and action buttons (Q/V).
 - **Bottom-left panel**: Tile info — appears when a map tile is clicked. Shows tile coordinates and type. Closeable with ✕.
+
+## Game Screenshots
+
+### Phase 1 — Loading
+> *Screenshot coming soon*
+
+---
+
+### Phase 2 — Briefing
+
+**Screenshot 1 — Briefing screen (expanded, Further Reading open)**
+
+![Phase 2 — Briefing: Mission overview with unit roster](docs/snapshots/hud/phase-1-briefing-screen-expanded.png)
+
+The briefing screen shown at game start before the first wave. The "More ▲" panel is expanded, revealing the Phase I mission objective, the full unit roster with sprites, synergy pairings, and placement tips. The isometric map is visible but non-interactive behind the overlay — camera scroll and zoom are locked until the player clicks **▶ PLAY**.
+
+---
+
+### Phase 3 — Unit Placement
+> *Screenshot coming soon*
+
+---
+
+### Phase 4 — Active Gameplay
+
+**Screenshot 2 — Active gameplay with units placed and HUD visible (v0.1)**
+
+![Phase 4 — Active gameplay: units on map with HUD](docs/snapshots/ready-phase/phase-4-active-gameplay-units-hud-v0.1.png)
+
+Active gameplay phase after all units have been placed and the placement window has closed. The bottom unit bar shows available garrison types with remaining counts, the tile info panel is open on the lower left, and enemy turns are executing each frame tick. Camera scroll and zoom are fully enabled.
+
+---
+
+### Phase 5 — Victory / Defeat
+> *Screenshot coming soon — win/fail conditions not yet implemented*
+
+---
 
 ## Your Army
 
@@ -299,7 +337,13 @@ Bulwark/
 ├── assets/
 │   └── sprites/                # Isometric PNGs (64×32 terrain/castle, 32×32 units)
 ├── tests/
-│   ├── game-logic/             # Unit tests for browser game logic
+│   ├── game-logic/             # Unit tests mirroring js/game-logic/ structure
+│   │   ├── *.spec.js           # Tests for game-iso.js, level-loader.js, unit-manager.js, etc.
+│   │   └── lib/
+│   │       ├── *.spec.js       # Tests for iso-camera, iso-input, iso-renderer, hud, overlay-utils
+│   │       └── ai/             # Tests for enemy AI system
+│   │           ├── pathfinding-engine.test.js  # A*, hex topology, movement costs, sight lines
+│   │           └── enemy-manager.test.js        # Registry, zones, sighting, strategy, integration
 │   └── level-generators/
 │       ├── *.spec.js           # Unit tests for each generator script
 │       └── lib/
@@ -341,7 +385,16 @@ Bulwark/
     │   ├── game.js             # Top-down hex renderer
     │   ├── animation-controller.js  # Shared frame-cycling timers for animated sprite types
     │   ├── pixi-renderer.js    # PixiJS WebGL/Canvas renderer with atlas loading + draw-call budgeting
-    │   └── game-iso.js         # Isometric 2.5D renderer (default)
+    │   ├── game-iso.js         # Isometric 2.5D renderer (default)
+    │   └── lib/
+    │       ├── hud.js              # All HUD panels: top bar, unit bar, tile info, unit detail
+    │       ├── iso-camera.js       # Camera: scroll, zoom, viewpoint rotation, iso projection
+    │       ├── iso-input.js        # Input: keyboard, mouse, wheel with decoupled callbacks
+    │       ├── iso-renderer.js     # Two-pass terrain + unit rendering, overlay constants
+    │       ├── overlay-utils.js    # Overlay allowlist + draw closure resolver
+    │       └── ai/                 # Enemy AI system (see js/game-logic/lib/ai/README.md)
+    │           ├── pathfinding-engine.js  # A* on hex grid, movement costs, sight lines, overlay builder
+    │           └── enemy-manager.js       # Spawning, sighting registry, engagement zones, turn execution
     └── level-generators/
         ├── generate-iso-sprites-br-tl.js  # Terrain sprites (BR→TL viewpoint) + tree/castle overlay generators
         ├── generate-castle-sprites.js     # Castle structure sprites
@@ -379,7 +432,13 @@ npm test
 # Run property-based tests
 npm run test:properties
 
+# Run AI system tests only
+node --test tests/game-logic/lib/ai/pathfinding-engine.test.js \
+           tests/game-logic/lib/ai/enemy-manager.test.js
+
 # Run a single test file
+node --test tests/level-generators/lib/palette.spec.js
+```# Run a single test file
 node --test tests/level-generators/lib/palette.spec.js
 ```
 
@@ -461,7 +520,8 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 ## Architecture Documentation
 
 - **[js/game-logic/README.md](js/game-logic/README.md)** — How the browser game code works: PixiJS renderer initialisation, sprite atlas loading, animation controller, SpriteManager delegation, level loader, unit manager, game loop, and how they connect
-- **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, and HUD system
+- **[js/game-logic/lib/README.md](js/game-logic/lib/README.md)** — Reusable engine modules: isometric camera, input handling, renderer, HUD system, and overlay utilities
+- **[js/game-logic/lib/ai/README.md](js/game-logic/lib/ai/README.md)** — Enemy AI system: A\* pathfinding on the hex grid, movement costs, directional enemy sight, last-seen registry, engagement zones, sighting expiry, and the full turn lifecycle
 - **[docs/game-loop-living-doc.md](docs/game-loop-living-doc.md)** — Game design document: turn phases, unit stats, combat rules, and implementation status
 - **[js/level-generators/README.md](js/level-generators/README.md)** — How the Node.js sprite and level generators work: algorithms, palettes, seeded random
 

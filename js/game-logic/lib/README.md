@@ -11,6 +11,7 @@ Reusable modules extracted from the isometric game engine. Each module is self-c
 - [overlay-utils.js — resolveOverlayDraw](#overlay-utilsjs--resolveoverlaydraw)
 - [hud.js — HUD](#hudjs--hud)
 - [Usage in a New Game](#usage-in-a-new-game)
+- [State Monad (GameState)](#state-monad-gamestate)
 
 ---
 
@@ -152,3 +153,92 @@ function render() {
 ```
 
 Replace `SpriteManager`, `LevelLoader`, and `UnitManager` with your own equivalents.
+
+---
+
+## State Monad (GameState)
+
+`GameState` is the single source of truth for all mutable game data. It is a plain, frozen JavaScript object. Nothing mutates it in place — every operation is a pure function `GameState → GameState`. The game loop reads the current state, computes a new state by composing transitions, and writes the new value back as the next frame's input.
+
+### `update` — the primitive
+
+All state transitions are expressed through one helper:
+
+```js
+/**
+ * Produce a new GameState by shallow-merging `patch` over `state`.
+ * The result is frozen. The input state is untouched.
+ *
+ * @param {GameState}         state
+ * @param {Partial<GameState>} patch
+ * @returns {GameState}
+ */
+function update(state, patch) {
+    return Object.freeze(Object.assign({}, state, patch));
+}
+
+// Usage — transition to the briefing phase:
+const s1 = update(s0, { phase: 'briefing' });
+```
+
+Arrays inside the state (e.g. `placedUnits`, `unitDefs`) are replaced atomically — spread a new array into the patch rather than mutating the existing one.
+
+### Transition guard pattern
+
+Every transition function checks a precondition before doing any work. If the guard fails it returns the original `state` object unchanged, making all transitions safe to call speculatively:
+
+```js
+toBriefing(state) {
+    if (state.phase !== 'loading') return state; // guard — wrong phase, no-op
+    return update(state, { phase: 'briefing', briefingOpen: false });
+},
+```
+
+This means callers never need to check phase themselves before invoking a transition. The transition either applies and returns a new state, or silently passes through and returns the same reference. Idempotency follows automatically: calling `toActive` a second time is a no-op because the guard `state.phase !== 'placement'` fires on the first re-entry.
+
+### Tick pipeline
+
+`TickTransitions.tick` composes all per-frame sub-transitions using `Array.reduce`. Each step receives the output of the previous one:
+
+```js
+tick(state, deps) {
+    return [
+        s => _animateLift(s),
+        s => _checkPlacementTimer(s, deps.nowMs),
+        s => _checkAllPlaced(s),
+        s => _advanceTurnCounter(s),
+        // add new per-frame behaviour here — no existing code changes
+    ].reduce((s, fn) => fn(s), state);
+},
+```
+
+Adding a new per-frame behaviour is a one-line addition to the array. Because every function is a pure `GameState → GameState`, order of composition is the only thing to reason about.
+
+### Concurrency safety
+
+JavaScript is single-threaded. The `requestAnimationFrame` loop runs atomically — the browser will not interrupt it mid-frame to run another event handler. Classic race conditions (two threads writing the same field simultaneously) do not apply here.
+
+Two narrower risks do exist in single-threaded canvas games:
+
+- **Shallow-merge erasure** — if two separate patches are applied to the same base state rather than chained, the second patch silently overwrites fields set by the first. The pipeline pattern above prevents this: each step chains from the previous step's output, never from the original `state`.
+- **Render/state write-back timing** — `_render()` returns bounding rects that must be stored back into `GameState` before the next frame's click handler reads them. This is handled explicitly by `applyRenderRects(state, rectPatch)`, which is called by `Game.loop()` after `_render` returns, before the next `requestAnimationFrame` fires.
+
+### Synchrony rule
+
+`_render()` and every HUD render function it calls **must be fully synchronous** — no `await`, no returned `Promise`. Marking any of these functions `async` would break the rect write-back safety guarantee: an async render would return a `Promise` immediately, `applyRenderRects` would run before the canvas draw calls complete, and the stored rects would be stale or null when the next click handler fires.
+
+### State vs. side effects
+
+Not everything belongs in `GameState`. The table below shows the split:
+
+| In `GameState` | Side effects (outside state) |
+|---|---|
+| `phase`, `placementStartMs`, `placementDone` | `IsoCamera` scroll, zoom, and GL/canvas transform |
+| `placedUnits`, `unitDefs` (with qty tracking) | `EnemyManager.executeTurn()` / `spawnWave()` |
+| `hoveredTile`, `selectedTile`, `selectedLift` | Canvas draw calls (`ctx.fillRect`, `ctx.drawImage`, etc.) |
+| `hudOpen`, `hudWidth`, `selectedUnitIdx` | DOM event wiring (`addEventListener` in `IsoInput`) |
+| `briefingOpen` (FurtherReadingPanel toggle) | `SpriteManager` atlas and texture cache |
+| `lastBriefingRects`, `lastPlacementRects` | `LevelLoader` file I/O and tile array construction |
+| `turnCounter` | `UnitManager` CSV parsing at init time |
+
+The guiding principle: if the value must survive a frame boundary and be read by a transition or hit-test, it lives in `GameState`. If it is an external resource with its own lifecycle (WebGL context, DOM nodes, network I/O), it stays imperative and is touched only from `Game.loop()` or `Game.init()`.

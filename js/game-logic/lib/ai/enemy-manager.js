@@ -553,7 +553,7 @@ const EnemyManager = {
      * @param {number} [currentTurn=0] - Turn counter for registry timestamps.
      * @returns {{ combatEvents: Array<{enemy, playerUnit}> }}
      */
-    executeTurn(currentTurn = 0) {
+    executeTurn(currentTurn = 0, placedUnits = (typeof UnitManager !== 'undefined' && UnitManager.getPlacedUnits ? UnitManager.getPlacedUnits() : [])) {
         const PE = getPathfindingEngine();
         const tileGraph = this._worldKnowledgeMap;
 
@@ -565,14 +565,6 @@ const EnemyManager = {
         // ----------------------------------------------------------------
         // Step 1: Safety fallback purge
         // ----------------------------------------------------------------
-        let placedUnits = [];
-        try {
-            if (typeof UnitManager !== 'undefined' && UnitManager.getPlacedUnits) {
-                placedUnits = UnitManager.getPlacedUnits();
-            }
-        } catch (_) {
-            // UnitManager unavailable (tests) — treat as empty
-        }
 
         if (typeof this._safetyPurgeDead === 'function') {
             this._safetyPurgeDead(placedUnits);

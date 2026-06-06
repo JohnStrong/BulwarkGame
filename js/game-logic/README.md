@@ -12,6 +12,10 @@ All browser-side code that runs the game lives here. These files are loaded by `
 - [animation-controller.js — AnimationController](#animation-controllerjs--animationcontroller)
 - [pixi-renderer.js — PixiRenderer](#pixi-rendererjs--pixirenderer)
 - [game-iso.js — Game (Main Orchestrator)](#game-isojs--game-main-orchestrator)
+  - [GameState — the state monad](#gamestate--the-state-monad)
+  - [Phase machine](#phase-machine)
+  - [Tick transitions](#tick-transitions-ticktransitions)
+  - [Input transitions](#input-transitions-inputtransitions)
 - [lib/ — Reusable Modules](#lib--reusable-modules)
 
 ---
@@ -336,6 +340,63 @@ _reset(); // force canvas2d mode, clear all state
 
 The entry point. Initializes everything, runs the game loop, and handles player interactions. It delegates heavy lifting to the `lib/` modules.
 
+All mutable game logic state is stored in a single frozen `GameState` value (the state monad). Every update is a pure function `GameState → GameState`. The `Game` object is a thin orchestrator that owns only the canvas, context, and a single `_state` reference.
+
+### GameState — the state monad
+
+`GameState` is a frozen plain object that holds the complete snapshot of all game logic for one frame. Nothing mutates it in place — every operation calls `update(state, patch)` and returns a new frozen object.
+
+```js
+// All fields and their types:
+{
+  phase:              'loading' | 'briefing' | 'placement' | 'active',
+  placementStartMs:   number | null,   // performance.now() at placement entry
+  placementDone:      boolean,         // true once → 'active' has fired
+  briefingOpen:       boolean,         // FurtherReadingPanel expanded
+
+  unitDefs:           ReadonlyArray<Object>,    // definitions + per-type qty tracking
+  placedUnits:        ReadonlyArray<Object>,    // units on the map
+
+  hoveredTile:        { row, col } | null,
+  selectedTile:       { row, col } | null,
+  selectedLift:       number,          // animated, pixels
+  selectedLiftTarget: number,
+
+  selectedUnitIdx:    number,          // -1 = none selected
+  hudOpen:            boolean,
+  hudWidth:           number,          // animated, pixels
+  hudTargetWidth:     number,
+
+  turnCounter:        number,
+
+  lastBriefingRects:  { playButtonRect, moreButtonRect } | null,
+  lastPlacementRects: { readyButtonRect } | null,
+}
+```
+
+`makeInitialState(unitDefs)` constructs the initial frozen state from a unit definition array (loaded via `UnitManager`). All nested arrays and objects are also frozen on construction.
+
+#### `update` — the state monad primitive
+
+```js
+// Shallow-merge patch onto frozen state, return new frozen state.
+// The input state is never touched.
+update(state, { phase: 'briefing' })
+```
+
+Arrays inside state (e.g. `placedUnits`, `unitDefs`) are replaced atomically — spread a new array into the patch. Individual array items are also frozen.
+
+#### Module-level helpers
+
+These plain functions live at module scope, not on `Game`. They are stateless and directly testable.
+
+| Helper | Description |
+|--------|-------------|
+| `PLACEMENT_DURATION_MS` | `30_000` — placement phase timeout in ms |
+| `_hitTest(x, y, rect)` | AABB point-in-rect test |
+| `_canPlaceOn(sprite)` | Returns `true` if terrain allows unit placement. Blocked prefixes: `tree-`, `water-`, `castle-wall`, `castle-keep-`, `castle-gatehouse`, `rock` |
+| `_getUnitBarClick(mouseX, mouseY, unitDefs, canvasW, canvasH)` | Returns the clicked unit bar slot index, or `-1` if no slot was hit |
+
 ### Startup flow
 
 ```
@@ -351,9 +412,12 @@ Game.init()
   → Game._renderDamagedCastleIntegrationTest()   // startup visual smoke test (Req 9.7)
   → LevelLoader.loadLevelList()
   → UnitManager.loadResources()
-  → Game.startLevel()
+  → Game._state = makeInitialState(UnitManager.units)
+  → Game._state = PhaseTransitions.toBriefing(Game._state)
   → Game.loop()
 ```
+
+`unitDefs` are copied from `UnitManager` into the frozen state at `init()` time. After that, `UnitManager` is no longer queried for runtime state — all values come from `GameState`.
 
 #### PixiJS initialisation detail
 
@@ -365,45 +429,110 @@ The startup sequence replaces the old `SpriteManager.loadAll()` call with a five
 4. **`AnimationController.registerAnimatedType(...)`** — registers `water-anim` (4 frames, 500 ms) and `flag` (3 frames, 600 ms) so animated tiles cycle frames from the atlas automatically.
 5. **`_renderDamagedCastleIntegrationTest()`** — draws `castle-wall-damaged` at position (8, 8) as a startup smoke test confirming damaged sprites load from the atlas without errors. The sprite is overwritten by the first game render frame.
 
+### Phase machine
+
+The game progresses through four phases in order:
+
+```
+loading → briefing → placement → active
+```
+
+| Phase | Entered when | Exited when |
+|-------|-------------|-------------|
+| `loading` | on page load | all assets loaded (`init()` completes) |
+| `briefing` | assets loaded | Play button clicked |
+| `placement` | Play clicked | timer expires, all units placed, or Ready clicked |
+| `active` | placement ends | (not yet implemented — game continues) |
+
+All phase transitions are guarded and idempotent. Calling a transition in the wrong phase returns the state unchanged.
+
 ### Game loop (runs every frame ~60fps)
 
 ```
 Game.loop()
-  → Game.update()    // process input, animate
-  → Game.render()    // draw everything
+  1. TickTransitions.tick(state, { nowMs })      // pure: animate, check timer
+  2. IsoCamera scroll / zoom                     // side effect, gated to 'placement' or 'active' phases
+  3. EnemyManager.executeTurn(turnCounter)       // side effect, gated to 'active' phase
+  4. _render(state)                              // pure read → returns rectPatch
+  5. applyRenderRects(state, rectPatch)          // write click-target rects back into state
+  6. requestAnimationFrame(loop)
 ```
 
-### Update step
+`_render` is always synchronous — it must never `await` or return a `Promise`. This guarantees that the rect write-back in step 5 is always coherent with the draw calls in step 4.
 
-- Reads held keys from `IsoInput` → scrolls camera
-- Reads zoom keys → adjusts zoom
-- Animates tile lift (smooth 0→3px when selected)
-- Animates HUD panel width (smooth slide-in/out)
+#### Camera gating by phase
+
+Camera scroll and zoom (step 2) are only applied during the `'placement'` and `'active'` phases. During `'loading'` and `'briefing'` the map is non-interactive and the camera stays locked, so WASD/arrow key scroll and +/− zoom inputs are silently ignored.
+
+```js
+if (state.phase === 'placement' || state.phase === 'active') {
+    const { dx, dy } = IsoInput.getScrollDir();
+    if (dx || dy) IsoCamera.scroll(dx, dy);
+    if (IsoInput.keys.zoomIn)  IsoCamera.applyZoom(IsoCamera.zoomSpeed);
+    if (IsoInput.keys.zoomOut) IsoCamera.applyZoom(-IsoCamera.zoomSpeed);
+}
+```
+
+This prevents the player from inadvertently repositioning the camera before the game starts (e.g. while reading the briefing screen) and keeps the briefing overlay anchored to the full viewport.
+
+### Tick transitions (`TickTransitions`)
+
+`TickTransitions.tick(state, deps)` composes a pipeline of sub-transitions applied in order each frame:
+
+| Sub-transition | What it does |
+|----------------|-------------|
+| `_animateLift` | Smoothly moves `selectedLift` toward `selectedLiftTarget` (speed 0.3 px/frame) |
+| `_animateHud` | Smoothly moves `hudWidth` toward `hudTargetWidth` (speed 12 px/frame) |
+| `_checkPlacementTimer` | Calls `PhaseTransitions.toActive` when `nowMs − placementStartMs ≥ PLACEMENT_DURATION_MS` |
+| `_checkAllPlaced` | Calls `PhaseTransitions.toActive` when all `unitDefs` have `qtyRemaining ≤ 0` |
+| `_advanceTurnCounter` | Increments `turnCounter` each frame while phase is `'active'` |
+
+Adding a new per-frame behaviour means appending one function to the pipeline array — no existing code changes.
+
+### Input transitions (`InputTransitions`)
+
+Click and mouse-move handlers are pure functions: `(state, x, y, deps) → GameState`.
+
+`applyClick` dispatches by phase:
+- `'briefing'` → `_briefingClick`: tests `lastBriefingRects` hit boxes; fires `toPlacement` or `toggleFurtherReading`
+- `'placement'` → `_placementClick`: tests `lastPlacementRects` hit box for Ready button, then falls through to tile interaction
+- `'active'` → `_activeClick`: tile interaction only
+
+`_tileInteractionClick` (shared by placement and active):
+1. Unit bar slot hit → toggle `selectedUnitIdx`
+2. Tile panel close button hit → close panel
+3. Map tile + unit selected → `_applyUnitPlacement` (place or remove)
+4. Map tile + no unit selected → select/deselect tile (opens info panel)
+
+`_applyUnitPlacement` is fully pure — it returns updated `unitDefs` and `placedUnits` arrays without touching `UnitManager`.
+
+`applyRightClick` removes the top unit on the clicked tile and restores its quantity in `unitDefs`.
 
 ### Render step
 
-1. Clear canvas (dark green background)
-2. Apply camera zoom transform
-3. Draw terrain tiles via `IsoRenderer.drawTerrain()`
-4. Draw placed units via `IsoRenderer.drawUnits()`
-5. Restore zoom transform
-6. Draw HUD panels (not affected by zoom):
-   - Tile info panel (bottom-left)
-   - Top info bar
-   - Unit bar (bottom-center)
-   - Unit detail panel (above bar, if unit selected)
+`_render(state)` reads `GameState` and returns a `rectPatch` for the next frame's hit-testing. It never writes to `_state` directly.
 
-### Click handling
+1. Clear canvas (dark green background `#1a2a12`)
+2. `'loading'` phase → draw loading text, return `{}`
+3. Apply camera transform → draw terrain via `IsoRenderer.drawTerrain()`
+4. `'briefing'` phase → draw dim overlay + `HUD.renderBriefingScreen()` → return `{ lastBriefingRects }`
+5. Draw placed units via `IsoRenderer.drawUnits()`
+6. `'placement'` phase → `HUD.renderPlacementHUD()`, tile panel, unit bar → return `{ lastPlacementRects }`
+7. `'active'` phase → tile panel, top bar, unit bar → return `{}`
 
-When the player clicks:
-1. **Unit bar?** → select/deselect that unit type
-2. **Tile panel close button?** → close the panel
-3. **Map tile + unit selected?** → place unit (or remove if same type already there)
-4. **Map tile + no unit selected?** → select/deselect tile (shows info panel)
+### Click handling (summary)
 
-### Right-click
+Input event → `InputTransitions.applyClick(state, x, y, deps)` → new `GameState` assigned to `_state`. All hit-testing uses the bounding rects stored in state from the previous frame's render pass.
 
-Removes any unit on the clicked tile (restores quantity).
+### Concurrency model
+
+JavaScript is single-threaded. The `rAF` game loop runs atomically — no DOM event handler can interrupt it mid-execution. This means:
+
+- `EnemyManager.executeTurn()` and an `onClick` handler can never interleave.
+- Multiple clicks queued between two frames execute serially; each handler reads the output of the previous one.
+- Classic multi-thread race conditions do not apply here.
+
+Two narrower risks (re-entrant init and stale render rects) are analysed in full in `.kiro/specs/defensive-phase-hud/design.md`.
 
 ---
 
