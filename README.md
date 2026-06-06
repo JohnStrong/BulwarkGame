@@ -14,6 +14,7 @@ A turn-based medieval tower defense game rendered in isometric 2.5D with procedu
 - [The Game](#the-game)
 - [Controls](#controls-isometric-view)
 - [HUD Layout](#hud-layout)
+- [Game Screenshots](#game-screenshots)
 - [Your Army](#your-army)
 - [Enemy Forces](#enemy-forces)
 - [Visual Style](#visual-style)
@@ -80,6 +81,43 @@ Win/fail conditions: TBC
 - **Bottom center**: Unit bar — shows all available unit types with sprite, name, and remaining count. Click to select.
 - **Detail panel** (above unit bar): Appears when a unit type is selected. Shows sprite, name, HP, ATK, Armour %, available count, and action buttons (Q/V).
 - **Bottom-left panel**: Tile info — appears when a map tile is clicked. Shows tile coordinates and type. Closeable with ✕.
+
+## Game Screenshots
+
+### Phase 1 — Loading
+> *Screenshot coming soon*
+
+---
+
+### Phase 2 — Briefing
+
+**Screenshot 1 — Briefing screen (expanded, Further Reading open)**
+
+![Phase 2 — Briefing: Mission overview with unit roster](docs/snapshots/hud/phase-1-briefing-screen-expanded.png)
+
+The briefing screen shown at game start before the first wave. The "More ▲" panel is expanded, revealing the Phase I mission objective, the full unit roster with sprites, synergy pairings, and placement tips. The isometric map is visible but non-interactive behind the overlay — camera scroll and zoom are locked until the player clicks **▶ PLAY**.
+
+---
+
+### Phase 3 — Unit Placement
+> *Screenshot coming soon*
+
+---
+
+### Phase 4 — Active Gameplay
+
+**Screenshot 2 — Active gameplay with units placed and HUD visible (v0.1)**
+
+![Phase 4 — Active gameplay: units on map with HUD](docs/snapshots/ready-phase/phase-4-active-gameplay-units-hud-v0.1.png)
+
+Active gameplay phase after all units have been placed and the placement window has closed. The bottom unit bar shows available garrison types with remaining counts, the tile info panel is open on the lower left, and enemy turns are executing each frame tick. Camera scroll and zoom are fully enabled.
+
+---
+
+### Phase 5 — Victory / Defeat
+> *Screenshot coming soon — win/fail conditions not yet implemented*
+
+---
 
 ## Your Army
 

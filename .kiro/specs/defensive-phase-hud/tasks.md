@@ -8,16 +8,16 @@ The work splits into three layers that must be built bottom-up: (1) the state mo
 
 ## Tasks
 
-- [ ] 1. Add `GameState` typedef, `makeInitialState`, `update` primitive, and module-level helpers (`_hitTest`, `_canPlaceOn`, `_getUnitBarClick`, `PLACEMENT_DURATION_MS`) to `game-iso.js`
-- [ ] 2. Implement `PhaseTransitions` in `game-iso.js` (`toBriefing`, `toPlacement`, `toActive`, `toggleFurtherReading` — all guarded, all idempotent)
-- [ ] 3. Implement `TickTransitions` in `game-iso.js` (`tick` pipeline composing `_animateLift`, `_animateHud`, `_checkPlacementTimer`, `_checkAllPlaced`, `_advanceTurnCounter`)
-- [ ] 4. Implement `InputTransitions` in `game-iso.js` (`applyClick` phase dispatcher, `_briefingClick`, `_placementClick`, `_tileInteractionClick`, `_applyUnitPlacement`, `applyRightClick`, `applyMouseMove`, `applyMouseLeave`)
-- [ ] 5. Refactor `Game` object in `game-iso.js` to hold `_state` reference and wire all transition modules into `init()`, `loop()`, and input callbacks; remove standalone `update()`, `handleClick`, `handleRightClick` methods
-- [ ] 6. Implement `HUD.renderBriefingScreen(ctx, state)` in `hud.js` — collapsed and expanded Further Reading variants, Play/More bounding rects, Play button viewport clamp
-- [ ] 7. Implement `HUD.renderPlacementHUD(ctx, state)` in `hud.js` — top bar with label, M:SS timer (red ≤ 5 s), Ready button (gold ≤ 10 s), ReadyButton bounding rect
-- [ ] 8. Implement `_render(state)` phase dispatch in `game-iso.js` — per-phase canvas draw calls, returns `rectPatch`; wire `applyRenderRects` in `loop()`
-- [ ] 9. Update `EnemyManager.executeTurn` call site in `game-iso.js` to pass `state.placedUnits`; add `placedUnits` parameter with `UnitManager.getPlacedUnits()` default to `enemy-manager.js`
-- [ ] 10. Add "State Monad (GameState)" section to `js/game-logic/lib/README.md` with `update` primitive example, transition guard pattern, tick pipeline, concurrency safety note, synchrony rule, and state-vs-side-effects table
+- [x] 1. Add `GameState` typedef, `makeInitialState`, `update` primitive, and module-level helpers (`_hitTest`, `_canPlaceOn`, `_getUnitBarClick`, `PLACEMENT_DURATION_MS`) to `game-iso.js`
+- [x] 2. Implement `PhaseTransitions` in `game-iso.js` (`toBriefing`, `toPlacement`, `toActive`, `toggleFurtherReading` — all guarded, all idempotent)
+- [x] 3. Implement `TickTransitions` in `game-iso.js` (`tick` pipeline composing `_animateLift`, `_animateHud`, `_checkPlacementTimer`, `_checkAllPlaced`, `_advanceTurnCounter`)
+- [x] 4. Implement `InputTransitions` in `game-iso.js` (`applyClick` phase dispatcher, `_briefingClick`, `_placementClick`, `_tileInteractionClick`, `_applyUnitPlacement`, `applyRightClick`, `applyMouseMove`, `applyMouseLeave`)
+- [x] 5. Refactor `Game` object in `game-iso.js` to hold `_state` reference and wire all transition modules into `init()`, `loop()`, and input callbacks; remove standalone `update()`, `handleClick`, `handleRightClick` methods
+- [x] 6. Implement `HUD.renderBriefingScreen(ctx, state)` in `hud.js` — collapsed and expanded Further Reading variants, Play/More bounding rects, Play button viewport clamp
+- [x] 7. Implement `HUD.renderPlacementHUD(ctx, state)` in `hud.js` — top bar with label, M:SS timer (red ≤ 5 s), Ready button (gold ≤ 10 s), ReadyButton bounding rect
+- [x] 8. Implement `_render(state)` phase dispatch in `game-iso.js` — per-phase canvas draw calls, returns `rectPatch`; wire `applyRenderRects` in `loop()`
+- [x] 9. Update `EnemyManager.executeTurn` call site in `game-iso.js` to pass `state.placedUnits`; add `placedUnits` parameter with `UnitManager.getPlacedUnits()` default to `enemy-manager.js`
+- [x] 10. Add "State Monad (GameState)" section to `js/game-logic/lib/README.md` with `update` primitive example, transition guard pattern, tick pipeline, concurrency safety note, synchrony rule, and state-vs-side-effects table
 
 ## Task Dependency Graph
 

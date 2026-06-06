@@ -231,6 +231,438 @@ const HUD = {
     },
 
     /**
+     * Render the briefing screen overlay (pre-game mission brief).
+     *
+     * Draws the full-canvas briefing panel, including:
+     *   - Mission headline and body blurb
+     *   - "[ More ▼ / ▲ ]" toggle for the FurtherReadingPanel
+     *   - FurtherReadingPanel content (when furtherReadingOpen is true)
+     *   - "[ ▶  PLAY ]" button, always visible and viewport-clamped
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {{ furtherReadingOpen: boolean, canvasW: number, canvasH: number }} state
+     * @returns {{ playButtonRect: {x,y,w,h}|null, moreButtonRect: {x,y,w,h}|null }}
+     */
+    renderBriefingScreen(ctx, state) {
+        const { furtherReadingOpen, canvasW, canvasH, unitDefs } = state;
+
+        if (canvasW <= 0 || canvasH <= 0) {
+            return { playButtonRect: null, moreButtonRect: null };
+        }
+
+        // ── Panel geometry ─────────────────────────────────────────────────
+        const PAD = 20;                  // inner horizontal padding
+        const panelW = Math.max(320, Math.min(Math.round(canvasW * 0.55), 600));
+        const panelX = Math.round((canvasW - panelW) / 2);
+
+        // ── Measure content height so we can position the panel vertically ─
+        // We will do a dry-run measurement pass first, then draw.
+
+        // Font size constants
+        const HEAD_SIZE    = 22;
+        const BODY_SIZE    = 11;
+        const SECTION_SIZE = 10;
+        const SUB_SIZE     = 9;
+        const FR_BODY_SIZE = 10;
+        const LINE_GAP     = 6;  // gap between logical blocks
+        const DIVIDER_H    = 1;
+
+        // Heights of fixed elements
+        const headLineH    = HEAD_SIZE + LINE_GAP + 2;      // headline + small gap
+        const dividerH     = DIVIDER_H + LINE_GAP;
+        const bodyLineH    = BODY_SIZE + 4;
+        const bodyLines = [
+            'Enemy forces are massing beyond the tree line.',
+            'They will march on your castle in waves.',
+            'Place your garrison and hold the walls.',
+        ];
+        const bodyH        = bodyLines.length * bodyLineH + LINE_GAP;
+        const moreBtnH     = 20 + LINE_GAP;
+        const playBtnH     = 28;
+        const playBtnMarginTop = LINE_GAP * 2;
+
+        // Further-reading content lines (pre-built for both measure and draw)
+        const frSections = [
+            {
+                type: 'header-main',
+                text: 'PHASE I \u2014 THE DEFENDER',
+                subtext: 'Hold off all enemy waves to win.',
+            },
+            {
+                type: 'subheader',
+                text: 'YOUR UNITS',
+                items: [
+                    '\u25BA Archers/Crossbowmen \u2014 ranged, forest ambush; needs melee cover',
+                    '\u25BA Spearmen/Heavy Inf. \u2014 sturdy chokepoint holders, moderate speed',
+                    '\u25BA Men-at-arms \u2014 armoured sorties, breach plugging; slow',
+                    '\u25BA Engineers/Militia \u2014 support; operate siege equipment',
+                ],
+            },
+            {
+                type: 'subheader',
+                text: 'SYNERGIES',
+                items: [
+                    '\u25BA Archers need a melee shield \u2014 place Spearmen or Men-at-arms',
+                    '  one tile ahead of any forested archer position',
+                    '\u25BA Engineers are fragile \u2014 keep a melee unit nearby to stop',
+                    '  them being overrun',
+                    '\u25BA Spearmen hold the front; Men-at-arms plug breaches once',
+                    '  enemies get through',
+                ],
+            },
+            {
+                type: 'subheader',
+                text: 'TIPS',
+                items: [
+                    '\u2022 Ranged units prefer forests & high ground',
+                    '\u2022 Melee units anchor gates & chokepoints',
+                    '\u2022 Mix unit types \u2014 avoid single-type lines',
+                ],
+            },
+        ];
+
+        // Compute further-reading height
+        const frLineH = FR_BODY_SIZE + 4;
+        const frSubHdrH = SUB_SIZE + 4;
+        const SPRITE_GRID_W = 48, SPRITE_GRID_H = 28, SPRITE_GRID_GAP = 6;
+        const SPRITE_GRID_ROW_H = SPRITE_GRID_H + 14;
+        let frContentH = 0;
+        if (furtherReadingOpen) {
+            frContentH += LINE_GAP + DIVIDER_H + LINE_GAP; // dotted separator after More btn
+            for (const sec of frSections) {
+                if (sec.type === 'header-main') {
+                    frContentH += SECTION_SIZE + 4 + frLineH + LINE_GAP;
+                } else if (sec.type === 'subheader') {
+                    frContentH += frSubHdrH;
+                    // YOUR UNITS gets an extra sprite grid row
+                    if (sec.text === 'YOUR UNITS' && unitDefs && unitDefs.length > 0) {
+                        const gridCols = Math.min(unitDefs.length, 4);
+                        const gridRows = Math.ceil(unitDefs.length / gridCols);
+                        frContentH += gridRows * SPRITE_GRID_ROW_H + LINE_GAP;
+                    }
+                    frContentH += sec.items.length * frLineH + LINE_GAP;
+                }
+            }
+            frContentH += LINE_GAP + DIVIDER_H + LINE_GAP; // trailing dotted separator
+        }
+
+        // Total natural panel height
+        const naturalH =
+            PAD +
+            headLineH +
+            dividerH +
+            bodyH +
+            moreBtnH +
+            frContentH +
+            playBtnMarginTop +
+            playBtnH +
+            PAD;
+
+        // Clamp to canvas minus breathing room
+        const maxPanelH = canvasH - 80;
+        const panelH = Math.min(naturalH, maxPanelH);
+
+        // Centre panel vertically (slight bias toward upper half looks better)
+        const panelY = Math.round((canvasH - panelH) / 2);
+
+        // ── Background ────────────────────────────────────────────────────
+        ctx.fillStyle = 'rgba(15, 12, 10, 0.92)';
+        ctx.fillRect(panelX, panelY, panelW, panelH);
+        this.drawSheenBorder(ctx, panelX, panelY, panelW, panelH);
+
+        // ── Clipping region so tall content doesn't bleed outside the panel ─
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(panelX, panelY, panelW, panelH);
+        ctx.clip();
+
+        // ── Play button geometry (always at panel bottom, clamped) ────────
+        const playBtnW     = 120;
+        const playBtnH2    = playBtnH;
+        let   playBtnX     = panelX + Math.round((panelW - playBtnW) / 2);
+        let   playBtnY     = panelY + panelH - PAD - playBtnH2;
+
+        // Viewport clamp: keep play button fully inside canvas
+        playBtnX = Math.max(0, Math.min(playBtnX, canvasW - playBtnW));
+        playBtnY = Math.max(0, Math.min(playBtnY, canvasH - playBtnH2));
+
+        // We need to reserve space for the play button at the bottom of the
+        // clipping region; define a scrollable content area above it.
+        const scrollableBottom = panelY + panelH - PAD - playBtnH2 - playBtnMarginTop;
+
+        // ── Drawing cursor ────────────────────────────────────────────────
+        let cy = panelY + PAD;
+
+        // Helper: draw a dotted horizontal separator
+        const drawDottedSep = (yPos) => {
+            ctx.save();
+            ctx.setLineDash([2, 4]);
+            ctx.strokeStyle = 'rgba(200,184,144,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(panelX + PAD, yPos);
+            ctx.lineTo(panelX + panelW - PAD, yPos);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        };
+
+        // ── Headline ──────────────────────────────────────────────────────
+        ctx.fillStyle = '#c8b890';
+        ctx.font = `bold ${HEAD_SIZE}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('\u2694  OBJECTIVE: DEFEND YOUR DYNASTY!  \u2694', panelX + PAD, cy);
+        cy += HEAD_SIZE + 4;
+
+        // Thin gold divider
+        ctx.strokeStyle = '#c8b890';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(panelX + PAD, cy);
+        ctx.lineTo(panelX + panelW - PAD, cy);
+        ctx.stroke();
+        cy += DIVIDER_H + LINE_GAP;
+
+        // ── Body text ─────────────────────────────────────────────────────
+        ctx.fillStyle = '#aaa';
+        ctx.font = `${BODY_SIZE}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        for (const line of bodyLines) {
+            ctx.fillText(line, panelX + PAD, cy);
+            cy += bodyLineH;
+        }
+        cy += LINE_GAP;
+
+        // ── "More" button ─────────────────────────────────────────────────
+        const moreBtnLabel = furtherReadingOpen ? '[ More \u25B2 ]' : '[ More \u25BC ]';
+        const moreBtnW     = 72;
+        const moreBtnBtnH  = 18;
+        const moreBtnBx    = panelX + PAD;
+        const moreBtnBy    = cy;
+
+        ctx.fillStyle = 'rgba(20, 18, 15, 0.85)';
+        ctx.fillRect(moreBtnBx, moreBtnBy, moreBtnW, moreBtnBtnH);
+        ctx.strokeStyle = '#8a7a60';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(moreBtnBx, moreBtnBy, moreBtnW, moreBtnBtnH);
+        ctx.fillStyle = '#bbb';
+        ctx.font = `9px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(moreBtnLabel, moreBtnBx + moreBtnW / 2, moreBtnBy + moreBtnBtnH / 2);
+        cy += moreBtnBtnH + LINE_GAP;
+
+        // Store More button rect
+        const moreButtonRect = { x: moreBtnBx, y: moreBtnBy, w: moreBtnW, h: moreBtnBtnH };
+
+        // ── Further Reading Panel (expanded) ──────────────────────────────
+        if (furtherReadingOpen) {
+            // Opening dotted separator
+            drawDottedSep(cy);
+            cy += DIVIDER_H + LINE_GAP;
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+
+            for (const sec of frSections) {
+                // Bail early if we've reached the play-button reserve area
+                if (cy + SECTION_SIZE + 4 > scrollableBottom) break;
+
+                if (sec.type === 'header-main') {
+                    // "PHASE I — THE DEFENDER"
+                    ctx.fillStyle = '#c8b890';
+                    ctx.font = `bold ${SECTION_SIZE}px monospace`;
+                    ctx.fillText(sec.text, panelX + PAD, cy);
+                    cy += SECTION_SIZE + 4;
+
+                    if (cy < scrollableBottom) {
+                        // Sub-text "Hold off all enemy waves to win."
+                        ctx.fillStyle = '#aaa';
+                        ctx.font = `${FR_BODY_SIZE}px monospace`;
+                        ctx.fillText(sec.subtext, panelX + PAD, cy);
+                        cy += frLineH + LINE_GAP;
+                    }
+                } else if (sec.type === 'subheader') {
+                    if (cy >= scrollableBottom) break;
+
+                    // Section header e.g. "YOUR UNITS"
+                    ctx.fillStyle = '#8a7a60';
+                    ctx.font = `bold ${SUB_SIZE}px monospace`;
+                    ctx.fillText(sec.text, panelX + PAD, cy);
+                    cy += frSubHdrH;
+
+                    // YOUR UNITS — render a sprite grid before the text list
+                    if (sec.text === 'YOUR UNITS' && unitDefs && unitDefs.length > 0) {
+                        const SPRITE_W = 48, SPRITE_H = 28, SPRITE_GAP = 6;
+                        const gridCols = Math.min(unitDefs.length, 4);
+                        const gridW = gridCols * (SPRITE_W + SPRITE_GAP) - SPRITE_GAP;
+                        const gridStartX = panelX + PAD + 2;
+                        const gridY = cy;
+                        const gridRowH = SPRITE_H + 14; // sprite + name label
+
+                        for (let ui = 0; ui < unitDefs.length; ui++) {
+                            const ud = unitDefs[ui];
+                            const col = ui % gridCols;
+                            const row = Math.floor(ui / gridCols);
+                            if (gridY + row * gridRowH + gridRowH > scrollableBottom) break;
+
+                            const sx = gridStartX + col * (SPRITE_W + SPRITE_GAP);
+                            const sy = gridY + row * gridRowH;
+
+                            // Box background
+                            ctx.fillStyle = 'rgba(30, 25, 18, 0.75)';
+                            ctx.fillRect(sx, sy, SPRITE_W, SPRITE_H + 12);
+                            ctx.strokeStyle = '#5a4a38';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(sx, sy, SPRITE_W, SPRITE_H + 12);
+
+                            // Sprite
+                            if (ud.sprites && ud.sprites[0]) {
+                                try {
+                                    SpriteManager.draw(ctx, ud.sprites[0], sx + 2, sy + 2, SPRITE_W - 4, SPRITE_H - 4);
+                                } catch (_) { /* sprite not yet loaded */ }
+                            }
+
+                            // Short name label beneath sprite
+                            ctx.fillStyle = '#aaa';
+                            ctx.font = '7px monospace';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'alphabetic';
+                            const label = (ud.name || '').split('/')[0].split('(')[0].trim().substring(0, 9);
+                            ctx.fillText(label, sx + SPRITE_W / 2, sy + SPRITE_H + 10);
+                        }
+
+                        const rows = Math.ceil(unitDefs.length / gridCols);
+                        cy += rows * gridRowH + LINE_GAP;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'top';
+                    }
+
+                    // Body items (text descriptions)
+                    ctx.fillStyle = '#aaa';
+                    ctx.font = `${FR_BODY_SIZE}px monospace`;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    for (const item of sec.items) {
+                        if (cy + frLineH > scrollableBottom) break;
+                        ctx.fillText(item, panelX + PAD + 2, cy);
+                        cy += frLineH;
+                    }
+                    cy += LINE_GAP;
+                }
+            }
+
+            // Trailing dotted separator (only if space)
+            if (cy + DIVIDER_H <= scrollableBottom) {
+                drawDottedSep(cy);
+                cy += DIVIDER_H + LINE_GAP;
+            }
+        }
+
+        // ── "PLAY" button ─────────────────────────────────────────────────
+        // Draw at clamped position (already computed above)
+        const grad = ctx.createLinearGradient(playBtnX, playBtnY, playBtnX + playBtnW, playBtnY);
+        grad.addColorStop(0, '#3a3028');
+        grad.addColorStop(0.5, '#c8b890');
+        grad.addColorStop(1, '#3a3028');
+
+        ctx.fillStyle = 'rgba(30, 25, 18, 0.92)';
+        ctx.fillRect(playBtnX, playBtnY, playBtnW, playBtnH2);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(playBtnX, playBtnY, playBtnW, playBtnH2);
+        ctx.fillStyle = '#eee';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u25B6  PLAY', playBtnX + playBtnW / 2, playBtnY + playBtnH2 / 2);
+
+        ctx.restore(); // remove clip
+
+        const playButtonRect = { x: playBtnX, y: playBtnY, w: playBtnW, h: playBtnH2 };
+        return { playButtonRect, moreButtonRect };
+    },
+
+    /**
+     * Render the placement-phase top bar.
+     *
+     * Draws a 20 px bar at y=0 containing:
+     *   - "PLACE YOUR UNITS" label — left-aligned at x=8
+     *   - "⏱ M:SS" countdown timer — centred horizontally
+     *     (text turns #f88 when secondsRemaining ≤ 5)
+     *   - "[ ✓ Ready ]" button — right-aligned with ~8 px margin
+     *     (border and text turn gold #c8b890 when secondsRemaining ≤ 10)
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {{ secondsRemaining: number, canvasW: number, canvasH: number }} state
+     * @returns {{ readyButtonRect: {x:number,y:number,w:number,h:number}|null }}
+     */
+    renderPlacementHUD(ctx, state) {
+        const { secondsRemaining, canvasW, canvasH } = state;
+
+        if (canvasW <= 0 || canvasH <= 0) {
+            return { readyButtonRect: null };
+        }
+
+        const barH = 20;
+
+        // Background — same as renderTopBar
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, canvasW, barH);
+
+        ctx.font = '11px monospace';
+        ctx.textBaseline = 'top';
+
+        // 1. "PLACE YOUR UNITS" label — left-aligned
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText('PLACE YOUR UNITS', 8, 5);
+
+        // 2. Timer — centred, red-tinted when ≤ 5 s
+        const mins = Math.floor(secondsRemaining / 60);
+        const secs = secondsRemaining % 60;
+        const secsStr = secs < 10 ? '0' + secs : '' + secs;
+        const timerText = '\u23F1 ' + mins + ':' + secsStr;
+
+        ctx.fillStyle = secondsRemaining <= 5 ? '#f88' : '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(timerText, canvasW / 2, 5);
+
+        // 3. "[ ✓ Ready ]" button — right-aligned, gold when ≤ 10 s
+        const isUrgent = secondsRemaining <= 10;
+        const btnColour = isUrgent ? '#c8b890' : '#8a7a60';
+        const btnText = '[ \u2713 Ready ]';
+
+        ctx.textAlign = 'right';
+        // Measure text width to compute the bounding rect
+        const textW = ctx.measureText(btnText).width;
+        const btnPadX = 4;
+        const btnPadY = 2;
+        const btnW = textW + btnPadX * 2;
+        const btnH = 11 + btnPadY * 2; // font size + vertical padding × 2
+        const btnX = canvasW - 8 - btnW;
+        const btnY = (barH - btnH) / 2;
+
+        // Draw button background (subtle, same as bar)
+        ctx.fillStyle = 'rgba(0,0,0,0)'; // transparent fill — border only
+
+        // Draw stroked border around button
+        ctx.strokeStyle = btnColour;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+        // Draw button text
+        ctx.fillStyle = btnColour;
+        ctx.fillText(btnText, canvasW - 8 - btnPadX, btnPadY + 1);
+
+        return {
+            readyButtonRect: { x: btnX, y: btnY, w: btnW, h: btnH },
+        };
+    },
+
+    /**
      * Check if a click is inside the unit bar. Returns index or -1.
      */
     getUnitBarClick(mouseX, mouseY, units, canvasW, canvasH) {
