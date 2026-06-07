@@ -13,7 +13,7 @@
     "prepare": "git config core.hooksPath git-hooks",
     "init": "npm install && npm run generate && echo '\\nReady! Run: npm run serve'",
     "start": "npm run serve",
-    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/game-logic/lib/ai/*.spec.js tests/game-logic/lib/ai/*.test.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js",
+    "test": "node --test tests/game-logic/*.spec.js tests/game-logic/lib/*.spec.js tests/game-logic/lib/ai/*.spec.js tests/level-generators/*.spec.js tests/level-generators/lib/*.spec.js",
     "test:properties": "node --test property-tests/*.property.js"
   },
   "keywords": [
