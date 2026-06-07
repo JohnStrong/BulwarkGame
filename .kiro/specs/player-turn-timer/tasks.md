@@ -2,14 +2,14 @@
 
 ## Overview
 
-Add a per-turn 45-second player countdown, sequential enemy unit movement (one unit per 800 ms), and a 10-second resolve pause before the next player turn. Work flows through: `GameState` (new fields), `TickTransitions` (three new sub-transitions + one removed), `TurnTransitions` (two new named transitions), `Game.loop()` (pre-tick queue seeding + post-tick move side effect), and `HUD` (three-mode active-phase top bar). All changes are in existing files.
+Add a per-turn 45-second player countdown, sequential enemy unit movement (one unit per 1 second), and a 10-second resolve pause before the next player turn. Work flows through: `GameState` (new fields), `TickTransitions` (three new sub-transitions + one removed), `TurnTransitions` (two new named transitions), `Game.loop()` (pre-tick queue seeding + post-tick move side effect), and `HUD` (three-mode active-phase top bar). All changes are in existing files.
 
 ## Tasks
 
 - [ ] 1. Add turn timer, enemy queue, and resolve fields to GameState
   - Add all nine new fields to the `@typedef` comment for `GameState` in `game-iso.js`
   - Add all nine fields to `makeInitialState()` with correct defaults (see design.md § New GameState Fields)
-  - Declare module-level constants: `TURN_DURATION_MS = 45_000`, `UNIT_STEP_INTERVAL_MS = 800`, `RESOLVE_DURATION_MS = 10_000`
+  - Declare module-level constants: `TURN_DURATION_MS = 45_000`, `UNIT_STEP_INTERVAL_MS = 1_000`, `RESOLVE_DURATION_MS = 10_000`
   - Add `pendingMoveId: null` to `makeInitialState()` as the transient scratch field
   - _Requirements: 1.1, 1.2, 1.3, 4.4, 5.9_
 

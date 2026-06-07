@@ -29,7 +29,7 @@ placement → active (outer phase, permanent once entered)
          │      ▼                                                     │
          │    'enemy'    ← enemyUnitQueue populated, stepStartMs set  │
          │      │                                                     │
-         │  _checkEnemyStep: every unitStepIntervalMs (800 ms)        │
+         │  _checkEnemyStep: every unitStepIntervalMs (1 000 ms)       │
          │    dequeue one unit → EnemyManager.moveUnit(id)            │
          │    when queue empty → turnPhase = 'resolve',               │
          │                       resolveTimerStartMs = nowMs          │
@@ -86,7 +86,7 @@ turnDurationMs:     number,          // 45_000 ms default
 
 // ── Enemy sequential movement ─────────────────────────────────────────────
 enemyUnitQueue:     string[],        // unit IDs yet to move this turn, FIFO
-unitStepIntervalMs: number,          // delay between unit moves, 800 ms default
+unitStepIntervalMs: number,          // delay between unit moves, 1 000 ms default (1 second)
 unitStepStartMs:    number | null,   // performance.now() when current step began
 
 // ── Resolve phase ─────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ turnPhase:            'player',
 turnTimerStartMs:     null,
 turnDurationMs:       45_000,
 enemyUnitQueue:       Object.freeze([]),
-unitStepIntervalMs:   800,
+unitStepIntervalMs:   1_000,
 unitStepStartMs:      null,
 resolveDurationMs:    10_000,
 resolveTimerStartMs:  null,
@@ -115,7 +115,7 @@ Module-level constants (declared alongside `PLACEMENT_DURATION_MS`):
 
 ```js
 const TURN_DURATION_MS      = 45_000;
-const UNIT_STEP_INTERVAL_MS = 800;
+const UNIT_STEP_INTERVAL_MS =  1_000;  // 1 second per unit move (v1 baseline)
 const RESOLVE_DURATION_MS   = 10_000;
 ```
 
