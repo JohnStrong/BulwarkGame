@@ -663,6 +663,144 @@ const HUD = {
     },
 
     /**
+     * Render the active-phase top bar in one of three modes:
+     *   - 'player'  : left level label, centred ⏱ M:SS timer, right [ ⏎ End Turn ] button
+     *   - 'enemy'   : centred "Enemy turn — watching N units move" in #bbb, no button
+     *   - 'resolve' : centred two-colour text (⏱ in gold, rest in #aaa), no button
+     *
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {{
+     *   turnPhase:           'player'|'enemy'|'resolve',
+     *   turnTimerStartMs:    number|null,
+     *   turnDurationMs:      number,
+     *   enemyUnitQueue:      string[],
+     *   resolveTimerStartMs: number|null,
+     *   resolveDurationMs:   number,
+     *   canvasW:             number,
+     *   levelLabel:          string,
+     * }} state
+     * @returns {{ endTurnButtonRect: {x,y,w,h}|null }}
+     */
+    renderActiveTurnHUD(ctx, state) {
+        const {
+            turnPhase,
+            turnTimerStartMs,
+            turnDurationMs,
+            enemyUnitQueue,
+            resolveTimerStartMs,
+            resolveDurationMs,
+            canvasW,
+            levelLabel,
+        } = state;
+
+        const barH = 20;
+
+        // Background — same as renderTopBar / renderPlacementHUD
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, canvasW, barH);
+
+        ctx.font = '11px monospace';
+        ctx.textBaseline = 'top';
+
+        // ── Left: level label (always shown) ────────────────────────────
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText(levelLabel, 8, 5);
+
+        if (turnPhase === 'player') {
+            // ── Player turn mode ─────────────────────────────────────────
+
+            // Compute seconds remaining
+            const nowMs = performance.now();
+            const elapsed = (turnTimerStartMs !== null) ? (nowMs - turnTimerStartMs) : 0;
+            const secsLeft = Math.max(0, Math.floor((turnDurationMs - elapsed) / 1000));
+            const mins = Math.floor(secsLeft / 60);
+            const secs = secsLeft % 60;
+            const secsStr = secs < 10 ? '0' + secs : '' + secs;
+            const timerText = '\u23F1 ' + mins + ':' + secsStr;
+
+            // Timer colour: #fff > 5 s, #f88 when ≤ 5 s
+            ctx.fillStyle = secsLeft <= 5 ? '#f88' : '#fff';
+            ctx.textAlign = 'center';
+            ctx.fillText(timerText, canvasW / 2, 5);
+
+            // End Turn button — right-aligned
+            const isUrgent = secsLeft <= 10;
+            const btnColour = isUrgent ? '#c8b890' : '#8a7a60';
+            const btnText = '[ \u23CE End Turn ]';
+
+            ctx.textAlign = 'right';
+            const textW = ctx.measureText(btnText).width;
+            const btnPadX = 4;
+            const btnPadY = 2;
+            const btnW = textW + btnPadX * 2;
+            const btnH = 11 + btnPadY * 2;
+            const btnX = canvasW - 8 - btnW;
+            const btnY = (barH - btnH) / 2;
+
+            ctx.strokeStyle = btnColour;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+            ctx.fillStyle = btnColour;
+            ctx.fillText(btnText, canvasW - 8 - btnPadX, btnPadY + 1);
+
+            return {
+                endTurnButtonRect: { x: btnX, y: btnY, w: btnW, h: btnH },
+            };
+
+        } else if (turnPhase === 'enemy') {
+            // ── Enemy turn mode ──────────────────────────────────────────
+            const n = Array.isArray(enemyUnitQueue) ? enemyUnitQueue.length : 0;
+            const enemyText = 'Enemy turn \u2014 watching ' + n + ' units move';
+
+            ctx.fillStyle = '#bbb';
+            ctx.textAlign = 'center';
+            ctx.fillText(enemyText, canvasW / 2, 5);
+
+            return { endTurnButtonRect: null };
+
+        } else {
+            // ── Resolve mode (turnPhase === 'resolve' or unknown) ────────
+            const nowMs = performance.now();
+            const resolveElapsed = (resolveTimerStartMs !== null) ? (nowMs - resolveTimerStartMs) : 0;
+            const resolveSecsLeft = Math.max(0, Math.ceil((resolveDurationMs - resolveElapsed) / 1000));
+            const resMins = Math.floor(resolveSecsLeft / 60);
+            const resSecs = resolveSecsLeft % 60;
+            const resSecsStr = resSecs < 10 ? '0' + resSecs : '' + resSecs;
+            const timerSegment = '\u23F1 ' + resMins + ':' + resSecsStr;
+
+            const prefixText = 'Resolving\u2026 ';
+            const suffixText = ' \u2014 Get ready for your next turn';
+
+            // Draw two-colour text centred around canvasW/2
+            // Measure all three segments to find total width and starting x
+            ctx.font = '11px monospace';
+            const prefixW = ctx.measureText(prefixText).width;
+            const timerW  = ctx.measureText(timerSegment).width;
+            const suffixW = ctx.measureText(suffixText).width;
+            const totalW  = prefixW + timerW + suffixW;
+            const startX  = Math.round((canvasW - totalW) / 2);
+
+            ctx.textAlign = 'left';
+
+            // "Resolving… " in #aaa
+            ctx.fillStyle = '#aaa';
+            ctx.fillText(prefixText, startX, 5);
+
+            // "⏱ 0:SS" in #f8c870 (warm gold)
+            ctx.fillStyle = '#f8c870';
+            ctx.fillText(timerSegment, startX + prefixW, 5);
+
+            // " — Get ready for your next turn" in #aaa
+            ctx.fillStyle = '#aaa';
+            ctx.fillText(suffixText, startX + prefixW + timerW, 5);
+
+            return { endTurnButtonRect: null };
+        }
+    },
+
+    /**
      * Check if a click is inside the unit bar. Returns index or -1.
      */
     getUnitBarClick(mouseX, mouseY, units, canvasW, canvasH) {

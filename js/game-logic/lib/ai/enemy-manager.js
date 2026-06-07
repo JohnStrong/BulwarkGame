@@ -756,6 +756,79 @@ const EnemyManager = {
     },
 
     // ------------------------------------------------------------------
+    // moveUnit — sequential per-unit movement (Requirements: 4.2, 4.5, 9.3)
+    // ------------------------------------------------------------------
+
+    /**
+     * Move exactly one enemy unit one step along its path toward the target.
+     * Called by Game.loop() post-tick when pendingMoveId is non-null, once
+     * per dequeued unit ID during the enemy phase.
+     *
+     * Unlike executeTurn() which advances ALL units in a single call,
+     * moveUnit() advances only the unit with the given ID. This enables
+     * the sequential one-unit-per-second animation pattern.
+     *
+     * Algorithm:
+     *   1. Find the unit by ID; no-op if not found.
+     *   2. Find path from unit's current position to the target set
+     *      (castle perimeter or keep tiles).
+     *   3. Advance the unit one tile along the path if the destination
+     *      passes the terrain and occupancy checks (same guards as executeTurn).
+     *
+     * @param {string} unitId  — stable ID of the unit to move (e.g. 'enemy-0')
+     */
+    moveUnit(unitId) {
+        const PE = getPathfindingEngine();
+        const tileGraph = this._worldKnowledgeMap;
+
+        if (!tileGraph) return; // not initialised
+
+        // Step 1: find the unit
+        const unit = this._units.find(u => u.id === unitId);
+        if (!unit) return; // unit not found (may have been removed)
+
+        // Step 2: select target set
+        const tiles = Array.from(tileGraph.values());
+        const targetSet = this._castleBreached
+            ? computeKeepTileSet(tiles)
+            : computeCastlePerimeter(tiles, tileGraph);
+
+        // Step 3: find path
+        const sharedThreatMap = this._sharedThreatMap || new Map();
+        const path = PE.findPath(
+            unit.type,
+            unit.row,
+            unit.col,
+            targetSet,
+            tileGraph,
+            sharedThreatMap
+        );
+
+        if (!path || path.length === 0) return; // no path — unit stays
+
+        const dest = path[0]; // advance 1 tile
+
+        // Terrain passability check (same guard as executeTurn)
+        const destTile = tileGraph.get(PE.tileKey(dest.row, dest.col));
+        if (!destTile) return;
+
+        const destChar = PE.resolveTileChar(destTile);
+        const baseCost = PE.getMovementCost(destChar, unit.type);
+        if (baseCost === Infinity) return; // impassable terrain
+
+        // Occupancy check — blocked if another enemy unit is already there
+        const destKey = PE.tileKey(dest.row, dest.col);
+        const blockedByEnemy = this._units.some(
+            other => other !== unit && PE.tileKey(other.row, other.col) === destKey
+        );
+        if (blockedByEnemy) return;
+
+        // Move the unit
+        unit.row = dest.row;
+        unit.col = dest.col;
+    },
+
+    // ------------------------------------------------------------------
     // LastSeenRegistry helpers (stubs — fully implemented in task 16.2)
     // Called defensively via typeof checks in executeTurn, but also
     // available here so they can be tested directly.
