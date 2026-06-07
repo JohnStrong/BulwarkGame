@@ -6,26 +6,26 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
 
 ## Tasks
 
-- [ ] 1. Add turn timer, enemy queue, and resolve fields to GameState
+- [x] 1. Add turn timer, enemy queue, and resolve fields to GameState
   - Add all nine new fields to the `@typedef` comment for `GameState` in `game-iso.js`
   - Add all nine fields to `makeInitialState()` with correct defaults (see design.md § New GameState Fields)
   - Declare module-level constants: `TURN_DURATION_MS = 45_000`, `UNIT_STEP_INTERVAL_MS = 1_000`, `RESOLVE_DURATION_MS = 10_000`
   - Add `pendingMoveId: null` to `makeInitialState()` as the transient scratch field
   - _Requirements: 1.1, 1.2, 1.3, 4.4, 5.9_
 
-- [ ] 2. Update `PhaseTransitions.toActive` to accept and forward `nowMs`
+- [x] 2. Update `PhaseTransitions.toActive` to accept and forward `nowMs`
   - Add `nowMs = performance.now()` parameter
   - Set `turnPhase: 'player'` and `turnTimerStartMs: nowMs` in the returned state
   - Update the `_checkPlacementTimer` call to pass `nowMs` through
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 3. Write unit tests for updated `PhaseTransitions.toActive`
+- [x] 3. Write unit tests for updated `PhaseTransitions.toActive`
   - Depends on: task 2
   - Assert sets `turnPhase: 'player'` and `turnTimerStartMs` to the provided `nowMs`
   - Assert is still a no-op when `phase !== 'placement'` or `placementDone` is true
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 4. Implement `TurnTransitions` — predicate and named transitions
+- [x] 4. Implement `TurnTransitions` — predicate and named transitions
   - Depends on: task 1
   - Add `TurnTransitions` object to `game-iso.js`
   - `isReadyToSeedEnemyQueue(state)`: returns `true` when `phase === 'active'`, `turnPhase === 'enemy'`, `enemyUnitQueue.length === 0`, and `unitStepStartMs === null` — replaces the 4-clause inline guard in `Game.loop()`
@@ -33,7 +33,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - `endPlayerTurn(state, nowMs, enemyIds)`: delegates to `beginEnemyPhase` — convenience alias for the End Turn button click path
   - _Requirements: 6.3, 6.4, 9.2_
 
-- [ ] 5. Write unit tests for `TurnTransitions`
+- [x] 5. Write unit tests for `TurnTransitions`
   - Depends on: task 4
   - Assert `isReadyToSeedEnemyQueue` returns `true` only when all four conditions hold; `false` for each individually failing condition
   - Assert `beginEnemyPhase` sets `turnPhase: 'enemy'` and `enemyUnitQueue` to the provided IDs
@@ -41,7 +41,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Assert `endPlayerTurn` delegates correctly and is idempotent
   - _Requirements: 9.2_
 
-- [ ] 6. Implement `TickTransitions._checkTurnTimer`
+- [x] 6. Implement `TickTransitions._checkTurnTimer`
   - Depends on: task 1
   - Add `_checkTurnTimer(state, nowMs)` to `TickTransitions`
   - No-op when `phase !== 'active'` or `turnPhase !== 'player'`
@@ -50,7 +50,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Insert into `tick()` pipeline after `_checkAllPlaced`
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 8.4_
 
-- [ ] 7. Write unit tests for `_checkTurnTimer`
+- [x] 7. Write unit tests for `_checkTurnTimer`
   - Depends on: task 6
   - Assert no-op when `phase !== 'active'`; no-op when `turnPhase !== 'player'`
   - Assert arms timer when `turnTimerStartMs === null`
@@ -58,7 +58,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Assert no change when `elapsed < turnDurationMs`
   - _Requirements: 10.1_
 
-- [ ] 8. Implement `TickTransitions._checkEnemyStep`
+- [x] 8. Implement `TickTransitions._checkEnemyStep`
   - Depends on: task 1
   - Add `_checkEnemyStep(state, nowMs)` to `TickTransitions`
   - No-op when `phase !== 'active'` or `turnPhase !== 'enemy'`
@@ -68,7 +68,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Insert into `tick()` pipeline after `_checkTurnTimer`
   - _Requirements: 4.2, 4.3, 9.3_
 
-- [ ] 9. Write unit tests for `_checkEnemyStep`
+- [x] 9. Write unit tests for `_checkEnemyStep`
   - Depends on: task 8
   - Assert no-op when `turnPhase !== 'enemy'`
   - Assert arms step timer when `unitStepStartMs === null`
@@ -77,7 +77,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Assert no change when `elapsed < unitStepIntervalMs` and queue non-empty
   - _Requirements: 10.3_
 
-- [ ] 10. Implement `TickTransitions._checkResolveTimer` and remove `_advanceTurnCounter`
+- [x] 10. Implement `TickTransitions._checkResolveTimer` and remove `_advanceTurnCounter`
   - Depends on: task 1
   - Add `_checkResolveTimer(state, nowMs)` to `TickTransitions`
   - No-op when `phase !== 'active'` or `turnPhase !== 'resolve'`
@@ -87,7 +87,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Remove `_advanceTurnCounter` from the pipeline
   - _Requirements: 5.2, 5.3, 5.4, 8.1, 9.4_
 
-- [ ] 11. Write unit tests for `_checkResolveTimer`
+- [x] 11. Write unit tests for `_checkResolveTimer`
   - Depends on: task 10
   - Assert no-op when `turnPhase !== 'resolve'`
   - Assert arms timer when `resolveTimerStartMs === null`
@@ -95,7 +95,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Assert no change when `elapsed < resolveDurationMs`
   - _Requirements: 10.4_
 
-- [ ] 12. Update `Game.loop()` — pre-tick queue seeding and post-tick move execution
+- [x] 12. Update `Game.loop()` — pre-tick queue seeding and post-tick move execution
   - Depends on: tasks 4, 6, 8, 10
   - Replace the 4-clause inline guard with `TurnTransitions.isReadyToSeedEnemyQueue(this._state)` — see design.md for the updated loop snippet
   - Add a **pre-tick block**: if `isReadyToSeedEnemyQueue` → call `beginEnemyPhase` (and `spawnWave` on first time via `_waveSpawned`)
@@ -104,7 +104,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Remove the existing `if (phase === 'active')` enemy executeTurn block entirely
   - _Requirements: 4.1, 4.5, 9.1, 9.2, 9.3_
 
-- [ ] 13. Implement `HUD.renderActiveTurnHUD` — three-mode top bar
+- [x] 13. Implement `HUD.renderActiveTurnHUD` — three-mode top bar
   - Depends on: task 1
   - Add `renderActiveTurnHUD(ctx, state)` to `hud.js`
   - **Player turn mode**: left level label, centred `⏱ M:SS`, right `[ ⏎ End Turn ]` (timer colour `#fff`→`#f88`; button `#8a7a60`→`#c8b890` when ≤ 10 s)
@@ -113,14 +113,14 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Return `{ endTurnButtonRect }` (null when not in player turn)
   - _Requirements: 4.6, 5.5, 5.6, 5.7, 5.8, 6.1, 6.2, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7_
 
-- [ ] 14. Write unit tests for `HUD.renderActiveTurnHUD`
+- [x] 14. Write unit tests for `HUD.renderActiveTurnHUD`
   - Depends on: task 13
   - Assert returns `{ endTurnButtonRect: null }` when `turnPhase !== 'player'`
   - Assert returns a non-null rect when `turnPhase === 'player'`
   - Assert does not throw for enemy or resolve mode
   - _Requirements: 7.7_
 
-- [ ] 15. Wire `renderActiveTurnHUD` into `_render()` and update click handler
+- [x] 15. Wire `renderActiveTurnHUD` into `_render()` and update click handler
   - Depends on: tasks 4, 13
   - In `_render()`, replace `HUD.renderTopBar(...)` with `HUD.renderActiveTurnHUD(ctx, { ... })` for the active phase
   - Return `{ lastActiveTurnRects }` from the active phase branch
@@ -128,12 +128,12 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - In `InputTransitions.applyClick`, add End Turn button hit-test calling `TurnTransitions.endPlayerTurn(state, performance.now(), enemyIds)`
   - _Requirements: 6.1, 6.2, 6.5, 6.6_
 
-- [ ] 16. Update `_setupLevel()` to reset all turn sub-state fields
+- [x] 16. Update `_setupLevel()` to reset all turn sub-state fields
   - Depends on: task 1
   - Reset `turnPhase: 'player'`, `turnTimerStartMs: null`, `enemyUnitQueue: []`, `unitStepStartMs: null`, `resolveTimerStartMs: null`, `pendingMoveId: null` after the existing reset logic
   - _Requirements: 8.2_
 
-- [ ] 17. Write property tests
+- [x] 17. Write property tests
   - Depends on: tasks 6, 8, 10
   - File: `property-tests/player-turn-timer.property.js`
   - **Property 1** (player timer expiry): `nowMs >= startMs + duration` → `turnPhase === 'enemy'`
@@ -143,7 +143,7 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Tag: `// Feature: player-turn-timer`
   - _Requirements: 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 18. Final checkpoint — ensure all tests pass
+- [x] 18. Final checkpoint — ensure all tests pass
   - Run `npm test` and `npm run test:properties`
   - Fix regressions from `_advanceTurnCounter` removal (update tests that asserted frame-by-frame counter increment)
   - Ensure `game-iso-enemy-spawn.spec.js` (22 tests) still passes — `_waveSpawned` logic is preserved

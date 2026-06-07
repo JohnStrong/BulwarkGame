@@ -54,6 +54,20 @@
  *   // ── Turn counter ───────────────────────────────────────────────────
  *   turnCounter:         number,
  *
+ *   // ── Turn sub-state (active phase only) ─────────────────────────────
+ *   turnPhase:           'player' | 'enemy' | 'resolve',
+ *   turnTimerStartMs:    number | null,   // performance.now() when player turn started
+ *   turnDurationMs:      number,          // player turn duration in ms; default 45_000
+ *   enemyUnitQueue:      ReadonlyArray<string>,  // enemy unit IDs yet to move this turn (FIFO)
+ *   unitStepIntervalMs:  number,          // delay between enemy unit moves in ms; default 1_000
+ *   unitStepStartMs:     number | null,   // performance.now() when current step began
+ *   resolveDurationMs:   number,          // resolve phase duration in ms; default 10_000
+ *   resolveTimerStartMs: number | null,   // performance.now() when resolve phase began
+ *   lastActiveTurnRects: { endTurnButtonRect: Object|null } | null,
+ *
+ *   // ── Transient scratch (cleared within the same frame it is set) ────
+ *   pendingMoveId:       string | null,   // enemy unit ID to move this frame
+ *
  *   // ── Render output (click-target rects from last frame) ─────────────
  *   lastBriefingRects:   { playButtonRect: Object|null, moreButtonRect: Object|null } | null,
  *   lastPlacementRects:  { readyButtonRect: Object|null } | null,
@@ -89,6 +103,20 @@ function makeInitialState(unitDefs) {
 
         turnCounter:        0,
 
+        // ── Turn sub-state (active phase only) ───────────────────────────
+        turnPhase:            'player',
+        turnTimerStartMs:     null,
+        turnDurationMs:       45_000,
+        enemyUnitQueue:       Object.freeze([]),
+        unitStepIntervalMs:   1_000,
+        unitStepStartMs:      null,
+        resolveDurationMs:    10_000,
+        resolveTimerStartMs:  null,
+        lastActiveTurnRects:  null,
+
+        // ── Transient scratch ────────────────────────────────────────────
+        pendingMoveId:        null,
+
         lastBriefingRects:  null,
         lastPlacementRects: null,
     });
@@ -108,6 +136,15 @@ function update(state, patch) {
 
 /** Placement phase duration in milliseconds (30 seconds). */
 const PLACEMENT_DURATION_MS = 30_000;
+
+/** Player turn duration in milliseconds (45 seconds). */
+const TURN_DURATION_MS = 45_000;
+
+/** Delay between successive enemy unit moves during the enemy phase (1 second). */
+const UNIT_STEP_INTERVAL_MS = 1_000;
+
+/** Resolve phase duration in milliseconds (10 seconds). */
+const RESOLVE_DURATION_MS = 10_000;
 
 /**
  * AABB hit-test — returns true if (x, y) is inside rect.
@@ -207,9 +244,14 @@ const PhaseTransitions = {
      * @param {GameState} state
      * @returns {GameState}
      */
-    toActive(state) {
+    toActive(state, nowMs = performance.now()) {
         if (state.phase !== 'placement' || state.placementDone) return state;
-        return update(state, { phase: 'active', placementDone: true });
+        return update(state, {
+            phase:            'active',
+            placementDone:    true,
+            turnPhase:        'player',
+            turnTimerStartMs: nowMs,
+        });
     },
 
     /**
@@ -222,6 +264,70 @@ const PhaseTransitions = {
     toggleFurtherReading(state) {
         if (state.phase !== 'briefing') return state;
         return update(state, { briefingOpen: !state.briefingOpen });
+    },
+};
+
+// ─── Turn transitions ─────────────────────────────────────────────────────────
+
+/**
+ * Named transitions and predicates for the turn sub-state machine.
+ * These operate on the `turnPhase` field within the `'active'` outer phase.
+ */
+const TurnTransitions = {
+    /**
+     * Returns true when the first frame of a new enemy phase has arrived and
+     * the unit queue needs seeding. Used by Game.loop() to avoid a 4-clause
+     * inline guard — intent is readable in plain English at the call site.
+     *
+     * @param {GameState} state
+     * @returns {boolean}
+     */
+    isReadyToSeedEnemyQueue(state) {
+        return state.phase === 'active'
+            && state.turnPhase === 'enemy'
+            && state.enemyUnitQueue.length === 0
+            && state.unitStepStartMs === null;
+    },
+
+    /**
+     * Transitions from player turn to enemy phase. Populates the unit queue
+     * and arms the step timer.
+     * Guard: phase must be 'active' AND turnPhase must be 'player'.
+     *
+     * @param {GameState}  state
+     * @param {number}     nowMs      — performance.now() at transition time
+     * @param {string[]}   enemyIds   — ordered list of enemy unit IDs to move
+     * @returns {GameState}
+     */
+    beginEnemyPhase(state, nowMs, enemyIds) {
+        if (state.phase !== 'active' || state.turnPhase !== 'player') return state;
+        return update(state, {
+            turnPhase:        'enemy',
+            turnTimerStartMs: null,
+            enemyUnitQueue:   Object.freeze([...enemyIds]),
+            unitStepStartMs:  nowMs,
+        });
+    },
+
+    /**
+     * End Turn button click — transitions from player turn to enemy phase,
+     * leaving the enemy queue EMPTY so the pre-tick block in Game.loop() can
+     * spawn the wave (if not yet spawned) and seed the queue on the next frame.
+     *
+     * Guard: phase must be 'active' AND turnPhase must be 'player'.
+     *
+     * @param {GameState}  state
+     * @param {number}     nowMs      — performance.now() at click time
+     * @returns {GameState}
+     */
+    endPlayerTurn(state, nowMs) {
+        if (state.phase !== 'active' || state.turnPhase !== 'player') return state;
+        return update(state, {
+            turnPhase:        'enemy',
+            turnTimerStartMs: null,
+            enemyUnitQueue:   Object.freeze([]),
+            unitStepStartMs:  null,   // null → pre-tick block will seed on next frame
+        });
     },
 };
 
@@ -249,7 +355,9 @@ const TickTransitions = {
             s => TickTransitions._animateHud(s),
             s => TickTransitions._checkPlacementTimer(s, deps.nowMs),
             s => TickTransitions._checkAllPlaced(s),
-            s => TickTransitions._advanceTurnCounter(s),
+            s => TickTransitions._checkTurnTimer(s, deps.nowMs),
+            s => TickTransitions._checkEnemyStep(s, deps.nowMs),
+            s => TickTransitions._checkResolveTimer(s, deps.nowMs),
         ].reduce((s, fn) => fn(s), state);
     },
 
@@ -297,7 +405,7 @@ const TickTransitions = {
         if (state.phase !== 'placement' || state.placementDone) return state;
         const elapsed = nowMs - state.placementStartMs;
         if (elapsed >= PLACEMENT_DURATION_MS) {
-            return PhaseTransitions.toActive(state);
+            return PhaseTransitions.toActive(state, nowMs);
         }
         return state;
     },
@@ -319,8 +427,106 @@ const TickTransitions = {
     },
 
     /**
+     * Expire the player turn when the countdown reaches zero.
+     * Guards: phase must be 'active' AND turnPhase must be 'player'.
+     * This sub-transition is a complete no-op during 'enemy' and 'resolve' phases —
+     * the enemy phase is driven entirely by unitStepIntervalMs and the queue.
+     *
+     * - If turnTimerStartMs is null, arm the timer by recording nowMs.
+     * - If elapsed >= turnDurationMs, set turnPhase 'enemy' and clear the timer.
+     *   The enemy queue is seeded by Game.loop() pre-tick on the same frame.
+     * - If elapsed < turnDurationMs, leave state unchanged.
+     *
+     * @param {GameState} state
+     * @param {number}    nowMs  — current timestamp (performance.now())
+     * @returns {GameState}
+     */
+    _checkTurnTimer(state, nowMs) {
+        if (state.phase !== 'active' || state.turnPhase !== 'player') return state;
+        if (state.turnTimerStartMs === null) {
+            return update(state, { turnTimerStartMs: nowMs }); // arm on first frame
+        }
+        const elapsed = nowMs - state.turnTimerStartMs;
+        if (elapsed < state.turnDurationMs) return state;
+        // Expiry — set turnPhase: 'enemy'; loop() will seed the queue on next frame
+        return update(state, { turnPhase: 'enemy', turnTimerStartMs: null });
+    },
+
+    /**
+     * Advance the sequential enemy unit queue during the enemy phase.
+     * On each frame where turnPhase === 'enemy':
+     *   - If enemyUnitQueue is empty, transition to 'resolve'.
+     *   - If unitStepStartMs is null, arm the step timer.
+     *   - If elapsed >= unitStepIntervalMs, dequeue one unit ID into pendingMoveId
+     *     so Game.loop() can call EnemyManager.moveUnit(id) as a side effect.
+     *
+     * This sub-transition is a complete no-op when phase !== 'active' or
+     * turnPhase !== 'enemy'. It is never driven by turnDurationMs — the enemy
+     * phase runs for as long as it takes to process all units in the queue.
+     *
+     * @param {GameState} state
+     * @param {number}    nowMs  — current timestamp (performance.now())
+     * @returns {GameState}
+     */
+    _checkEnemyStep(state, nowMs) {
+        if (state.phase !== 'active' || state.turnPhase !== 'enemy') return state;
+        if (state.enemyUnitQueue.length === 0) {
+            // All units have moved — enter resolve
+            return update(state, {
+                turnPhase:           'resolve',
+                resolveTimerStartMs: nowMs,
+                unitStepStartMs:     null,
+            });
+        }
+        if (state.unitStepStartMs === null) {
+            return update(state, { unitStepStartMs: nowMs }); // arm on first frame
+        }
+        const elapsed = nowMs - state.unitStepStartMs;
+        if (elapsed < state.unitStepIntervalMs) return state;
+        // Step interval elapsed — dequeue one unit
+        const [movedId, ...remaining] = state.enemyUnitQueue;
+        return update(state, {
+            enemyUnitQueue:  Object.freeze(remaining),
+            unitStepStartMs: nowMs,
+            pendingMoveId:   movedId,   // signals loop() to call moveUnit(movedId)
+        });
+    },
+
+    /**
+     * Close the resolve pause and start the next player turn when the countdown
+     * expires. Guards: phase must be 'active' AND turnPhase must be 'resolve'.
+     *
+     * - If resolveTimerStartMs is null, arm the timer by recording nowMs.
+     * - If elapsed >= resolveDurationMs, transition back to 'player', reset
+     *   resolve state, set turnTimerStartMs to nowMs, and increment turnCounter.
+     * - If elapsed < resolveDurationMs, leave state unchanged.
+     *
+     * @param {GameState} state
+     * @param {number}    nowMs  — current timestamp (performance.now())
+     * @returns {GameState}
+     */
+    _checkResolveTimer(state, nowMs) {
+        if (state.phase !== 'active' || state.turnPhase !== 'resolve') return state;
+        if (state.resolveTimerStartMs === null) {
+            return update(state, { resolveTimerStartMs: nowMs }); // arm on first frame
+        }
+        const elapsed = nowMs - state.resolveTimerStartMs;
+        if (elapsed < state.resolveDurationMs) return state;
+        return update(state, {
+            turnPhase:           'player',
+            turnTimerStartMs:    nowMs,
+            resolveTimerStartMs: null,
+            turnCounter:         state.turnCounter + 1,
+        });
+    },
+
+    /**
      * Increment the turn counter each frame while in the active phase.
      * Guard: phase must be 'active'.
+     *
+     * NOTE: This method is kept for backward compatibility with existing tests
+     * but is no longer called from the tick() pipeline. Turn counter advancement
+     * is now handled by _checkResolveTimer at the end of each resolve phase.
      *
      * @param {GameState} state
      * @returns {GameState}
@@ -406,15 +612,22 @@ const InputTransitions = {
 
     /**
      * Handle a click while in the active phase.
-     * Delegates entirely to shared tile/unit click logic.
+     * Checks End Turn button first, then delegates to shared tile/unit click logic.
      *
      * @param {GameState} state
      * @param {number}    x
      * @param {number}    y
-     * @param {{ level, canvasW: number, canvasH: number }} deps
+     * @param {{ level, canvasW: number, canvasH: number, nowMs: number }} deps
      * @returns {GameState}
      */
     _activeClick(state, x, y, deps) {
+        // End Turn button hit-test (only rendered during player turn)
+        if (state.lastActiveTurnRects?.endTurnButtonRect) {
+            const r = state.lastActiveTurnRects.endTurnButtonRect;
+            if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+                return TurnTransitions.endPlayerTurn(state, performance.now());
+            }
+        }
         return InputTransitions._tileInteractionClick(state, x, y, deps);
     },
 
@@ -604,11 +817,21 @@ const InputTransitions = {
  * Called at the end of each frame's render pass.
  *
  * @param {GameState} state
- * @param {{ lastBriefingRects?, lastPlacementRects? }} rectPatch
+ * @param {{ lastBriefingRects?, lastPlacementRects?, lastActiveTurnRects? }} rectPatch
  * @returns {GameState}
  */
 function applyRenderRects(state, rectPatch) {
-    return update(state, rectPatch);
+    const patch = {};
+    if (rectPatch.lastBriefingRects !== undefined) {
+        patch.lastBriefingRects = rectPatch.lastBriefingRects;
+    }
+    if (rectPatch.lastPlacementRects !== undefined) {
+        patch.lastPlacementRects = rectPatch.lastPlacementRects;
+    }
+    if (rectPatch.lastActiveTurnRects !== undefined) {
+        patch.lastActiveTurnRects = rectPatch.lastActiveTurnRects;
+    }
+    return update(state, patch);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -745,6 +968,19 @@ const Game = {
         } catch (e) {
             console.warn('[Game] EnemyManager.init() failed:', e);
         }
+
+        // Reset all turn sub-state fields so each level load/restart begins
+        // with a clean player turn (Req 8.2).
+        if (this._state) {
+            this._state = update(this._state, {
+                turnPhase:           'player',
+                turnTimerStartMs:    null,
+                enemyUnitQueue:      Object.freeze([]),
+                unitStepStartMs:     null,
+                resolveTimerStartMs: null,
+                pendingMoveId:       null,
+            });
+        }
     },
 
     centerOnFlag() {
@@ -775,24 +1011,14 @@ const Game = {
     loop() {
         if (!this._state) { requestAnimationFrame(() => this.loop()); return; }
 
-        // 1. Tick: pure state transitions
-        this._state = TickTransitions.tick(this._state, { nowMs: performance.now() });
+        const nowMs = performance.now();
 
-        // 2. Side-effecting camera update — only during interactive phases
-        // Camera scroll and zoom are disabled in 'loading' and 'briefing' phases;
-        // the map is non-interactive until the player clicks Play.
-        if (this._state.phase === 'placement' || this._state.phase === 'active') {
-            const { dx, dy } = IsoInput.getScrollDir();
-            if (dx || dy) IsoCamera.scroll(dx, dy);
-            if (IsoInput.keys.zoomIn)  IsoCamera.applyZoom(IsoCamera.zoomSpeed);
-            if (IsoInput.keys.zoomOut) IsoCamera.applyZoom(-IsoCamera.zoomSpeed);
-        }
-
-        // 3. Enemy phase — gated by phase
-        if (this._state.phase === 'active') {
-            // Spawn the first wave once, on the first active-phase frame.
-            // We use a dedicated _waveSpawned flag on Game (not GameState) to
-            // avoid any dependency on turnCounter ordering relative to tick().
+        // ── Pre-tick: populate enemy queue if entering 'enemy' phase ────────
+        // When _checkTurnTimer (or endPlayerTurn) set turnPhase='enemy' on the
+        // previous frame, the queue may still be empty. Populate it here before
+        // tick() runs _checkEnemyStep.
+        if (TurnTransitions.isReadyToSeedEnemyQueue(this._state)) {
+            // First frame of enemy phase — spawn wave once, then seed the queue
             if (!this._waveSpawned) {
                 this._waveSpawned = true;
                 try {
@@ -810,17 +1036,47 @@ const Game = {
                     console.warn('[Game] EnemyManager.spawnWave() failed:', e);
                 }
             }
-            try {
-                EnemyManager.executeTurn(this._state.turnCounter, this._state.placedUnits);
-            } catch (e) {
-                console.warn('[Game] EnemyManager.executeTurn() failed:', e);
-            }
+            const enemyIds = EnemyManager.getEnemyUnits().map(u => u.id);
+            // Directly patch state — bypass beginEnemyPhase guard which requires
+            // turnPhase === 'player'. The pre-tick block only fires when
+            // turnPhase is already 'enemy' (set by _checkTurnTimer expiry), so
+            // beginEnemyPhase's player-turn guard would reject the call.
+            this._state = update(this._state, {
+                enemyUnitQueue:  Object.freeze(enemyIds),
+                unitStepStartMs: nowMs,
+            });
         }
 
-        // 4. Render — reads state, emits canvas draw calls, returns rect patch
+        // ── Tick: pure state transitions ─────────────────────────────────────
+        this._state = TickTransitions.tick(this._state, { nowMs });
+
+        // ── Post-tick: execute enemy move side effect ─────────────────────────
+        // pendingMoveId is set by _checkEnemyStep during 'enemy' turnPhase.
+        // It is consumed and cleared here so _render() always sees null.
+        if (this._state.pendingMoveId) {
+            try {
+                EnemyManager.moveUnit(this._state.pendingMoveId);
+            } catch (e) {
+                console.warn('[Game] moveUnit failed:', e);
+            }
+            this._state = update(this._state, { pendingMoveId: null });
+        }
+
+        // ── Camera ────────────────────────────────────────────────────────────
+        // Camera scroll and zoom are disabled in 'loading' and 'briefing' phases;
+        // the map is non-interactive until the player clicks Play.
+        if (this._state.phase === 'placement' || this._state.phase === 'active') {
+            const { dx, dy } = IsoInput.getScrollDir();
+            if (dx || dy) IsoCamera.scroll(dx, dy);
+            if (IsoInput.keys.zoomIn)  IsoCamera.applyZoom(IsoCamera.zoomSpeed);
+            if (IsoInput.keys.zoomOut) IsoCamera.applyZoom(-IsoCamera.zoomSpeed);
+        }
+
+        // ── Render ────────────────────────────────────────────────────────────
+        // Reads state, emits canvas draw calls, returns rect patch.
         const rectPatch = this._render(this._state);
 
-        // 5. Write render output back into state
+        // Write render output back into state
         if (rectPatch) this._state = applyRenderRects(this._state, rectPatch);
 
         requestAnimationFrame(() => this.loop());
@@ -852,7 +1108,7 @@ const Game = {
      *      § "Property 8: Render idempotence"
      *
      * @param {GameState} state
-     * @returns {{ lastBriefingRects?: Object, lastPlacementRects?: Object }}
+     * @returns {{ lastBriefingRects?: Object, lastPlacementRects?: Object, lastActiveTurnRects?: Object }}
      */
     _render(state) {
         const ctx = this.ctx;
@@ -936,14 +1192,21 @@ const Game = {
             return { lastPlacementRects };
         }
 
-        // Active phase — unchanged from current render body
+        // Active phase
         HUD.renderTilePanel(ctx, {
             hudWidth: state.hudWidth, canvasH,
             selectedTile: state.selectedTile, level,
         });
-        HUD.renderTopBar(ctx, canvasW,
-            level.name + ' | WASD scroll | +/- zoom | SPACE rotate | ' +
-            IsoCamera.viewpoint + ' ' + Math.round(IsoCamera.zoom * 100) + '%');
+        const lastActiveTurnRects = HUD.renderActiveTurnHUD(ctx, {
+            turnPhase:           state.turnPhase,
+            turnTimerStartMs:    state.turnTimerStartMs,
+            turnDurationMs:      state.turnDurationMs,
+            enemyUnitQueue:      state.enemyUnitQueue,
+            resolveTimerStartMs: state.resolveTimerStartMs,
+            resolveDurationMs:   state.resolveDurationMs,
+            canvasW,
+            levelLabel: level.name + ' | ' + IsoCamera.viewpoint + ' ' + Math.round(IsoCamera.zoom * 100) + '%',
+        });
         const barY = HUD.renderUnitBar(ctx, {
             units: state.unitDefs, selectedUnitIdx: state.selectedUnitIdx,
             canvasW, canvasH,
@@ -951,7 +1214,7 @@ const Game = {
         if (state.selectedUnitIdx >= 0) {
             HUD.renderUnitDetail(ctx, state.unitDefs[state.selectedUnitIdx], canvasW, barY);
         }
-        return {};
+        return { lastActiveTurnRects };
     }
 };
 

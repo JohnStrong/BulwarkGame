@@ -15,6 +15,7 @@ All browser-side code that runs the game lives here. These files are loaded by `
   - [GameState — the state monad](#gamestate--the-state-monad)
   - [Phase machine](#phase-machine)
   - [Tick transitions](#tick-transitions-ticktransitions)
+  - [Turn transitions](#turn-transitions-turntransitions)
   - [Input transitions](#input-transitions-inputtransitions)
 - [lib/ — Reusable Modules](#lib--reusable-modules)
 
@@ -376,10 +377,47 @@ All mutable game logic state is stored in a single frozen `GameState` value (the
 
   turnCounter:        number,
 
+  // ── Turn sub-state (active phase only) ───────────────────────────────
+  turnPhase:           'player' | 'enemy' | 'resolve',
+  turnTimerStartMs:    number | null,          // performance.now() when player turn started
+  turnDurationMs:      number,                 // player turn length in ms; default 45_000
+  enemyUnitQueue:      ReadonlyArray<string>,  // enemy unit IDs yet to move this turn (FIFO)
+  unitStepIntervalMs:  number,                 // delay between enemy unit moves in ms; default 1_000
+  unitStepStartMs:     number | null,          // performance.now() when current step began
+  resolveDurationMs:   number,                 // resolve phase length in ms; default 10_000
+  resolveTimerStartMs: number | null,          // performance.now() when resolve phase began
+  lastActiveTurnRects: { endTurnButtonRect: Object|null } | null,
+
+  // ── Transient scratch (cleared within the same frame it is set) ──────
+  pendingMoveId:       string | null,          // enemy unit ID to move this frame
+
   lastBriefingRects:  { playButtonRect, moreButtonRect } | null,
   lastPlacementRects: { readyButtonRect } | null,
 }
 ```
+
+#### Turn sub-state lifecycle
+
+During the `'active'` phase `turnPhase` cycles through three values:
+
+```
+'player'  →  timer expires or End Turn clicked  →  'enemy'
+'enemy'   →  all queued units have stepped      →  'resolve'
+'resolve' →  10 s pause elapses                 →  'player'  (turnCounter++)
+```
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| `turnPhase` | `'player'` | Only meaningful while `phase === 'active'` |
+| `turnTimerStartMs` | `null` | Armed on the first active frame; nulled on expiry |
+| `turnDurationMs` | `45_000` | Constant `TURN_DURATION_MS`; stored in state for future difficulty scaling |
+| `enemyUnitQueue` | `[]` | Frozen array seeded by `TurnTransitions.beginEnemyPhase()`; each step pops one ID |
+| `unitStepIntervalMs` | `1_000` | Constant `UNIT_STEP_INTERVAL_MS` — 1 second per unit move (v1 baseline) |
+| `unitStepStartMs` | `null` | Reset to `nowMs` after each unit step |
+| `resolveDurationMs` | `10_000` | Constant `RESOLVE_DURATION_MS`; stored in state for future difficulty scaling |
+| `resolveTimerStartMs` | `null` | Armed when `'resolve'` is entered; nulled on expiry |
+| `lastActiveTurnRects` | `null` | Hit-test rects for the active-phase HUD (End Turn button) |
+| `pendingMoveId` | `null` | Transient — written by `_checkEnemyStep`, consumed and cleared by `loop()` before `_render()` runs |
 
 `makeInitialState(unitDefs)` constructs the initial frozen state from a unit definition array (loaded via `UnitManager`). All nested arrays and objects are also frozen on construction.
 
@@ -400,6 +438,9 @@ These plain functions live at module scope, not on `Game`. They are stateless an
 | Helper | Description |
 |--------|-------------|
 | `PLACEMENT_DURATION_MS` | `30_000` — placement phase timeout in ms |
+| `TURN_DURATION_MS` | `45_000` — player turn length in ms |
+| `UNIT_STEP_INTERVAL_MS` | `1_000` — delay between enemy unit moves in ms (1 second per unit, v1 baseline) |
+| `RESOLVE_DURATION_MS` | `10_000` — resolve phase pause length in ms |
 | `_hitTest(x, y, rect)` | AABB point-in-rect test |
 | `_canPlaceOn(sprite)` | Returns `true` if terrain allows unit placement. Blocked prefixes: `tree-`, `water-`, `castle-wall`, `castle-keep-`, `castle-gatehouse`, `rock` |
 | `_getUnitBarClick(mouseX, mouseY, unitDefs, canvasW, canvasH)` | Returns the clicked unit bar slot index, or `-1` if no slot was hit |
@@ -457,22 +498,25 @@ All phase transitions are guarded and idempotent. Calling a transition in the wr
 
 ```
 Game.loop()
-  1. TickTransitions.tick(state, { nowMs })      // pure: animate, check timer
+  0. Pre-tick: if TurnTransitions.isReadyToSeedEnemyQueue(state)
+       → (first frame of enemy phase) spawnWave() if !_waveSpawned
+       → update(state, { enemyUnitQueue: Object.freeze(enemyIds), unitStepStartMs: nowMs })
+         // Direct patch — bypasses beginEnemyPhase because turnPhase is already 'enemy'
+         // (set by _checkTurnTimer expiry). beginEnemyPhase's guard requires turnPhase === 'player'
+         // and would return state unchanged. Only enemyUnitQueue and unitStepStartMs need seeding here.
+  1. TickTransitions.tick(state, { nowMs })      // pure: animate, check timers
   2. IsoCamera scroll / zoom                     // side effect, gated to 'placement' or 'active' phases
-  3. Enemy phase (gated to 'active'):
-     3a. if !_waveSpawned → _waveSpawned = true; EnemyManager.spawnWave({ units: [...] }, tiles)
-                                  // _waveSpawned is declared on Game (not GameState) so the check
-                                  // is independent of turnCounter ordering relative to tick().
-                                  // _setupLevel() resets it to false so every page reload or
-                                  // level restart re-spawns the wave.
-                                  //   4× Infantry, 2× Archer, 1× Cavalry, 1× SiegeEngine
-     3b. EnemyManager.executeTurn(turnCounter, placedUnits)  // move + act every frame
+  3. Post-tick: if state.pendingMoveId
+       → EnemyManager.moveUnit(pendingMoveId)    // move one unit; wrapped in try/catch
+       → state.pendingMoveId = null              // clear scratch field before render
   4. _render(state)                              // pure read → returns rectPatch
   5. applyRenderRects(state, rectPatch)          // write click-target rects back into state
   6. requestAnimationFrame(loop)
 ```
 
 `_render` is always synchronous — it must never `await` or return a `Promise`. This guarantees that the rect write-back in step 5 is always coherent with the draw calls in step 4.
+
+`pendingMoveId` is always `null` by the time `_render()` is called — it is written by `_checkEnemyStep` in the tick pipeline and cleared in step 3 of the same synchronous call stack.
 
 #### Camera gating by phase
 
@@ -499,9 +543,25 @@ This prevents the player from inadvertently repositioning the camera before the 
 | `_animateHud` | Smoothly moves `hudWidth` toward `hudTargetWidth` (speed 12 px/frame) |
 | `_checkPlacementTimer` | Calls `PhaseTransitions.toActive` when `nowMs − placementStartMs ≥ PLACEMENT_DURATION_MS` |
 | `_checkAllPlaced` | Calls `PhaseTransitions.toActive` when all `unitDefs` have `qtyRemaining ≤ 0` |
-| `_advanceTurnCounter` | Increments `turnCounter` each frame while phase is `'active'` |
+| `_checkTurnTimer` | No-op unless `phase === 'active'` and `turnPhase === 'player'`. Arms `turnTimerStartMs` on the first frame; sets `turnPhase: 'enemy'` when `elapsed ≥ turnDurationMs` |
+| `_checkEnemyStep` | No-op unless `turnPhase === 'enemy'`. Dequeues one unit ID into `pendingMoveId` every `unitStepIntervalMs`; transitions to `'resolve'` when the queue empties |
+| `_checkResolveTimer` | No-op unless `turnPhase === 'resolve'`. Arms `resolveTimerStartMs` on the first frame; transitions back to `'player'` and increments `turnCounter` when `elapsed ≥ resolveDurationMs` |
+
+> `_advanceTurnCounter` was removed; `turnCounter` is now incremented exactly once per full `player → enemy → resolve` cycle by `_checkResolveTimer`.
 
 Adding a new per-frame behaviour means appending one function to the pipeline array — no existing code changes.
+
+### Turn transitions (`TurnTransitions`)
+
+`TurnTransitions` contains the named transitions and predicate that manage the `player → enemy → resolve → player` cycle within the active phase.
+
+| Member | Signature | What it does |
+|--------|-----------|-------------|
+| `isReadyToSeedEnemyQueue(state)` | `state → boolean` | Returns `true` when all four conditions hold: `phase === 'active'`, `turnPhase === 'enemy'`, `enemyUnitQueue.length === 0`, `unitStepStartMs === null`. Used by `loop()` as the pre-tick guard to seed the queue exactly once per enemy phase. |
+| `beginEnemyPhase(state, nowMs, enemyIds)` | pure transition | Guard: no-op unless `phase === 'active'` **and** `turnPhase === 'player'`. Sets `turnPhase: 'enemy'`, clears `turnTimerStartMs`, populates `enemyUnitQueue` (frozen), and arms `unitStepStartMs`. Called via `endPlayerTurn` (End Turn button click). **Not** called from the `loop()` pre-tick path — when `_checkTurnTimer` fires on expiry it sets `turnPhase: 'enemy'` directly, so by the time `isReadyToSeedEnemyQueue` returns `true` the guard would reject the call. The pre-tick block instead patches `enemyUnitQueue` and `unitStepStartMs` directly with `update()`. |
+| `endPlayerTurn(state, nowMs, enemyIds)` | pure transition | Convenience alias for the End Turn button — delegates to `beginEnemyPhase`. Only valid when `turnPhase === 'player'`. |
+
+`enemyIds` is always supplied by `Game.loop()` from `EnemyManager.getEnemyUnits().map(u => u.id)`. If the array is empty (no enemies alive) the queue starts empty and `_checkEnemyStep` immediately transitions to `'resolve'` — the resolve pause plays normally and the next player turn begins.
 
 ### Input transitions (`InputTransitions`)
 
@@ -532,7 +592,7 @@ Click and mouse-move handlers are pure functions: `(state, x, y, deps) → GameS
 4. `'briefing'` phase → draw dim overlay + `HUD.renderBriefingScreen()` → return `{ lastBriefingRects }`
 5. Draw placed units via `IsoRenderer.drawUnits()`
 6. `'placement'` phase → `HUD.renderPlacementHUD()`, tile panel, unit bar → return `{ lastPlacementRects }`
-7. `'active'` phase → tile panel, top bar, unit bar → return `{}`
+7. `'active'` phase → tile panel, `HUD.renderActiveTurnHUD()` (three-mode top bar: player countdown + End Turn button / enemy step status / resolve countdown), unit bar → return `{ lastActiveTurnRects }`
 
 ### Click handling (summary)
 
