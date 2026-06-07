@@ -25,15 +25,17 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
   - Assert is still a no-op when `phase !== 'placement'` or `placementDone` is true
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 4. Implement `TurnTransitions.beginEnemyPhase` and `endPlayerTurn`
+- [ ] 4. Implement `TurnTransitions` — predicate and named transitions
   - Depends on: task 1
   - Add `TurnTransitions` object to `game-iso.js`
+  - `isReadyToSeedEnemyQueue(state)`: returns `true` when `phase === 'active'`, `turnPhase === 'enemy'`, `enemyUnitQueue.length === 0`, and `unitStepStartMs === null` — replaces the 4-clause inline guard in `Game.loop()`
   - `beginEnemyPhase(state, nowMs, enemyIds)`: no-op if not active/player; otherwise sets `turnPhase: 'enemy'`, `turnTimerStartMs: null`, `enemyUnitQueue: Object.freeze([...enemyIds])`, `unitStepStartMs: nowMs`
   - `endPlayerTurn(state, nowMs, enemyIds)`: delegates to `beginEnemyPhase` — convenience alias for the End Turn button click path
   - _Requirements: 6.3, 6.4, 9.2_
 
-- [ ] 5. Write unit tests for `TurnTransitions.beginEnemyPhase` and `endPlayerTurn`
+- [ ] 5. Write unit tests for `TurnTransitions`
   - Depends on: task 4
+  - Assert `isReadyToSeedEnemyQueue` returns `true` only when all four conditions hold; `false` for each individually failing condition
   - Assert `beginEnemyPhase` sets `turnPhase: 'enemy'` and `enemyUnitQueue` to the provided IDs
   - Assert `beginEnemyPhase` is a no-op when `phase !== 'active'` or `turnPhase !== 'player'`
   - Assert `endPlayerTurn` delegates correctly and is idempotent
@@ -95,7 +97,8 @@ Add a per-turn 45-second player countdown, sequential enemy unit movement (one u
 
 - [ ] 12. Update `Game.loop()` — pre-tick queue seeding and post-tick move execution
   - Depends on: tasks 4, 6, 8, 10
-  - Add a **pre-tick block**: if `phase === 'active'`, `turnPhase === 'enemy'`, `enemyUnitQueue.length === 0`, and `unitStepStartMs === null` → call `beginEnemyPhase` (and `spawnWave` on first time via `_waveSpawned`)
+  - Replace the 4-clause inline guard with `TurnTransitions.isReadyToSeedEnemyQueue(this._state)` — see design.md for the updated loop snippet
+  - Add a **pre-tick block**: if `isReadyToSeedEnemyQueue` → call `beginEnemyPhase` (and `spawnWave` on first time via `_waveSpawned`)
   - Move the `nowMs = performance.now()` snapshot to the top of `loop()` so both pre-tick and `tick()` receive the same clock value
   - Add a **post-tick block**: if `state.pendingMoveId` → call `EnemyManager.moveUnit(pendingMoveId)` then clear `pendingMoveId`
   - Remove the existing `if (phase === 'active')` enemy executeTurn block entirely

@@ -187,12 +187,31 @@ toActive(state, nowMs = performance.now()) {
 
 ---
 
-### `TurnTransitions.beginEnemyPhase(state, nowMs, enemyIds)`
+### `TurnTransitions` — named transitions and predicate
 
-**New** — triggered by End Turn click or player timer expiry. Populates the queue:
+**New** — all turn sub-state logic lives here, including a named predicate that replaces the 4-clause inline guard in `Game.loop()`:
 
 ```js
 const TurnTransitions = {
+    /**
+     * Returns true when the first frame of a new enemy phase has arrived and
+     * the unit queue needs seeding. Used by Game.loop() to avoid a 4-clause
+     * inline guard — intent is readable in plain English at the call site.
+     *
+     * @param {GameState} state
+     * @returns {boolean}
+     */
+    isReadyToSeedEnemyQueue(state) {
+        return state.phase === 'active'
+            && state.turnPhase === 'enemy'
+            && state.enemyUnitQueue.length === 0
+            && state.unitStepStartMs === null;
+    },
+
+    /**
+     * Transitions from player turn to enemy phase. Populates the unit queue
+     * and arms the step timer.
+     */
     beginEnemyPhase(state, nowMs, enemyIds) {
         if (state.phase !== 'active' || state.turnPhase !== 'player') return state;
         return update(state, {
@@ -314,9 +333,7 @@ loop() {
     // When _checkTurnTimer (or endPlayerTurn) set turnPhase='enemy' on the
     // previous frame, the queue may still be empty. Populate it here before
     // tick() runs _checkEnemyStep.
-    if (this._state.phase === 'active' && this._state.turnPhase === 'enemy'
-            && this._state.enemyUnitQueue.length === 0
-            && this._state.unitStepStartMs === null) {
+    if (TurnTransitions.isReadyToSeedEnemyQueue(this._state)) {
         // First frame of enemy phase — seed the queue and optionally spawn
         if (!this._waveSpawned) {
             this._waveSpawned = true;
