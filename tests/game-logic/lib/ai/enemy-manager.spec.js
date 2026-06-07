@@ -4,7 +4,8 @@
  *
  * Focuses on:
  *   - moveUnit (Requirements 4.2, 4.5, 9.3) — new sequential move API
- *   - identifySpawnPoints edge cases
+ *   - identifySpawnPoints (new column-mirror + radius algorithm)
+ *   - _offsetToCube / _hexDistance helpers (via identifySpawnPoints behaviour)
  *   - getSpawnPoints / getEngagementZoneRegistry accessors
  *   - ZONE_* and ENGAGE_* constants
  *
@@ -112,7 +113,13 @@ describe('EnemyManager.moveUnit — no-op guards', () => {
 
 describe('EnemyManager.moveUnit — basic movement (Requirement 4.2)', () => {
     it('moves the identified unit exactly one tile closer to the target', () => {
-        const tiles = makeMinimalGrid();
+        // Use a wider grid so the spawn centre (mirrored from keep) is far enough
+        // from the castle perimeter that moveUnit has somewhere to advance.
+        // F at (1,0), maxCol=6 → spawn centre=(1,6). Castle perimeter is near col 0.
+        const tiles = [];
+        for (let r = 0; r < 3; r++)
+            for (let c = 0; c <= 6; c++)
+                tiles.push(r === 1 && c === 0 ? keepCtr(r, c) : grass(r, c));
         EnemyManager.reset();
         EnemyManager.spawnWave({ units: [{ type: 'Infantry', count: 1 }] }, tiles);
 
@@ -287,100 +294,227 @@ describe('EnemyManager.moveUnit — sharedThreatMap applied', () => {
 });
 
 // ---------------------------------------------------------------------------
-// identifySpawnPoints edge cases
+// identifySpawnPoints — column-mirror + radius-2 algorithm
+//
+// Algorithm:
+//   1. Find F tile (keep centre); fallback to map centre if not present.
+//   2. Spawn centre = same row as keep, mirrored column (maxCol - fCol).
+//   3. If computed centre is invalid/blocked, BFS to nearest Infantry-passable,
+//      non-SPAWN_BLOCKED tile.
+//   4. Return all Infantry-passable, non-SPAWN_BLOCKED tiles within
+//      SPAWN_RADIUS (2) hex steps of that centre.
+//
+// SPAWN_BLOCKED_CHARS = { '~', 'R', 'W', 'T', 'G', 'K', 'j', 'J', 'F', 'C' }
 // ---------------------------------------------------------------------------
 
-describe('identifySpawnPoints — edge cases', () => {
-    it('returns at least 2 entries even when only one passable tile exists', () => {
-        // Spawn row (row 2) has only one passable tile — should return it twice
-        const tiles = [
-            keepCtr(0, 1),
-            grass(0, 0), grass(0, 2),
-            grass(1, 0), grass(1, 1), grass(1, 2),
-            wall(2, 0), grass(2, 1), wall(2, 2), // only grass(2,1) is passable
-        ];
-        const tileGraph = buildTileGraph(tiles);
-        const result = identifySpawnPoints(tiles, tileGraph);
-        assert.ok(result.length >= 2,
-            `Expected at least 2 spawn points, got ${result.length}`);
-    });
+// Inline _hexDistance replica so spec tests can verify radius independently
+// of internal module exports (algorithm: offset → cube → Chebyshev max).
+function hexDist(rowA, colA, rowB, colB) {
+    function toCube(r, c) {
+        const x = c - (r - (r & 1)) / 2;
+        const z = r;
+        return { x, y: -x - z, z };
+    }
+    const a = toCube(rowA, colA);
+    const b = toCube(rowB, colB);
+    return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z));
+}
 
-    it('returns empty array when no passable tiles exist on spawn row', () => {
-        // All tiles on spawn row are walls — no valid spawn points
-        const tiles = [
-            keepCtr(0, 1),
-            grass(1, 0), grass(1, 1), grass(1, 2),
-            wall(2, 0), wall(2, 1), wall(2, 2), // all walls on spawn row
-        ];
-        const tileGraph = buildTileGraph(tiles);
-        const result = identifySpawnPoints(tiles, tileGraph);
-        assert.deepEqual(result, []);
-    });
+const SPAWN_RADIUS = 2;
+const BLOCKED = new Set(['~', 'R', 'W', 'T', 'G', 'K', 'j', 'J', 'F', 'C']);
 
-    it('when 3 passable tiles on spawn row, returns 2–4 evenly spaced points', () => {
-        const tiles = [
-            keepCtr(0, 2),
-            grass(0, 0), grass(0, 1), grass(0, 3),
-            grass(1, 0), grass(1, 1), grass(1, 2), grass(1, 3),
-            grass(2, 0), grass(2, 1), grass(2, 2), grass(2, 3), // 4 passable on row 2
-        ];
+describe('identifySpawnPoints — spawn centre mirrors keep column', () => {
+    it('keep at col 0, maxCol 6: spawn centre column = 6', () => {
+        // F at (2, 0), maxCol = 6 → spawn centre = (2, 6)
+        const tiles = [];
+        for (let r = 0; r < 5; r++)
+            for (let c = 0; c <= 6; c++)
+                tiles.push(r === 2 && c === 0 ? keepCtr(r, c) : grass(r, c));
         const tileGraph = buildTileGraph(tiles);
         const result = identifySpawnPoints(tiles, tileGraph);
-        assert.ok(result.length >= 2 && result.length <= 4,
-            `Expected 2–4 spawn points, got ${result.length}`);
-        // All on the same (furthest) row
-        const rows = new Set(result.map(t => t.row));
-        assert.equal(rows.size, 1, 'All spawn points should be on the same row');
-    });
-
-    it('spawn row is farthest from the F tile — row 0 when F is on last row', () => {
-        const maxRow = 4;
-        const tiles = [
-            grass(0, 0), grass(0, 1), grass(0, 2),
-            grass(1, 0), grass(1, 1), grass(1, 2),
-            grass(2, 0), grass(2, 1), grass(2, 2),
-            grass(3, 0), grass(3, 1), grass(3, 2),
-            keepCtr(maxRow, 1), grass(maxRow, 0), grass(maxRow, 2), // F on row 4
-        ];
-        const tileGraph = buildTileGraph(tiles);
-        const result = identifySpawnPoints(tiles, tileGraph);
-        // F is at row 4; row 0 is furthest
-        if (result.length > 0) {
-            for (const sp of result) {
-                assert.equal(sp.row, 0,
-                    `Spawn point should be on row 0 when F is on row ${maxRow}`);
-            }
+        assert.ok(result.length > 0, 'Should find spawn tiles near mirrored column');
+        // All result tiles must be within radius 2 of (2, 6)
+        for (const sp of result) {
+            const d = hexDist(sp.row, sp.col, 2, 6);
+            assert.ok(d <= SPAWN_RADIUS,
+                `Tile (${sp.row},${sp.col}) is ${d} hex steps from spawn centre (2,6), expected ≤ ${SPAWN_RADIUS}`);
         }
     });
 
-    it('returned spawn points are actual tile objects (with row, col, sprite)', () => {
+    it('keep at right side: spawn centre is on the left side', () => {
+        // F at (2, 8), maxCol = 8 → spawn centre = (2, 0)
+        const tiles = [];
+        for (let r = 0; r < 5; r++)
+            for (let c = 0; c <= 8; c++)
+                tiles.push(r === 2 && c === 8 ? keepCtr(r, c) : grass(r, c));
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        assert.ok(result.length > 0, 'Should find spawn tiles on the left side');
+        for (const sp of result) {
+            const d = hexDist(sp.row, sp.col, 2, 0);
+            assert.ok(d <= SPAWN_RADIUS,
+                `Tile (${sp.row},${sp.col}) is ${d} steps from (2,0), expected ≤ ${SPAWN_RADIUS}`);
+        }
+    });
+
+    it('spawn centre shares the same row as the F tile', () => {
+        // F at row 3, col 1, maxCol 5 → spawn centre = (3, 4)
+        const tiles = [];
+        for (let r = 0; r < 6; r++)
+            for (let c = 0; c <= 5; c++)
+                tiles.push(r === 3 && c === 1 ? keepCtr(r, c) : grass(r, c));
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        // All spawn tiles are within radius 2 of row 3 — so row range is [1, 5]
+        // but they must cluster around row 3 not at a distant edge row
+        const rows = result.map(t => t.row);
+        const minRow = Math.min(...rows);
+        const maxRow = Math.max(...rows);
+        assert.ok(minRow >= 1 && maxRow <= 5,
+            `Spawn tiles should cluster around keep row 3, got rows ${minRow}–${maxRow}`);
+    });
+});
+
+describe('identifySpawnPoints — pool membership invariants', () => {
+    it('all returned tiles are Infantry-passable', () => {
+        const tiles = makeMinimalGrid();
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        const PE = PathfindingEngine;
+        for (const sp of result) {
+            const t = tileGraph.get(`${sp.row},${sp.col}`);
+            assert.ok(t, `Spawn tile (${sp.row},${sp.col}) must exist in tileGraph`);
+            const ch = PE.resolveTileChar(t);
+            assert.ok(PE.getMovementCost(ch, 'Infantry') < Infinity,
+                `Spawn tile char '${ch}' must be passable for Infantry`);
+        }
+    });
+
+    it('no returned tile has a SPAWN_BLOCKED char (water / rock / castle)', () => {
+        // Spawn centre will be near (1, 4); place water and a wall right there
+        const tiles = [
+            keepCtr(1, 0),
+            grass(1, 1), grass(1, 2), grass(1, 3),
+            water(1, 4),                  // ~ blocked at centre — BFS finds grass(1,3)
+            water(0, 3), water(0, 4),     // more water nearby
+            wall(2, 3), tower(2, 4),
+            grass(0, 0), grass(0, 1), grass(0, 2),
+            grass(2, 0), grass(2, 1), grass(2, 2),
+        ];
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        const PE = PathfindingEngine;
+        for (const sp of result) {
+            const ch = PE.resolveTileChar(tileGraph.get(`${sp.row},${sp.col}`));
+            assert.ok(!BLOCKED.has(ch),
+                `Spawn tile char '${ch}' must not be in SPAWN_BLOCKED_CHARS`);
+        }
+    });
+
+    it('no duplicate tiles in result', () => {
+        const tiles = makeMinimalGrid();
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        const keys = result.map(t => `${t.row},${t.col}`);
+        const unique = new Set(keys);
+        assert.equal(keys.length, unique.size, 'Result must contain no duplicate tiles');
+    });
+
+    it('returned tiles are actual tile objects (row, col, sprite)', () => {
         const tiles = makeMinimalGrid();
         const tileGraph = buildTileGraph(tiles);
         const result = identifySpawnPoints(tiles, tileGraph);
         for (const sp of result) {
-            assert.ok(typeof sp.row === 'number', 'spawn point should have numeric row');
-            assert.ok(typeof sp.col === 'number', 'spawn point should have numeric col');
-            assert.ok(typeof sp.sprite === 'string', 'spawn point should have a sprite string');
+            assert.equal(typeof sp.row, 'number', 'spawn point must have numeric row');
+            assert.equal(typeof sp.col, 'number', 'spawn point must have numeric col');
+            assert.equal(typeof sp.sprite, 'string', 'spawn point must have a sprite string');
         }
     });
 
-    it('uses row 0 as fallback F row when no F tile is present', () => {
-        // Grid with no keepCtr — fallback fRow = 0.
-        // Then farthest row = maxRow.
+    it('every result tile is within SPAWN_RADIUS hex steps of the spawn centre', () => {
+        // F at (2, 0), maxCol = 6 → spawn centre = (2, 6)
+        const tiles = [];
+        for (let r = 0; r < 5; r++)
+            for (let c = 0; c <= 6; c++)
+                tiles.push(r === 2 && c === 0 ? keepCtr(r, c) : grass(r, c));
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        for (const sp of result) {
+            const d = hexDist(sp.row, sp.col, 2, 6);
+            assert.ok(d <= SPAWN_RADIUS,
+                `Tile (${sp.row},${sp.col}) dist=${d} exceeds SPAWN_RADIUS=${SPAWN_RADIUS}`);
+        }
+    });
+});
+
+describe('identifySpawnPoints — BFS fallback when centre is blocked', () => {
+    it('BFS finds a valid tile when the mirrored centre is a wall', () => {
+        // F at (1, 0), maxCol = 2 → computed centre = (1, 2) = wall
         const tiles = [
-            grass(0, 0), grass(0, 1),
-            grass(1, 0), grass(1, 1),
-            grass(2, 0), grass(2, 1), // maxRow=2, furthest from fRow=0
+            keepCtr(1, 0),
+            grass(1, 1),
+            wall(1, 2),
+            grass(0, 0), grass(0, 1), grass(0, 2),
+            grass(2, 0), grass(2, 1), grass(2, 2),
         ];
         const tileGraph = buildTileGraph(tiles);
         const result = identifySpawnPoints(tiles, tileGraph);
-        assert.ok(result.length >= 2,
-            'Should return spawn points on the furthest row even without an F tile');
-        if (result.length > 0) {
-            for (const sp of result) {
-                assert.equal(sp.row, 2,
-                    'Spawn row should be row 2 (farthest from row 0 fallback)');
-            }
+        assert.ok(result.length > 0, 'BFS should find a valid spawn tile near the wall');
+        const PE = PathfindingEngine;
+        for (const sp of result) {
+            const ch = PE.resolveTileChar(tileGraph.get(`${sp.row},${sp.col}`));
+            assert.ok(!BLOCKED.has(ch), `BFS fallback returned a blocked tile '${ch}'`);
+        }
+    });
+
+    it('BFS finds a valid tile when the mirrored centre coincides with the F tile', () => {
+        // F at (0, 0), maxCol = 0 → spawn centre = (0, 0) = F tile (blocked)
+        const tiles = [
+            keepCtr(0, 0),
+            grass(1, 0), grass(1, 1), grass(0, 1),
+        ];
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        assert.ok(result.length > 0, 'BFS should find grass adjacent to blocked centre');
+    });
+
+    it('returns empty array when every tile on the map is blocked', () => {
+        const tiles = [
+            keepCtr(0, 0),
+            wall(0, 1), wall(0, 2),
+            wall(1, 0), wall(1, 1), wall(1, 2),
+        ];
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        assert.deepEqual(result, [], 'No passable tiles → empty array');
+    });
+});
+
+describe('identifySpawnPoints — fallback when no F tile present', () => {
+    it('returns spawn tiles even without an F tile', () => {
+        // No keepCtr. fRow=floor(2/2)=1, fCol=floor(2/2)=1 → spawnCentre=(1, 2-1=1)
+        const tiles = [
+            grass(0, 0), grass(0, 1), grass(0, 2),
+            grass(1, 0), grass(1, 1), grass(1, 2),
+            grass(2, 0), grass(2, 1), grass(2, 2),
+        ];
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        assert.ok(result.length > 0, 'Should find spawn tiles even without an F tile');
+    });
+
+    it('all tiles from no-F-tile fallback are Infantry-passable', () => {
+        const tiles = [
+            grass(0, 0), grass(0, 1), grass(0, 2),
+            grass(1, 0), grass(1, 1), grass(1, 2),
+        ];
+        const tileGraph = buildTileGraph(tiles);
+        const result = identifySpawnPoints(tiles, tileGraph);
+        const PE = PathfindingEngine;
+        for (const sp of result) {
+            const ch = PE.resolveTileChar(tileGraph.get(`${sp.row},${sp.col}`));
+            assert.ok(PE.getMovementCost(ch, 'Infantry') < Infinity,
+                `Fallback spawn tile '${ch}' must be Infantry-passable`);
         }
     });
 });
@@ -395,13 +529,13 @@ describe('EnemyManager.getSpawnPoints()', () => {
         assert.deepEqual(EnemyManager.getSpawnPoints(), []);
     });
 
-    it('returns spawn points after init', () => {
+    it('returns a non-empty array after init with a passable map', () => {
         const tiles = makeMinimalGrid();
         EnemyManager.reset();
         EnemyManager.init(tiles);
         const pts = EnemyManager.getSpawnPoints();
         assert.ok(Array.isArray(pts), 'getSpawnPoints should return an array');
-        assert.ok(pts.length >= 2, 'should have at least 2 spawn points after init');
+        assert.ok(pts.length > 0, 'should have spawn points after init with a passable map');
     });
 
     it('returns empty array after reset', () => {

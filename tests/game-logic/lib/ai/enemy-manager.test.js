@@ -518,37 +518,45 @@ describe('EnemyManager.init', () => {
         }
     });
 
-    it('populates _spawnPoints with at least 2 entries', () => {
-        // F tile at row 0; spawn points should be on the furthest row (row 2)
+    it('populates _spawnPoints with at least 1 entry on a passable map', () => {
+        // F at (0, 0), maxCol = 3 → spawn centre = (0, 3).
+        // Row 0 and neighbouring rows have grass so the pool is non-empty.
         const tiles = [
-            keepCtr(0, 2),                              // F tile at row 0
-            grass(0, 0), grass(0, 1), grass(0, 3),
+            keepCtr(0, 0),
+            grass(0, 1), grass(0, 2), grass(0, 3),
             grass(1, 0), grass(1, 1), grass(1, 2), grass(1, 3),
-            grass(2, 0), grass(2, 1), grass(2, 2), grass(2, 3), // furthest row from F
+            grass(2, 0), grass(2, 1), grass(2, 2), grass(2, 3),
         ];
         EnemyManager.reset();
         EnemyManager.init(tiles);
 
-        assert.ok(EnemyManager._spawnPoints.length >= 2,
-            `Expected at least 2 spawn points, got ${EnemyManager._spawnPoints.length}`);
+        assert.ok(EnemyManager._spawnPoints.length >= 1,
+            `Expected at least 1 spawn point, got ${EnemyManager._spawnPoints.length}`);
     });
 
-    it('spawn points are all on the same (furthest) row', () => {
-        // F tile at row 0 → furthest row is row 3
+    it('all _spawnPoints are Infantry-passable and not SPAWN_BLOCKED', () => {
+        // F at (1, 0), maxCol = 4 → spawn centre = (1, 4).
         const tiles = [
-            keepCtr(0, 1),
-            grass(0, 0), grass(0, 2),
-            grass(1, 0), grass(1, 1), grass(1, 2),
-            grass(2, 0), grass(2, 1), grass(2, 2),
-            grass(3, 0), grass(3, 1), grass(3, 2),
+            keepCtr(1, 0),
+            grass(0, 1), grass(0, 2), grass(0, 3), grass(0, 4),
+            grass(1, 1), grass(1, 2), grass(1, 3), grass(1, 4),
+            grass(2, 1), grass(2, 2), grass(2, 3), grass(2, 4),
         ];
         EnemyManager.reset();
         EnemyManager.init(tiles);
 
-        const spawnRow = EnemyManager._spawnPoints[0].row;
+        const BLOCKED = new Set(['~', 'R', 'W', 'T', 'G', 'K', 'j', 'J', 'F', 'C']);
+        const PE = require('../../../../js/game-logic/lib/ai/pathfinding-engine.js');
+        const tileGraph = PE.buildTileGraph(tiles);
+
         for (const sp of EnemyManager._spawnPoints) {
-            assert.equal(sp.row, spawnRow,
-                `All spawn points should share the same row (${spawnRow})`);
+            const t = tileGraph.get(`${sp.row},${sp.col}`);
+            assert.ok(t, `Spawn tile (${sp.row},${sp.col}) must be in the map`);
+            const ch = PE.resolveTileChar(t);
+            assert.ok(PE.getMovementCost(ch, 'Infantry') < Infinity,
+                `Spawn tile '${ch}' must be Infantry-passable`);
+            assert.ok(!BLOCKED.has(ch),
+                `Spawn tile '${ch}' must not be in SPAWN_BLOCKED_CHARS`);
         }
     });
 });
@@ -821,27 +829,24 @@ describe('EnemyManager.spawnWave', () => {
 
 describe('EnemyManager.executeTurn — basic movement (Req 5.1, 5.2)', () => {
     /**
-     * Minimal linear grid:
-     *   Row 0: keepCtr (F) — castle target
-     *   Row 1: grass
-     *   Row 2: grass   ← spawn row (furthest from F)
+     * Wide linear grid:
+     *   Cols 0..8, rows 0..2.
+     *   keepCtr at (1, 0) — left edge.
+     *   Spawn centre = (1, 8-0=8) — right edge, far from castle.
      *
-     * Columns: 0..2
-     *
-     * Even-row (row 2) SE neighbour of (2,1) → (3,1) — out of bounds.
-     * In even-row topology, NE of (2,1) → (1,1) which is closer to keepCtr.
+     * Ensures spawned units start well away from the castle perimeter and
+     * have a clear path to advance.
      */
-    function makeLinearGrid() {
-        return [
-            keepCtr(0, 1),
-            grass(0, 0), grass(0, 2),
-            grass(1, 0), grass(1, 1), grass(1, 2),
-            grass(2, 0), grass(2, 1), grass(2, 2),
-        ];
+    function makeWideGrid() {
+        const tiles = [];
+        for (let r = 0; r < 3; r++)
+            for (let c = 0; c <= 8; c++)
+                tiles.push(r === 1 && c === 0 ? keepCtr(r, c) : grass(r, c));
+        return tiles;
     }
 
     it('returns object with combatEvents array', () => {
-        const tiles = makeLinearGrid();
+        const tiles = makeWideGrid();
         EnemyManager.reset();
         EnemyManager.spawnWave({ units: [{ type: 'Infantry', count: 1 }] }, tiles);
 
@@ -851,7 +856,7 @@ describe('EnemyManager.executeTurn — basic movement (Req 5.1, 5.2)', () => {
     });
 
     it('unit moves 1 tile closer to target per turn (Req 5.2)', () => {
-        const tiles = makeLinearGrid();
+        const tiles = makeWideGrid();
         EnemyManager.reset();
         EnemyManager.spawnWave({ units: [{ type: 'Infantry', count: 1 }] }, tiles);
 
@@ -873,7 +878,7 @@ describe('EnemyManager.executeTurn — basic movement (Req 5.1, 5.2)', () => {
     });
 
     it('no units → no movement, returns empty combatEvents', () => {
-        const tiles = makeLinearGrid();
+        const tiles = makeWideGrid();
         EnemyManager.reset();
         EnemyManager.init(tiles);
         // No spawnWave — _units is empty

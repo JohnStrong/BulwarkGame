@@ -409,26 +409,69 @@ cost 1. Non-eligible units treat those tiles as impassable walls.
 
 **Code location:** `enemy-manager.js` → `identifySpawnPoints()`, `spawnWave()`
 
+### Spawn Centre Derivation
+
+Enemies don't spawn across the whole edge of the map. They enter through a
+**single concentrated entry zone** on the side of the map opposite the keep.
+
 ```
 Map layout (simplified):
 
-  Row 0 ┌──────────────────────┐  ← F tile (castle keep centre)
-        │       Castle          │
-        │                       │
-        │    open terrain       │
-        │                       │
-  Row N └──────────────────────┘  ← furthest row = SPAWN EDGE
+  col 0                              col maxCol
+      ┌──────────────────────────────────────┐
+      │                                      │
+      │  [SPAWN ZONE]          [KEEP]        │
+      │   centre col ≈         F tile        │
+      │   maxCol − fCol        fRow, fCol    │
+      │                                      │
+      └──────────────────────────────────────┘
 
-Spawn points = Infantry-passable tiles on Row N, evenly spaced
-               (min 2, max 4 selected)
+Spawn centre = (fRow, maxCol − fCol)
+             = same row as the keep, mirrored column
+```
 
-Wave placement:
-  unit[0] → spawnPoints[0]
-  unit[1] → spawnPoints[1]
-  unit[2] → spawnPoints[0]   (round-robin)
-  …
+**Step-by-step algorithm in `identifySpawnPoints()`:**
 
-If designated spawn point is occupied:
+1. **Find the `F` tile** (keep centre). Its `(fRow, fCol)` is the keep anchor.
+   Falls back to the map centre if no `F` tile exists.
+
+2. **Mirror the column.** `spawnCentreCol = maxCol − fCol`. The spawn centre
+   sits on the opposite horizontal side of the map at the same row as the keep.
+
+3. **Validate the centre.** If the computed centre lands on a blocked or
+   out-of-bounds tile, BFS outward until a valid tile is found.
+
+4. **Collect the spawn pool.** Every tile within **2 hex steps** of the centre
+   that passes all three filters is added to the spawn pool:
+   - Infantry-passable (`getMovementCost < Infinity`)
+   - Not water (`~`)
+   - Not rock (`R`) or any castle/keep structure (`W T G K j J F C`)
+
+5. **Return the pool.** `spawnWave()` round-robins units across the entire pool.
+   If no valid tiles are found an empty array is returned (caller handles this).
+
+```
+Spawn pool example (radius = 2, × = valid spawn tile):
+
+      . . . . . .
+      . × × × . .
+      . × C × . .     C = spawn centre
+      . × × × . .     × = valid spawn tiles within 2 hex steps
+      . . . . . .
+      (tiles that are water / rock / castle are silently excluded)
+```
+
+### Wave Placement
+
+```
+spawnPoints = identifySpawnPoints()   ← the radius pool above
+
+unit[0] → spawnPoints[0]
+unit[1] → spawnPoints[1]
+unit[2] → spawnPoints[2 % pool.length]   (round-robin across pool)
+…
+
+If the designated tile is already occupied:
   BFS outward until an unoccupied passable tile is found
 ```
 
