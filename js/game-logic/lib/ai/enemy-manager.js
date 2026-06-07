@@ -218,95 +218,153 @@ function computeKeepTileSet(tiles) {
 }
 
 /**
- * Identify spawn point tiles on the enemy-side edge of the map.
+ * Convert offset hex coordinates to cube coordinates (used for hex distance).
+ * Assumes pointy-top odd-row-right offset topology (matching hexNeighbors).
+ *
+ * @param {number} row
+ * @param {number} col
+ * @returns {{ x: number, y: number, z: number }}
+ */
+function _offsetToCube(row, col) {
+    const x = col - (row - (row & 1)) / 2;
+    const z = row;
+    const y = -x - z;
+    return { x, y, z };
+}
+
+/**
+ * Return the hex distance between two offset-coordinate tiles.
+ *
+ * @param {number} rowA
+ * @param {number} colA
+ * @param {number} rowB
+ * @param {number} colB
+ * @returns {number}
+ */
+function _hexDistance(rowA, colA, rowB, colB) {
+    const a = _offsetToCube(rowA, colA);
+    const b = _offsetToCube(rowB, colB);
+    return Math.max(
+        Math.abs(a.x - b.x),
+        Math.abs(a.y - b.y),
+        Math.abs(a.z - b.z),
+    );
+}
+
+/** Characters that are never valid spawn tiles regardless of movement cost. */
+const SPAWN_BLOCKED_CHARS = new Set(['~', 'R', 'W', 'T', 'G', 'K', 'j', 'J', 'F', 'C']);
+
+/**
+ * Identify spawn point tiles in a radius around the map's enemy entry point.
  *
  * Algorithm:
- * 1. Find the F tile (castle keep centre). Use row 0 as fallback if not found.
- * 2. Determine which edge row (0 or maxRow) is furthest from the F tile by
- *    absolute row distance.
- * 3. Collect all tiles on farthestRow that are passable for Infantry
- *    (getMovementCost < Infinity).
- * 4. Sort passable tiles by column, then select up to 4 evenly-spaced
- *    candidates, always including first and last. Minimum 2 spawn points.
- *    - If only 1 passable tile exists, that tile is returned twice (duplicate)
- *      so that the caller always receives at least 2 entries.
- *    - If exactly 2: return both.
- *    - If 3+: pick indices [0, floor((n-1)/3), floor(2*(n-1)/3), n-1],
- *      deduplicate while preserving order.
+ * 1. Find the F tile (castle keep centre) to determine the keep's position.
+ *    Falls back to the map centre if no F tile exists.
+ * 2. Compute the spawn centre: same row as the keep, mirrored column
+ *    (spawnCol = maxCol - fCol). This places the spawn on the opposite
+ *    horizontal side of the map from the keep.
+ * 3. If the computed spawn centre is not on a valid tile, BFS outward from
+ *    it to find the nearest Infantry-passable, non-blocked tile and use
+ *    that as the centre.
+ * 4. Collect all tiles within SPAWN_RADIUS hex steps of the centre that are:
+ *      - Infantry-passable (getMovementCost < Infinity)
+ *      - Not in SPAWN_BLOCKED_CHARS (no water, rock, or castle structures)
+ * 5. Return the collected pool. spawnWave() already round-robins across these
+ *    tiles, so the entire radius pool is returned rather than a fixed subset.
+ *    If no tiles are found, return an empty array (caller must handle).
  *
  * @param {Array} tiles     - Array of tile objects from LevelLoader.
  * @param {Map}   tileGraph - Map<"row,col", tile> from buildTileGraph().
- * @returns {Array<Object>} Spawn-point tile objects (at least 2 entries).
+ * @returns {Array<Object>} Spawn-point tile objects within the spawn radius.
  */
 function identifySpawnPoints(tiles, tileGraph) {
     const PE = getPathfindingEngine();
 
-    // Step 1: Find the F tile row
-    let fRow = 0; // fallback if no F tile found
-    for (const tile of tiles) {
-        if (PE.resolveTileChar(tile) === 'F') {
-            fRow = tile.row;
-            break;
-        }
-    }
+    /** Radius (hex steps) around the spawn centre to accept as spawn tiles. */
+    const SPAWN_RADIUS = 2;
 
-    // Step 2: Determine farthest edge row
+    // Step 1: Find the F tile (keep centre)
+    let fRow = null;
+    let fCol = null;
+    let maxCol = 0;
     let maxRow = 0;
+
     for (const tile of tiles) {
+        if (tile.col > maxCol) maxCol = tile.col;
         if (tile.row > maxRow) maxRow = tile.row;
+        if (fRow === null && PE.resolveTileChar(tile) === 'F') {
+            fRow = tile.row;
+            fCol = tile.col;
+        }
     }
 
-    const farthestRow = Math.abs(0 - fRow) > Math.abs(maxRow - fRow) ? 0 : maxRow;
+    // Fallback: use map centre if no F tile found
+    if (fRow === null) {
+        fRow = Math.floor(maxRow / 2);
+        fCol = Math.floor(maxCol / 2);
+    }
 
-    // Step 3: Collect Infantry-passable tiles on farthestRow
-    const passable = [];
+    // Step 2: Mirror the keep column to the opposite side of the map
+    const spawnCentreRow = fRow;
+    const spawnCentreCol = maxCol - fCol;
+
+    // Step 3: Verify the computed centre is usable; BFS to nearest valid tile
+    // if it lands on a blocked or out-of-bounds position.
+    let centreRow = spawnCentreRow;
+    let centreCol = spawnCentreCol;
+
+    const centreKey = PE.tileKey(spawnCentreRow, spawnCentreCol);
+    const centreTile = tileGraph.get(centreKey);
+    const isCentreValid = centreTile &&
+        PE.getMovementCost(PE.resolveTileChar(centreTile), 'Infantry') < Infinity &&
+        !SPAWN_BLOCKED_CHARS.has(PE.resolveTileChar(centreTile));
+
+    if (!isCentreValid) {
+        // BFS outward to find nearest Infantry-passable, non-blocked tile.
+        // Only visit tiles that are in the tileGraph (in-bounds) to prevent
+        // unbounded expansion into negative / out-of-range coordinates.
+        const visited = new Set([centreKey]);
+        const queue = [{ row: spawnCentreRow, col: spawnCentreCol }];
+        let found = false;
+
+        while (queue.length && !found) {
+            const { row, col } = queue.shift();
+            const t = tileGraph.get(PE.tileKey(row, col));
+            if (t) {
+                const ch = PE.resolveTileChar(t);
+                if (PE.getMovementCost(ch, 'Infantry') < Infinity && !SPAWN_BLOCKED_CHARS.has(ch)) {
+                    centreRow = row;
+                    centreCol = col;
+                    found = true;
+                    break;
+                }
+            }
+            for (const nb of PE.hexNeighbors(row, col)) {
+                const nk = PE.tileKey(nb.row, nb.col);
+                if (!visited.has(nk) && tileGraph.has(nk)) {
+                    visited.add(nk);
+                    queue.push(nb);
+                }
+            }
+        }
+
+        if (!found) {
+            // No valid tile anywhere near the spawn centre — return empty
+            return [];
+        }
+    }
+
+    // Step 4: Collect all valid tiles within SPAWN_RADIUS hex steps
+    const pool = [];
     for (const tile of tiles) {
-        if (tile.row !== farthestRow) continue;
-        const tileChar = PE.resolveTileChar(tile);
-        if (PE.getMovementCost(tileChar, 'Infantry') < Infinity) {
-            passable.push(tile);
+        if (_hexDistance(tile.row, tile.col, centreRow, centreCol) > SPAWN_RADIUS) continue;
+        const ch = PE.resolveTileChar(tile);
+        if (PE.getMovementCost(ch, 'Infantry') < Infinity && !SPAWN_BLOCKED_CHARS.has(ch)) {
+            pool.push(tile);
         }
     }
 
-    // Sort by column
-    passable.sort((a, b) => a.col - b.col);
-
-    const n = passable.length;
-
-    // Step 4: Select evenly-spaced spawn points (minimum 2)
-    if (n === 0) {
-        // No passable tiles found — return empty (caller must handle)
-        return [];
-    }
-
-    if (n === 1) {
-        // Only one passable tile; return it twice to satisfy min-2 requirement
-        return [passable[0], passable[0]];
-    }
-
-    if (n === 2) {
-        return [passable[0], passable[1]];
-    }
-
-    // 3+ passable tiles: pick up to 4 evenly-spaced indices, deduplicated
-    const rawIndices = [
-        0,
-        Math.floor((n - 1) / 3),
-        Math.floor(2 * (n - 1) / 3),
-        n - 1,
-    ];
-
-    // Deduplicate while preserving order
-    const seen = new Set();
-    const chosenIndices = [];
-    for (const idx of rawIndices) {
-        if (!seen.has(idx)) {
-            seen.add(idx);
-            chosenIndices.push(idx);
-        }
-    }
-
-    return chosenIndices.map(i => passable[i]);
+    return pool;
 }
 
 // ---------------------------------------------------------------------------

@@ -533,6 +533,8 @@ The palette definitions live in `js/level-generators/lib/palette.js` and export:
 
 Enemy units are not scripted along a fixed path — they use **A\* pathfinding** over the hex grid to find their own optimal route toward the castle every turn.
 
+**Where enemies enter.** Every wave spawns from a concentrated **entry zone** on the side of the map directly opposite the keep. The entry zone is centred on the column that mirrors the keep's position, at the same row — so if the keep sits in the right-centre of the map, enemies always flood in from the left-centre. The zone extends only **2 hex steps** from that centre point, and no unit will ever spawn on water, rock, or castle tiles. This keeps the front line predictable and rewards placing defenses to intercept the approach.
+
 **What enemies know from the start.** At the beginning of each wave, every enemy unit is given a **terrain briefing** — a static snapshot of the battlefield showing where the grass, roads, water, bridges, forests, and castle structures are. They know roughly where to go from the moment they spawn. This is the `WorldKnowledgeMap`, and it never changes during play. Crucially, it contains zero information about player deployments: no unit positions, no built defenses, no blocked bridges.
 
 **What enemies discover as they advance.** Player unit positions are unknown until an enemy gets close enough to see them (subject to the view distance rules below). The first enemy to spot a player unit reports it to the whole force — from that point every active enemy knows the last observed location of that unit and routes accordingly.
