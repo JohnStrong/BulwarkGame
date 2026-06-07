@@ -11,7 +11,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
 ## Glossary
 
 - **PlayerTurn**: The portion of each game turn during which the player may act. Begins at the start of each active-phase turn; ends when the timer expires or the player clicks End Turn.
-- **TurnDuration**: The fixed length of the PlayerTurn countdown. Default: **45 seconds**.
+- **TurnDuration**: The fixed length of the PlayerTurn countdown. Default: **45 seconds**. This timer applies **only to the player turn** — the enemy phase and resolve phase have their own independent timers and are never bounded by `TurnDuration`.
 - **TurnTimer**: The per-turn wallclock countdown displayed in the HUD during the active phase. Resets to TurnDuration at the start of each new PlayerTurn.
 - **TurnTimerStartMs**: The `performance.now()` value recorded when the current PlayerTurn began. Stored in `GameState`.
 - **EndTurnButton**: The HUD button the player may click during the PlayerTurn to close it early and begin the enemy phase immediately.
@@ -85,7 +85,7 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
 
 #### Acceptance Criteria
 
-1. WHEN `state.phase === 'active'` AND `state.turnPhase === 'player'` AND `state.turnTimerStartMs` is not null, THE `TickTransitions.tick` pipeline SHALL include a `_checkTurnTimer` sub-transition that computes `elapsed = nowMs - state.turnTimerStartMs`.
+1. WHEN `state.phase === 'active'` AND `state.turnPhase === 'player'` AND `state.turnTimerStartMs` is not null, THE `TickTransitions.tick` pipeline SHALL include a `_checkTurnTimer` sub-transition that computes `elapsed = nowMs - state.turnTimerStartMs`. This sub-transition is **only active during the player turn** — it is a complete no-op when `turnPhase` is `'enemy'` or `'resolve'`, so the enemy phase and resolve phase are never bounded or interrupted by `turnDurationMs`.
 2. IF `elapsed >= state.turnDurationMs`, THEN `_checkTurnTimer` SHALL transition to the enemy phase by calling `TurnTransitions.beginEnemyPhase(state, nowMs)`.
 3. IF `elapsed < state.turnDurationMs`, THEN `_checkTurnTimer` SHALL leave the state unchanged.
 4. `_checkTurnTimer` SHALL only run when `phase === 'active'` and `turnPhase === 'player'`; it SHALL be a no-op for all other phases and sub-states.
@@ -96,6 +96,8 @@ This is distinct from the existing placement timer, which is a one-shot pre-game
 ### Requirement 4: Enemy Phase — Sequential Unit Movement
 
 **User Story:** As a player, I want to watch enemy units move one at a time during the enemy phase, so that I can track what is happening on the battlefield and make informed decisions for my next turn.
+
+> **Timer scoping:** The enemy phase is driven entirely by `unitStepIntervalMs` and the `enemyUnitQueue`. It is **not bounded by `turnDurationMs`** — the 45-second countdown applies only to the player turn. The enemy phase runs for as long as it takes to process all units in the queue (N units × 1 second each), regardless of how much player-turn time was used or remains.
 
 #### Acceptance Criteria
 

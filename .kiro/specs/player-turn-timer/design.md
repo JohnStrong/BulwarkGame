@@ -53,7 +53,7 @@ Game.loop()
        b. _animateHud
        c. _checkPlacementTimer      (no-op once 'active')
        d. _checkAllPlaced           (no-op once 'active')
-       e. _checkTurnTimer           ← player turn expiry
+       e. _checkTurnTimer           ← player turn expiry ONLY (no-op during 'enemy'/'resolve')
        f. _checkEnemyStep           ← dequeue one unit per interval
        g. _checkResolveTimer        ← resolve countdown expiry
        (removed: _advanceTurnCounter — replaced by _checkResolveTimer)
@@ -70,6 +70,8 @@ Game.loop()
   5. applyRenderRects
   6. requestAnimationFrame
 ```
+
+> **Timer scoping:** `_checkTurnTimer` (the 45 s countdown) is guarded by `turnPhase === 'player'` and is a **complete no-op** during `'enemy'` and `'resolve'`. The enemy phase is driven entirely by `unitStepIntervalMs` and the unit queue — it runs for as long as it takes to process all N units (N × 1 s), regardless of how much player-turn time was used. The player timer only restarts once `_checkResolveTimer` transitions back to `'player'`.
 
 > **Why enemy movement stays in `loop()`, not `TickTransitions`:**
 > `EnemyManager.moveUnit()` mutates external state (enemy positions). The existing architecture keeps side effects in `loop()` and pure logic in `TickTransitions`. The tick pipeline signals **which** unit to move via a `pendingEnemyMoveId` scratch field on the state; `loop()` reads it and calls the side-effecting method.
@@ -236,7 +238,7 @@ const TurnTransitions = {
 
 ### `TickTransitions._checkTurnTimer(state, nowMs)`
 
-**New** — expires the player turn:
+**New** — expires the player turn. **Scoped strictly to `turnPhase === 'player'`** — this sub-transition is a complete no-op during the enemy and resolve phases. The enemy phase is driven entirely by `unitStepIntervalMs` and the queue; it is never interrupted or bounded by `turnDurationMs`.
 
 ```js
 _checkTurnTimer(state, nowMs) {
